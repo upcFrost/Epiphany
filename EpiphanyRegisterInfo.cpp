@@ -58,7 +58,7 @@ EpiphanyRegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const 
 BitVector
 EpiphanyRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
-  const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
+  const TargetFrameLowering *TFI = getFrameLowering(MF);
 
   Reserved.set(Epiphany::SP);
   Reserved.set(Epiphany::R63);// hack: dst for cmp
@@ -87,7 +87,7 @@ EpiphanyRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MBBI,
   MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo *MFI = MF.getFrameInfo();
-  const EpiphanyFrameLowering *TFI = static_cast<const EpiphanyFrameLowering *>(MF.getTarget().getFrameLowering());
+  const EpiphanyFrameLowering *TFI = static_cast<const EpiphanyFrameLowering *>(getFrameLowering(MF));
 
   // In order to work out the base and offset for addressing, the FrameLowering
   // code needs to know (sometimes) whether the instruction is storing/loading a
@@ -150,7 +150,7 @@ EpiphanyRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MBBI,
 
 unsigned
 EpiphanyRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-  const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
+  const TargetFrameLowering *TFI = getFrameLowering(MF);
 
   if (TFI->hasFP(MF))
     return Epiphany::R11;
@@ -160,7 +160,7 @@ EpiphanyRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
 
 bool
 EpiphanyRegisterInfo::useFPForScavengingIndex(const MachineFunction &MF) const {
-  const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
+  const TargetFrameLowering *TFI = getFrameLowering(MF);
   const EpiphanyFrameLowering *AFI = static_cast<const EpiphanyFrameLowering*>(TFI);
   return AFI->useFPForAddressing(MF);
 }

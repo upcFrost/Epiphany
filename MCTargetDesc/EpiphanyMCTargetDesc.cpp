@@ -36,12 +36,10 @@
 
 using namespace llvm;
 
-MCSubtargetInfo *Epiphany_MC::createEpiphanyMCSubtargetInfo(StringRef TT,
+MCSubtargetInfo *Epiphany_MC::createEpiphanyMCSubtargetInfo(const Triple &TT,
                                                           StringRef CPU,
                                                           StringRef FS) {
-  MCSubtargetInfo *X = new MCSubtargetInfo();
-  InitEpiphanyMCSubtargetInfo(X, TT, CPU, "");
-  return X;
+  return createEpiphanyMCSubtargetInfoImpl(TT, CPU, FS);
 }
 
 
@@ -51,15 +49,14 @@ static MCInstrInfo *createEpiphanyMCInstrInfo() {
   return X;
 }
 
-static MCRegisterInfo *createEpiphanyMCRegisterInfo(StringRef Triple) {
+static MCRegisterInfo *createEpiphanyMCRegisterInfo(const Triple &Triple) {
   MCRegisterInfo *X = new MCRegisterInfo();
   InitEpiphanyMCRegisterInfo(X, Epiphany::LR);
   return X;
 }
 
 static MCAsmInfo *createEpiphanyMCAsmInfo(const MCRegisterInfo &MRI,
-                                          StringRef TT) {
-  Triple TheTriple(TT);
+                                          const Triple &TheTriple) {
 
   MCAsmInfo *MAI = new EpiphanyELFMCAsmInfo();
   unsigned Reg = MRI.getDwarfRegNum(Epiphany::SP, true);
@@ -69,25 +66,24 @@ static MCAsmInfo *createEpiphanyMCAsmInfo(const MCRegisterInfo &MRI,
   return MAI;
 }
 
-static MCCodeGenInfo *createEpiphanyMCCodeGenInfo(StringRef TT, Reloc::Model RM,
+static MCCodeGenInfo *createEpiphanyMCCodeGenInfo(const Triple &TT, Reloc::Model RM,
                                                  CodeModel::Model CM,
                                                  CodeGenOpt::Level OL) {
   MCCodeGenInfo *X = new MCCodeGenInfo();
   RM = Reloc::Static;
   CM = CodeModel::Small;
-  X->InitMCCodeGenInfo(RM, CM, OL);
+  X->initMCCodeGenInfo(RM, CM, OL);
   return X;
 }
 
 
-static MCInstPrinter *createEpiphanyMCInstPrinter(const Target &T,
+static MCInstPrinter *createEpiphanyMCInstPrinter(const Triple &T,
                                                  unsigned SyntaxVariant,
                                                  const MCAsmInfo &MAI,
                                                  const MCInstrInfo &MII,
-                                                 const MCRegisterInfo &MRI,
-                                                 const MCSubtargetInfo &STI) {
+                                                 const MCRegisterInfo &MRI) {
   if (SyntaxVariant == 0)
-    return new EpiphanyInstPrinter(MAI, MII, MRI, STI);
+    return new EpiphanyInstPrinter(MAI, MII, MRI);
   return 0;
 }
 

@@ -21,10 +21,7 @@ namespace llvm {
 class EpiphanyTargetMachine;
 
 class EpiphanySelectionDAGInfo : public TargetSelectionDAGInfo {
-  const EpiphanySubtarget *Subtarget;
 public:
-  explicit EpiphanySelectionDAGInfo(const EpiphanyTargetMachine &TM);
-  ~EpiphanySelectionDAGInfo();
 };
 
 }

@@ -33,7 +33,9 @@ EpiphanyELFMCAsmInfo::EpiphanyELFMCAsmInfo() {
 
   WeakRefDirective = "\t.weak\t";
 
-  HasLEB128 = true;
+  // TODO: did this transform into some other variable name?
+  //HasLEB128 = true;
+
   SupportsDebugInformation = true;
 
   // Exceptions handling

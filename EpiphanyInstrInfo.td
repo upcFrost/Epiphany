@@ -111,7 +111,7 @@ let Defs = [NZCV] in {
 //===----------------------------------------------------------------------===//
 
 def neg_XFORM : SDNodeXForm<imm, [{
-  return CurDAG->getTargetConstant(-N->getZExtValue(), MVT::i32);
+  return CurDAG->getTargetConstant(-N->getZExtValue(), SDLoc(N), MVT::i32);
 }]>;
 
 

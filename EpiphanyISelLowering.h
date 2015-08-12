@@ -72,7 +72,8 @@ class EpiphanyTargetMachine;
 
 class EpiphanyTargetLowering : public TargetLowering {
 public:
-  explicit EpiphanyTargetLowering(EpiphanyTargetMachine &TM);
+  explicit EpiphanyTargetLowering(const TargetMachine &TM,
+                                  const EpiphanySubtarget &STI);
 
   const char *getTargetNodeName(unsigned Opcode) const;
 
@@ -81,14 +82,14 @@ public:
   SDValue LowerFormalArguments(SDValue Chain,
                                CallingConv::ID CallConv, bool isVarArg,
                                const SmallVectorImpl<ISD::InputArg> &Ins,
-                               DebugLoc dl, SelectionDAG &DAG,
+                               SDLoc dl, SelectionDAG &DAG,
                                SmallVectorImpl<SDValue> &InVals) const;
 
   SDValue LowerReturn(SDValue Chain,
                       CallingConv::ID CallConv, bool isVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
                       const SmallVectorImpl<SDValue> &OutVals,
-                      DebugLoc dl, SelectionDAG &DAG) const;
+                      SDLoc dl, SelectionDAG &DAG) const;
 
   SDValue LowerCall(CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const;
@@ -96,11 +97,11 @@ public:
   SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
                           CallingConv::ID CallConv, bool IsVarArg,
                           const SmallVectorImpl<ISD::InputArg> &Ins,
-                          DebugLoc dl, SelectionDAG &DAG,
+                          SDLoc dl, SelectionDAG &DAG,
                           SmallVectorImpl<SDValue> &InVals) const;
 
   void SaveVarArgRegisters(CCState &CCInfo, SelectionDAG &DAG,
-                           DebugLoc DL, SDValue &Chain) const;
+                           SDLoc DL, SDValue &Chain) const;
 
 
   /// Finds the incoming stack arguments which overlap the given fixed stack
@@ -115,7 +116,7 @@ public:
 
   bool isLegalICmpImmediate(int64_t Val) const;
   SDValue getSelectableIntSetCC(SDValue LHS, SDValue RHS, ISD::CondCode CC,
-                         SDValue &A64cc, SelectionDAG &DAG, DebugLoc &dl) const;
+                         SDValue &A64cc, SelectionDAG &DAG, SDLoc &dl) const;
 
   virtual MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr *MI, MachineBasicBlock *MBB) const;
@@ -148,7 +149,6 @@ public:
 private:
   const EpiphanySubtarget *Subtarget;
   const TargetRegisterInfo *RegInfo;
-  const InstrItineraryData *Itins;
 };
 } // namespace llvm
 

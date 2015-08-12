@@ -44,17 +44,17 @@ void EpiphanyFrameLowering::splitSPAdjustments(uint64_t Total,
   }
 }
 
-void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF) const {
+void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
   EpiphanyMachineFunctionInfo *FuncInfo =
     MF.getInfo<EpiphanyMachineFunctionInfo>();
-  MachineBasicBlock &MBB = MF.front();
+  //MachineBasicBlock &MBB = MF.front();
   MachineBasicBlock::iterator MBBI = MBB.begin();
   MachineFrameInfo *MFI = MF.getFrameInfo();
-  const TargetInstrInfo &TII = *MF.getTarget().getInstrInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
 
   MachineModuleInfo &MMI = MF.getMMI();
-  const MCRegisterInfo &MRI = MMI.getContext().getRegisterInfo();
+  const MCRegisterInfo &MRI = *MF.getSubtarget().getRegisterInfo();
   bool NeedsFrameMoves = MMI.hasDebugInfo()
     || MF.getFunction()->needsUnwindTableEntry();
 
@@ -92,8 +92,8 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF) const {
   if (NeedsFrameMoves && NumInitialBytes) {
     // We emit this update even if the CFA is set from a frame pointer later so
     // that the CFA is valid in the interim.
-    MCSymbol *SPLabel = MMI.getContext().CreateTempSymbol();
-    BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::PROLOG_LABEL))
+    MCSymbol *SPLabel = MMI.getContext().createTempSymbol();
+    BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
       .addSym(SPLabel);
 
     MachineLocation Dst(MachineLocation::VirtualFP);
@@ -160,8 +160,8 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF) const {
 
   // The rest of the stack adjustment
   if (!hasFP(MF) && NumResidualBytes) {
-    CSLabel = MMI.getContext().CreateTempSymbol();
-    BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::PROLOG_LABEL))
+    CSLabel = MMI.getContext().createTempSymbol();
+    BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
       .addSym(CSLabel);
 
     MachineLocation Dst(MachineLocation::VirtualFP);
@@ -175,8 +175,8 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF) const {
   const std::vector<CalleeSavedInfo> &CSI = MFI->getCalleeSavedInfo();
   if (CSI.size()) {
     if (!CSLabel) {
-      CSLabel = MMI.getContext().CreateTempSymbol();
-      BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::PROLOG_LABEL))
+      CSLabel = MMI.getContext().createTempSymbol();
+      BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
         .addSym(CSLabel);
     }
 
@@ -197,9 +197,9 @@ EpiphanyFrameLowering::emitEpilogue(MachineFunction &MF,
 
   MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
   DebugLoc DL = MBBI->getDebugLoc();
-  const TargetInstrInfo &TII = *MF.getTarget().getInstrInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
   MachineFrameInfo &MFI = *MF.getFrameInfo();
-  unsigned RetOpcode = MBBI->getOpcode();
+  //unsigned RetOpcode = MBBI->getOpcode();
 
   // Initial and residual are named for consitency with the prologue. Note that
   // in the epilogue, the residual adjustment is executed first.
@@ -309,13 +309,15 @@ EpiphanyFrameLowering::resolveFrameIndexReference(MachineFunction &MF,
 void
 EpiphanyFrameLowering::processFunctionBeforeCalleeSavedScan(MachineFunction &MF,
                                                        RegScavenger *RS) const {
-  const EpiphanyRegisterInfo *RegInfo = static_cast<const EpiphanyRegisterInfo *>(MF.getTarget().getRegisterInfo());
+  const EpiphanyRegisterInfo *RegInfo = static_cast<const EpiphanyRegisterInfo *>(MF.getSubtarget().getRegisterInfo());
   MachineFrameInfo *MFI = MF.getFrameInfo();
-  const EpiphanyInstrInfo &TII = *static_cast<const EpiphanyInstrInfo *>(MF.getTarget().getInstrInfo());
+  const EpiphanyInstrInfo &TII = *static_cast<const EpiphanyInstrInfo *>(MF.getSubtarget().getInstrInfo());
 
   if (hasFP(MF)) {
-    MF.getRegInfo().setPhysRegUsed(Epiphany::R11);
-    MF.getRegInfo().setPhysRegUsed(Epiphany::LR);
+    // TODO: Change this because setPhysRegUsed was removed.
+    //  See rev 242173 for the necessary restructuring
+    //MF.getRegInfo().setPhysRegUsed(Epiphany::R11);
+    //MF.getRegInfo().setPhysRegUsed(Epiphany::LR);
   }
 
   // If addressing of local variables is going to be more complicated than
@@ -337,14 +339,14 @@ EpiphanyFrameLowering::processFunctionBeforeCalleeSavedScan(MachineFunction &MF,
   uint16_t ExtraReg = Epiphany::NoRegister;
 
   for (unsigned i = 0; CSRegs[i]; ++i) {
-    if (Epiphany::GPR32RegClass.contains(CSRegs[i]) && !MF.getRegInfo().isPhysRegUsed(CSRegs[i])) {
+    if (Epiphany::GPR32RegClass.contains(CSRegs[i]) && !MF.getRegInfo().isPhysRegModified(CSRegs[i])) {
       ExtraReg = CSRegs[i];
       break;
     }
   }
 
   if (ExtraReg != 0) {
-    MF.getRegInfo().setPhysRegUsed(ExtraReg);
+    //MF.getRegInfo().setPhysRegUsed(ExtraReg);
   } else {
     // Create a stack slot for scavenging purposes. PrologEpilogInserter
     // helpfully places it near either SP or FP for us to avoid
@@ -376,9 +378,9 @@ void
 EpiphanyFrameLowering::eliminateCallFramePseudoInstr(MachineFunction &MF,
                                          MachineBasicBlock &MBB,
                                          MachineBasicBlock::iterator MI) const {
-   const EpiphanyInstrInfo &TII = *static_cast<const EpiphanyInstrInfo *>(MF.getTarget().getInstrInfo());
+   const EpiphanyInstrInfo &TII = *static_cast<const EpiphanyInstrInfo *>(MF.getSubtarget().getInstrInfo());
   DebugLoc dl = MI->getDebugLoc();
-  int Opcode = MI->getOpcode();
+  unsigned int Opcode = MI->getOpcode();
   bool IsDestroy = Opcode == TII.getCallFrameDestroyOpcode();
   uint64_t CalleePopAmount = IsDestroy ? MI->getOperand(1).getImm() : 0;
 
@@ -418,7 +420,7 @@ EpiphanyFrameLowering::emitFrameMemOps(bool isPrologue, MachineBasicBlock &MBB,
   DebugLoc DL = MBB.findDebugLoc(MBBI);
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = *MF.getFrameInfo();
-  const TargetInstrInfo &TII = *MF.getTarget().getInstrInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
 
   // A certain amount of implicit contract is present here. The actual stack
   // offsets haven't been allocated officially yet, so for strictly correct code
@@ -534,7 +536,7 @@ EpiphanyFrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
 bool
 EpiphanyFrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
-  const TargetRegisterInfo *RI = MF.getTarget().getRegisterInfo();
+  const TargetRegisterInfo *RI = MF.getSubtarget().getRegisterInfo();
 
   // This is a decision of ABI compliance. The Epiphany PCS gives various options
   // for conformance, and even at the most stringent level more or less permits

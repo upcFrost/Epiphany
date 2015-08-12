@@ -32,7 +32,7 @@ EpiphanyAsmPrinter::lowerSymbolOperand(const MachineOperand &MO,
                                       const MCSymbol *Sym) const {
   const MCExpr *Expr = 0;
 
-  Expr = MCSymbolRefExpr::Create(Sym, MCSymbolRefExpr::VK_None, OutContext);
+  Expr = MCSymbolRefExpr::create(Sym, MCSymbolRefExpr::VK_None, OutContext);
 
   switch (MO.getTargetFlags()) {
   case EpiphanyII::MO_LO16:
@@ -49,12 +49,12 @@ EpiphanyAsmPrinter::lowerSymbolOperand(const MachineOperand &MO,
   }
 
   if (!MO.isJTI() && MO.getOffset())
-    Expr = MCBinaryExpr::CreateAdd(Expr,
-                                   MCConstantExpr::Create(MO.getOffset(),
+    Expr = MCBinaryExpr::createAdd(Expr,
+                                   MCConstantExpr::create(MO.getOffset(),
                                                           OutContext),
                                    OutContext);
 
-  return MCOperand::CreateExpr(Expr);
+  return MCOperand::createExpr(Expr);
 }
 
 bool EpiphanyAsmPrinter::lowerOperand(const MachineOperand &MO,
@@ -65,16 +65,16 @@ bool EpiphanyAsmPrinter::lowerOperand(const MachineOperand &MO,
     if (MO.isImplicit())
       return false;
     assert(!MO.getSubReg() && "Subregs should be eliminated!");
-    MCOp = MCOperand::CreateReg(MO.getReg());
+    MCOp = MCOperand::createReg(MO.getReg());
     break;
   case MachineOperand::MO_Immediate:
-    MCOp = MCOperand::CreateImm(MO.getImm());
+    MCOp = MCOperand::createImm(MO.getImm());
     break;
   case MachineOperand::MO_FPImmediate: {// a bit hacky, see arm
     APFloat Val = MO.getFPImm()->getValueAPF();
     bool ignored;
     Val.convert(APFloat::IEEEdouble, APFloat::rmTowardZero, &ignored);
-    MCOp = MCOperand::CreateFPImm(Val.convertToDouble());
+    MCOp = MCOperand::createFPImm(Val.convertToDouble());
     break;
    }
   case MachineOperand::MO_BlockAddress:
@@ -84,10 +84,10 @@ bool EpiphanyAsmPrinter::lowerOperand(const MachineOperand &MO,
     MCOp = lowerSymbolOperand(MO, GetExternalSymbolSymbol(MO.getSymbolName()));
     break;
   case MachineOperand::MO_GlobalAddress:
-    MCOp = lowerSymbolOperand(MO, Mang->getSymbol(MO.getGlobal()));
+    MCOp = lowerSymbolOperand(MO, TM.getSymbol(MO.getGlobal(), *Mang));
     break;
   case MachineOperand::MO_MachineBasicBlock:
-    MCOp = MCOperand::CreateExpr(MCSymbolRefExpr::Create(
+    MCOp = MCOperand::createExpr(MCSymbolRefExpr::create(
                                    MO.getMBB()->getSymbol(), OutContext));
     break;
   case MachineOperand::MO_JumpTableIndex:

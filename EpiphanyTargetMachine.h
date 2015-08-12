@@ -28,12 +28,10 @@ class EpiphanyTargetMachine : public LLVMTargetMachine {
   EpiphanySubtarget          Subtarget;
   EpiphanyInstrInfo          InstrInfo;
   const DataLayout          DL;
-  EpiphanyTargetLowering     TLInfo;
-  EpiphanySelectionDAGInfo   TSInfo;
-  EpiphanyFrameLowering      FrameLowering;
+  std::unique_ptr<TargetLoweringObjectFile> TLOF;
 
 public:
-  EpiphanyTargetMachine(const Target &T, StringRef TT, StringRef CPU,
+  EpiphanyTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                        StringRef FS, const TargetOptions &Options,
                        Reloc::Model RM, CodeModel::Model CM,
                        CodeGenOpt::Level OL);
@@ -42,19 +40,13 @@ public:
     return &InstrInfo;
   }
 
-  const EpiphanyFrameLowering *getFrameLowering() const {
-    return &FrameLowering;
+  void resetSubtarget(MachineFunction *MF);
+
+  TargetLoweringObjectFile* getObjFileLowering() const override {
+    return TLOF.get();
   }
 
-  const EpiphanyTargetLowering *getTargetLowering() const {
-    return &TLInfo;
-  }
-
-  const EpiphanySelectionDAGInfo *getSelectionDAGInfo() const {
-    return &TSInfo;
-  }
-
-  const EpiphanySubtarget *getSubtargetImpl() const { return &Subtarget; }
+  const EpiphanySubtarget *getSubtargetImpl(const Function &F) const override { return &Subtarget; }
 
   const DataLayout *getDataLayout() const { return &DL; }
 

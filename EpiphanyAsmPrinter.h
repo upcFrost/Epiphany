@@ -23,6 +23,7 @@
 namespace llvm {
 
 class MCOperand;
+class EpiphanySubtarget;
 
 class LLVM_LIBRARY_VISIBILITY EpiphanyAsmPrinter : public AsmPrinter {
 
@@ -35,9 +36,8 @@ class LLVM_LIBRARY_VISIBILITY EpiphanyAsmPrinter : public AsmPrinter {
                                    const MachineInstr *MI);
 
   public:
-  explicit EpiphanyAsmPrinter(TargetMachine &TM, MCStreamer &Streamer)
-    : AsmPrinter(TM, Streamer) {
-    Subtarget = &TM.getSubtarget<EpiphanySubtarget>();
+  explicit EpiphanyAsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer)
+    : AsmPrinter(TM, std::move(Streamer)) {
   }
 
   bool lowerOperand(const MachineOperand &MO, MCOperand &MCOp) const;
@@ -45,7 +45,7 @@ class LLVM_LIBRARY_VISIBILITY EpiphanyAsmPrinter : public AsmPrinter {
   MCOperand lowerSymbolOperand(const MachineOperand &MO,
                                const MCSymbol *Sym) const;
 
-  void EmitInstruction(const MachineInstr *MI);
+  void EmitInstruction(const MachineInstr *MI) override;
   void EmitEndOfAsmFile(Module &M);
 
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
@@ -74,6 +74,7 @@ class LLVM_LIBRARY_VISIBILITY EpiphanyAsmPrinter : public AsmPrinter {
   }
 
   virtual bool runOnMachineFunction(MachineFunction &MF);
+
 };
 } // end namespace llvm
 
