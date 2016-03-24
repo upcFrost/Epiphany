@@ -30,11 +30,21 @@ using namespace llvm;
 
 EpiphanyInstPrinter::EpiphanyInstPrinter(const MCAsmInfo &MAI,
                                        const MCInstrInfo &MII,
-                                       const MCRegisterInfo &MRI,
-                                       const MCSubtargetInfo &STI) :
+                                       const MCRegisterInfo &MRI) :
   MCInstPrinter(MAI, MII, MRI) {
-  // Initialize the set of available features.
-  setAvailableFeatures(STI.getFeatureBits());
+}
+
+void EpiphanyInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
+  OS << getRegisterName(RegNo);
+}
+
+void EpiphanyInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
+                                   StringRef Annot,
+                                   const MCSubtargetInfo &STI) {
+if (!printAliasInstr(MI, O))
+    printInstruction(MI, O);
+
+  printAnnotation(O, Annot);
 }
 
 void EpiphanyInstPrinter::printAddSubImmOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
@@ -91,7 +101,7 @@ void EpiphanyInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     // that address in hex.
     const MCConstantExpr *BranchTarget = dyn_cast<MCConstantExpr>(Op.getExpr());
     int64_t Address;
-    if (BranchTarget && BranchTarget->EvaluateAsAbsolute(Address)) {
+    if (BranchTarget && BranchTarget->evaluateAsAbsolute(Address)) {
       O << "0x";
       O.write_hex(Address);
     }
@@ -109,10 +119,4 @@ void EpiphanyInstPrinter::printFPImmOperand(const MCInst *MI, unsigned OpNum,
   o << '#' << format("%.8f", MOImm.getFPImm());
 }
 
-void EpiphanyInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
-                                   StringRef Annot) {
-if (!printAliasInstr(MI, O))
-    printInstruction(MI, O);
 
-  printAnnotation(O, Annot);
-}

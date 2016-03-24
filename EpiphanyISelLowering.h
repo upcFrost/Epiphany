@@ -72,23 +72,24 @@ class EpiphanyTargetMachine;
 
 class EpiphanyTargetLowering : public TargetLowering {
 public:
-  explicit EpiphanyTargetLowering(EpiphanyTargetMachine &TM);
+  explicit EpiphanyTargetLowering(const TargetMachine &TM, 
+                                  const EpiphanySubtarget &STI);
 
-  const char *getTargetNodeName(unsigned Opcode) const;
+  const char *getTargetNodeName(unsigned Opcode) const override;
 
   CCAssignFn *CCAssignFnForNode(CallingConv::ID CC) const;
 
   SDValue LowerFormalArguments(SDValue Chain,
                                CallingConv::ID CallConv, bool isVarArg,
                                const SmallVectorImpl<ISD::InputArg> &Ins,
-                               DebugLoc dl, SelectionDAG &DAG,
+                               SDLoc dl, SelectionDAG &DAG,
                                SmallVectorImpl<SDValue> &InVals) const;
 
   SDValue LowerReturn(SDValue Chain,
                       CallingConv::ID CallConv, bool isVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
                       const SmallVectorImpl<SDValue> &OutVals,
-                      DebugLoc dl, SelectionDAG &DAG) const;
+                      SDLoc dl, SelectionDAG &DAG) const;
 
   SDValue LowerCall(CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const;
@@ -96,11 +97,11 @@ public:
   SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
                           CallingConv::ID CallConv, bool IsVarArg,
                           const SmallVectorImpl<ISD::InputArg> &Ins,
-                          DebugLoc dl, SelectionDAG &DAG,
+                          SDLoc dl, SelectionDAG &DAG,
                           SmallVectorImpl<SDValue> &InVals) const;
 
   void SaveVarArgRegisters(CCState &CCInfo, SelectionDAG &DAG,
-                           DebugLoc DL, SDValue &Chain) const;
+                           SDLoc DL, SDValue &Chain) const;
 
 
   /// Finds the incoming stack arguments which overlap the given fixed stack
@@ -109,16 +110,18 @@ public:
   SDValue addTokenForArgument(SDValue Chain, SelectionDAG &DAG,
                               MachineFrameInfo *MFI, int ClobberedFI) const;
 
-  EVT getSetCCResultType(EVT VT) const;
+  EVT getSetCCResultType(const DataLayout &, LLVMContext &, 
+                         EVT VT) const override;
 
-  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 
-  bool isLegalICmpImmediate(int64_t Val) const;
+  bool isLegalICmpImmediate(int64_t Val) const override;
   SDValue getSelectableIntSetCC(SDValue LHS, SDValue RHS, ISD::CondCode CC,
-                         SDValue &A64cc, SelectionDAG &DAG, DebugLoc &dl) const;
+                         SDValue &A64cc, SelectionDAG &DAG, SDLoc &dl) const;
 
-  virtual MachineBasicBlock *
-  EmitInstrWithCustomInserter(MachineInstr *MI, MachineBasicBlock *MBB) const;
+  MachineBasicBlock *
+  EmitInstrWithCustomInserter(MachineInstr *MI, 
+                              MachineBasicBlock *MBB) const override;
 
   SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
@@ -130,7 +133,7 @@ public:
   SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
 
-  virtual SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
   //nope.
   bool IsEligibleForTailCallOptimization(SDValue Callee,
@@ -143,7 +146,7 @@ public:
                                     const SmallVectorImpl<ISD::InputArg> &Ins,
 									SelectionDAG& DAG) const { return false;}
 // custom fma due to fneg, so we say no
-  virtual bool isFMAFasterThanMulAndAdd(EVT) const { return false; }
+  bool isFMAFasterThanFMulAndFAdd(EVT) const override { return false; }
 
 private:
   const EpiphanySubtarget *Subtarget;

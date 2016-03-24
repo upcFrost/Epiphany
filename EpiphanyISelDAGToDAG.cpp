@@ -11,10 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "epiphany-isel"
 #include "Epiphany.h"
 #include "EpiphanyInstrInfo.h"
-#include "EpiphanySubtarget.h"
 #include "EpiphanyTargetMachine.h"
 #include "Utils/EpiphanyBaseInfo.h"
 #include "llvm/ADT/APSInt.h"
@@ -25,6 +23,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "epiphany-isel"
+
 //===--------------------------------------------------------------------===//
 /// Epiphany specific code to select Epiphany machine instructions for
 /// SelectionDAG operations.
@@ -32,22 +32,12 @@ using namespace llvm;
 namespace {
 
 class EpiphanyDAGToDAGISel : public SelectionDAGISel {
-  EpiphanyTargetMachine &TM;
-  const EpiphanyInstrInfo *TII;
-
-  /// Keep a pointer to the EpiphanySubtarget around so that we can
-  /// make the right decision when generating code for different targets.
-  const EpiphanySubtarget *Subtarget;
-
 public:
-  explicit EpiphanyDAGToDAGISel(EpiphanyTargetMachine &tm,
+  explicit EpiphanyDAGToDAGISel(EpiphanyTargetMachine &TM,
                                CodeGenOpt::Level OptLevel)
-    : SelectionDAGISel(tm, OptLevel), TM(tm),
-      TII(static_cast<const EpiphanyInstrInfo*>(TM.getInstrInfo())),
-      Subtarget(&TM.getSubtarget<EpiphanySubtarget>()) {
-  }
+    : SelectionDAGISel(TM, OptLevel) {}
 
-  virtual const char *getPassName() const {
+  virtual const char *getPassName() const override {
     return "Epiphany Instruction Selection";
   }
 
@@ -56,7 +46,7 @@ public:
 
   // getImm - Return a target constant with the specified value.
   inline SDValue getImm(const SDNode *Node, unsigned Imm) {
-    return CurDAG->getTargetConstant(Imm, Node->getValueType(0));
+    return CurDAG->getTargetConstant(Imm, SDLoc(Node), Node->getValueType(0));
   }
 
   template<unsigned MemSize>
@@ -66,7 +56,7 @@ public:
 	  if (!CN || CN->getSExtValue() % MemSize != 0 || !(CN->getSExtValue() / MemSize >= -maxv && CN->getSExtValue() / MemSize <= maxv))
 		  return false;
 
-	  UImm12 =  CurDAG->getTargetConstant(CN->getSExtValue() / MemSize, MVT::i32);
+	  UImm12 =  CurDAG->getTargetConstant(CN->getSExtValue() / MemSize, SDLoc(CN), MVT::i32);
 	  return true;
   }
 
@@ -81,7 +71,7 @@ private:
 
 SDNode *EpiphanyDAGToDAGISel::TrySelectToMoveImm(SDNode *Node) {
   SDNode *ResNode;
-  DebugLoc dl = Node->getDebugLoc();
+  SDLoc dl = SDLoc(Node);
   EVT DestType = Node->getValueType(0);
   unsigned DestWidth = DestType.getSizeInBits();
 
@@ -95,19 +85,19 @@ SDNode *EpiphanyDAGToDAGISel::TrySelectToMoveImm(SDNode *Node) {
 		}
 
 	// 0 or 16 lower bits
-		ResNode = CurDAG->getMachineNode(Epiphany::MOVri, dl, DestType, CurDAG->getTargetConstant(BitPat, MVT::i32));
+		ResNode = CurDAG->getMachineNode(Epiphany::MOVri, dl, DestType, CurDAG->getTargetConstant(BitPat, SDLoc(Node), MVT::i32));
 
 		if (BitPat & 0xffff0000ULL){// 16 upper bits
 			//this is LUi(LLi(val{15-0}), val{31-16})
-			ResNode = CurDAG->getMachineNode(Epiphany::MOVTri, dl, DestType, SDValue(ResNode, 0), CurDAG->getTargetConstant(BitPat, MVT::i32));	 
+			ResNode = CurDAG->getMachineNode(Epiphany::MOVTri, dl, DestType, SDValue(ResNode, 0), CurDAG->getTargetConstant(BitPat, SDLoc(Node), MVT::i32));	 
 		}
 	} else if(DestType.isFloatingPoint()){
 		APFloat BitPat = cast<ConstantFPSDNode>(Node)->getValueAPF();
 
-		ResNode = CurDAG->getMachineNode(Epiphany::MOVri_nopat_f, dl, DestType, CurDAG->getTargetConstantFP(BitPat, MVT::f32));
+		ResNode = CurDAG->getMachineNode(Epiphany::MOVri, dl, DestType, CurDAG->getTargetConstantFP(BitPat, SDLoc(Node), MVT::f32));
 		//this is LUi(LLi(val{15-0}), val{31-16})
 		if(!BitPat.isPosZero())
-		ResNode = CurDAG->getMachineNode(Epiphany::MOVTri_nopat_f, dl, DestType, SDValue(ResNode, 0), CurDAG->getTargetConstantFP(BitPat, MVT::f32));	 
+		ResNode = CurDAG->getMachineNode(Epiphany::MOVTri, dl, DestType, SDValue(ResNode, 0), CurDAG->getTargetConstantFP(BitPat, SDLoc(Node), MVT::f32));	 
 
 	}
 
@@ -116,11 +106,11 @@ SDNode *EpiphanyDAGToDAGISel::TrySelectToMoveImm(SDNode *Node) {
 }
 
 SDNode *EpiphanyDAGToDAGISel::SelectToLitPool(SDNode *Node) {
-  DebugLoc DL = Node->getDebugLoc();
+  SDLoc DL = SDLoc(Node);
   uint64_t UnsignedVal = cast<ConstantSDNode>(Node)->getZExtValue();
   int64_t SignedVal = cast<ConstantSDNode>(Node)->getSExtValue();
   EVT DestType = Node->getValueType(0);
-  EVT PtrVT = TLI.getPointerTy();
+  EVT PtrVT = TLI->getPointerTy(CurDAG->getDataLayout());
 
   // Since we may end up loading a 64-bit constant from a 32-bit entry the
   // constant in the pool may have a different type to the eventual node.
@@ -148,29 +138,30 @@ SDNode *EpiphanyDAGToDAGISel::SelectToLitPool(SDNode *Node) {
                                                   MemType.getSizeInBits()),
                                   UnsignedVal);
   SDValue PoolAddr;
-  unsigned Alignment = TLI.getDataLayout()->getABITypeAlignment(CV->getType());
+  unsigned Alignment = CurDAG->getDataLayout().getABITypeAlignment(CV->getType());
   PoolAddr = CurDAG->getNode(EpiphanyISD::WrapperSmall, DL, PtrVT,
                              CurDAG->getTargetConstantPool(CV, PtrVT, 0, 0,
                                                          EpiphanyII::MO_HI16),
                              CurDAG->getTargetConstantPool(CV, PtrVT, 0, 0,
                                                            EpiphanyII::MO_LO16),
-                             CurDAG->getConstant(Alignment, MVT::i32));
+                             CurDAG->getConstant(Alignment, SDLoc(Node), MVT::i32));
 
   return CurDAG->getExtLoad(Extension, DL, DestType, CurDAG->getEntryNode(),
                             PoolAddr,
                             MachinePointerInfo::getConstantPool(), MemType,
                             /* isVolatile = */ false,
                             /* isNonTemporal = */ false,
+                            /* isInvariant = */ true,
                             Alignment).getNode();
 }
 
 SDNode *EpiphanyDAGToDAGISel::LowerToFPLitPool(SDNode *Node) {
-  DebugLoc DL = Node->getDebugLoc();
+  SDLoc DL = SDLoc(Node);
   const ConstantFP *FV = cast<ConstantFPSDNode>(Node)->getConstantFPValue();
-  EVT PtrVT = TLI.getPointerTy();
+  EVT PtrVT = TLI->getPointerTy(CurDAG->getDataLayout());
   EVT DestType = Node->getValueType(0);
 
-  unsigned Alignment = TLI.getDataLayout()->getABITypeAlignment(FV->getType());
+  unsigned Alignment = CurDAG->getDataLayout().getABITypeAlignment(FV->getType());
   SDValue PoolAddr;
 
   assert(TM.getCodeModel() == CodeModel::Small &&
@@ -180,7 +171,7 @@ SDNode *EpiphanyDAGToDAGISel::LowerToFPLitPool(SDNode *Node) {
                                                          EpiphanyII::MO_HI16),
                              CurDAG->getTargetConstantPool(FV, PtrVT, 0, 0,
                                                            EpiphanyII::MO_LO16),
-                             CurDAG->getConstant(Alignment, MVT::i32));
+                             CurDAG->getConstant(Alignment, DL, MVT::i32));
 
   return CurDAG->getLoad(DestType, DL, CurDAG->getEntryNode(), PoolAddr,
                          MachinePointerInfo::getConstantPool(),
@@ -202,10 +193,10 @@ SDNode *EpiphanyDAGToDAGISel::Select(SDNode *Node) {
   switch (Node->getOpcode()) {
   case ISD::FrameIndex: {
     int FI = cast<FrameIndexSDNode>(Node)->getIndex();
-    EVT PtrTy = TLI.getPointerTy();
+    EVT PtrTy = TLI->getPointerTy(CurDAG->getDataLayout());
     SDValue TFI = CurDAG->getTargetFrameIndex(FI, PtrTy);
     return CurDAG->SelectNodeTo(Node, Epiphany::ADDri, PtrTy,
-                                TFI, CurDAG->getTargetConstant(0, PtrTy));
+                                TFI, CurDAG->getTargetConstant(0, SDLoc(Node), PtrTy));
   }
   case ISD::ConstantPool: {
     // Constant pools are fine, just create a Target entry.

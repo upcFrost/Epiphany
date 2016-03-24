@@ -45,9 +45,9 @@ def EpiphanyInstrInfo : InstrInfo;
 // Assembly printer
 //===----------------------------------------------------------------------===//
 
-def A64InstPrinter : AsmWriter {
+def GenericInstPrinter : AsmWriter {
   string AsmWriterClassName = "InstPrinter";
-  bit isMCAsmWriter = 1;
+  int isMCAsmWriter = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -56,5 +56,5 @@ def A64InstPrinter : AsmWriter {
 
 def Epiphany : Target {
   let InstructionSet = EpiphanyInstrInfo;
-  let AssemblyWriters = [A64InstPrinter];
+  let AssemblyWriters = [GenericInstPrinter];
 }

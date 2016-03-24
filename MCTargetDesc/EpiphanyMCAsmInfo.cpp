@@ -23,6 +23,7 @@ EpiphanyELFMCAsmInfo::EpiphanyELFMCAsmInfo() {
 
   CommentString = "//";
   PrivateGlobalPrefix = ".L";
+  PrivateLabelPrefix = ".L";
   Code32Directive = ".code\t32";
 
   Data16bitsDirective = "\t.hword\t";
@@ -33,7 +34,6 @@ EpiphanyELFMCAsmInfo::EpiphanyELFMCAsmInfo() {
 
   WeakRefDirective = "\t.weak\t";
 
-  HasLEB128 = true;
   SupportsDebugInformation = true;
 
   // Exceptions handling

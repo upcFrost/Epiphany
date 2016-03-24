@@ -18,34 +18,33 @@
 #include "llvm/MC/MCExpr.h"
 
 namespace llvm {
-
 class EpiphanyMCExpr : public MCTargetExpr {
 public:
   enum VariantKind {
     VK_EPIPHANY_None,
     VK_EPIPHANY_LO16,     // :lo12:
-	VK_EPIPHANY_HI16,     // :lo12:
+    VK_EPIPHANY_HI16,     // :lo12:
   };
-
+  
 private:
-  const VariantKind Kind;
   const MCExpr *Expr;
+  const VariantKind Kind;
 
-  explicit EpiphanyMCExpr(VariantKind _Kind, const MCExpr *_Expr)
-    : Kind(_Kind), Expr(_Expr) {}
+  explicit EpiphanyMCExpr(const MCExpr *Expr, VariantKind Kind)
+    : Expr(Expr), Kind(Kind) {}
 
 public:
   /// @name Construction
   /// @{
 
-  static const EpiphanyMCExpr *Create(VariantKind Kind, const MCExpr *Expr,
+  static const EpiphanyMCExpr *create(const MCExpr *Expr, VariantKind Kind, 
                                      MCContext &Ctx);
 
-  static const EpiphanyMCExpr *CreateLo16(const MCExpr *Expr, MCContext &Ctx) {
-    return Create(VK_EPIPHANY_LO16, Expr, Ctx);
+  static const EpiphanyMCExpr *createLo16(const MCExpr *Expr, MCContext &Ctx) {
+    return create(Expr, VK_EPIPHANY_LO16, Ctx);
   }
-  static const EpiphanyMCExpr *CreateHi16(const MCExpr *Expr, MCContext &Ctx) {
-    return Create(VK_EPIPHANY_HI16, Expr, Ctx);
+  static const EpiphanyMCExpr *createHi16(const MCExpr *Expr, MCContext &Ctx) {
+    return create(Expr, VK_EPIPHANY_HI16, Ctx);
   }
 
   /// @}
@@ -60,12 +59,16 @@ public:
 
   /// @}
 
-  void PrintImpl(raw_ostream &OS) const;
-  bool EvaluateAsRelocatableImpl(MCValue &Res,
-                                 const MCAsmLayout *Layout) const;
+  void printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const;
+  
+  void visitUsedExpr(MCStreamer &Streamer) const override;
+  
+  bool evaluateAsRelocatableImpl(MCValue &Res,
+                                 const MCAsmLayout *Layout,
+                                 const MCFixup *Fixup) const override;
   void AddValueSymbols(MCAssembler *) const;
-  const MCSection *FindAssociatedSection() const {
-    return getSubExpr()->FindAssociatedSection();
+  MCSection *findAssociatedSection() const override {
+    return getSubExpr()->findAssociatedSection();
   }
 
   void fixELFSymbolsInTLSFixups(MCAssembler &Asm) const;

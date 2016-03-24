@@ -14,20 +14,21 @@
 
 #define DEBUG_TYPE "epiphanymcexpr"
 #include "EpiphanyMCExpr.h"
-#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCAssembler.h"
-#include "llvm/MC/MCELF.h"
+#include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCAssembler.h"
+#include "llvm/MC/MCSymbolELF.h"
 #include "llvm/Object/ELF.h"
 
 using namespace llvm;
 
-const EpiphanyMCExpr*
-EpiphanyMCExpr::Create(VariantKind Kind, const MCExpr *Expr,
-                      MCContext &Ctx) {
-  return new (Ctx) EpiphanyMCExpr(Kind, Expr);
+const EpiphanyMCExpr *EpiphanyMCExpr::create(const MCExpr *Expr, VariantKind Kind, 
+                                MCContext &Ctx) {
+  return new (Ctx) EpiphanyMCExpr(Expr, Kind);
 }
 
-void EpiphanyMCExpr::PrintImpl(raw_ostream &OS) const {
+void EpiphanyMCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
   switch (Kind) {
   default: llvm_unreachable("Invalid kind!");
   case VK_EPIPHANY_LO16:             OS << "%low("; break;
@@ -37,7 +38,7 @@ void EpiphanyMCExpr::PrintImpl(raw_ostream &OS) const {
   const MCExpr *Expr = getSubExpr();
   if (Expr->getKind() != MCExpr::SymbolRef)
     OS << '(';
-  Expr->print(OS);
+  Expr->print(OS, MAI);
   if (Expr->getKind() != MCExpr::SymbolRef)
     OS << ')';
 
@@ -48,10 +49,15 @@ void EpiphanyMCExpr::PrintImpl(raw_ostream &OS) const {
 	}
 }
 
+void EpiphanyMCExpr::visitUsedExpr(MCStreamer &Streamer) const {
+    Streamer.visitUsedExpr(*getSubExpr());
+}
+
 bool
-EpiphanyMCExpr::EvaluateAsRelocatableImpl(MCValue &Res,
-                                         const MCAsmLayout *Layout) const {
-  return getSubExpr()->EvaluateAsRelocatable(Res, *Layout);
+EpiphanyMCExpr::evaluateAsRelocatableImpl(MCValue &Res,
+                                         const MCAsmLayout *Layout,
+                                         const MCFixup *Fixup) const {
+  return getSubExpr()->evaluateAsRelocatable(Res, Layout, Fixup);
 }
 
 static void fixELFSymbolsInTLSFixupsImpl(const MCExpr *Expr, MCAssembler &Asm) {
@@ -64,28 +70,31 @@ void EpiphanyMCExpr::fixELFSymbolsInTLSFixups(MCAssembler &Asm) const {
 // FIXME: This basically copies MCObjectStreamer::AddValueSymbols. Perhaps
 // that method should be made public?
 // FIXME: really do above: now that two backends are using it.
-static void AddValueSymbolsImpl(const MCExpr *Value, MCAssembler *Asm) {
-  switch (Value->getKind()) {
+static void AddValueSymbolsImpl(const MCExpr *Expr, MCAssembler *Asm) {
+  switch (Expr->getKind()) {
   case MCExpr::Target:
-    llvm_unreachable("Can't handle nested target expr!");
+    llvm_unreachable("Can't handle nested target expression!");
     break;
 
   case MCExpr::Constant:
     break;
 
   case MCExpr::Binary: {
-    const MCBinaryExpr *BE = cast<MCBinaryExpr>(Value);
+    const MCBinaryExpr *BE = cast<MCBinaryExpr>(Expr);
     AddValueSymbolsImpl(BE->getLHS(), Asm);
     AddValueSymbolsImpl(BE->getRHS(), Asm);
     break;
   }
 
-  case MCExpr::SymbolRef:
-    Asm->getOrCreateSymbolData(cast<MCSymbolRefExpr>(Value)->getSymbol());
+  case MCExpr::SymbolRef: {
+    // From AArch64
+    const MCSymbolRefExpr &SymRef = *cast<MCSymbolRefExpr>(Expr);
+    cast<MCSymbolELF>(SymRef.getSymbol()).setType(ELF::STT_TLS);
     break;
+  }
 
   case MCExpr::Unary:
-    AddValueSymbolsImpl(cast<MCUnaryExpr>(Value)->getSubExpr(), Asm);
+    AddValueSymbolsImpl(cast<MCUnaryExpr>(Expr)->getSubExpr(), Asm);
     break;
   }
 }

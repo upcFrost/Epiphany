@@ -12,8 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "epiphany-isel"
+
 #include "Epiphany.h"
+#include "EpiphanySubtarget.h"
 #include "EpiphanyISelLowering.h"
 #include "EpiphanyMachineFunctionInfo.h"
 #include "EpiphanyTargetMachine.h"
@@ -28,19 +29,22 @@
 #include "llvm/IR/CallingConv.h"
 
 using namespace llvm;
-
-static TargetLoweringObjectFile *createTLOF(EpiphanyTargetMachine &TM) {
-  const EpiphanySubtarget *Subtarget = &TM.getSubtarget<EpiphanySubtarget>();
-
-    return new EpiphanyLinuxTargetObjectFile();
-}
+#define DEBUG_TYPE "epiphany-lower"
 
 
-EpiphanyTargetLowering::EpiphanyTargetLowering(EpiphanyTargetMachine &TM)
-  : TargetLowering(TM, createTLOF(TM)),
-    Subtarget(&TM.getSubtarget<EpiphanySubtarget>()),
-    RegInfo(TM.getRegisterInfo()),
-    Itins(TM.getInstrItineraryData()) {
+//static TargetLoweringObjectFile *createTLOF(EpiphanyTargetMachine &TM) {
+//  const EpiphanySubtarget *Subtarget = &TM.getSubtarget<EpiphanySubtarget>();
+//
+//    return new EpiphanyLinuxTargetObjectFile();
+//}
+
+
+EpiphanyTargetLowering::EpiphanyTargetLowering(const TargetMachine &TM,
+					       const EpiphanySubtarget &STI)
+  : TargetLowering(TM), Subtarget(&STI)
+{
+  RegInfo = Subtarget->getRegisterInfo();
+  Itins = Subtarget->getInstrItineraryData();
 
   // Scalar register <-> type mapping
   addRegisterClass(MVT::i32, &Epiphany::GPR32RegClass);
@@ -50,15 +54,17 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(EpiphanyTargetMachine &TM)
   //addRegisterClass(MVT::i64, &Epiphany::DPR64RegClass);
   //addRegisterClass(MVT::f64, &Epiphany::DPR64RegClass);
 
-  computeRegisterProperties();
+  computeRegisterProperties(STI.getRegisterInfo());
 
   setTargetDAGCombine(ISD::FADD);
   setTargetDAGCombine(ISD::FSUB);
 
   // Epiphany does not have i1 loads, or much of anything for i1 really.
-  setLoadExtAction(ISD::SEXTLOAD, MVT::i1, Promote);
-  setLoadExtAction(ISD::ZEXTLOAD, MVT::i1, Promote);
-  setLoadExtAction(ISD::EXTLOAD, MVT::i1, Promote);
+  for (MVT VT : MVT::integer_valuetypes()) {
+    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
+    setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
+    setLoadExtAction(ISD::EXTLOAD,  VT, MVT::i1, Promote);
+  }
 
   setStackPointerRegisterToSaveRestore(Epiphany::SP);
   setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i32, Expand);
@@ -129,7 +135,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(EpiphanyTargetMachine &TM)
 
   }
 
-EVT EpiphanyTargetLowering::getSetCCResultType(EVT VT) const {
+EVT EpiphanyTargetLowering::getSetCCResultType(const DataLayout &, LLVMContext &, 
+                                               EVT VT) const {
   // It's reasonably important that this value matches the "natural" legal
   // promotion from i1 for scalar types. Otherwise LegalizeTypes can get itself
   // in a twist (e.g. inserting an any_extend which then becomes i32 -> i32).
@@ -180,7 +187,7 @@ CCAssignFn *EpiphanyTargetLowering::CCAssignFnForNode(CallingConv::ID CC) const 
 
 void
 EpiphanyTargetLowering::SaveVarArgRegisters(CCState &CCInfo, SelectionDAG &DAG,
-                                           DebugLoc DL, SDValue &Chain) const {
+                                           SDLoc DL, SDValue &Chain) const {
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo *MFI = MF.getFrameInfo();
   EpiphanyMachineFunctionInfo *FuncInfo
@@ -188,15 +195,14 @@ EpiphanyTargetLowering::SaveVarArgRegisters(CCState &CCInfo, SelectionDAG &DAG,
 
   SmallVector<SDValue, 8> MemOps;
 
-  unsigned FirstVariadicGPR = CCInfo.getFirstUnallocated(EpiphanyArgRegs,
-                                                         NumArgRegs);
+  unsigned FirstVariadicGPR = CCInfo.getFirstUnallocated(EpiphanyArgRegs);
 
   unsigned GPRSaveSize = 4 * (NumArgRegs - FirstVariadicGPR);
   int GPRIdx = 0;
   if (GPRSaveSize != 0) {
     GPRIdx = MFI->CreateStackObject(GPRSaveSize, 4, false);
 
-    SDValue FIN = DAG.getFrameIndex(GPRIdx, getPointerTy());
+    SDValue FIN = DAG.getFrameIndex(GPRIdx, getPointerTy(DAG.getDataLayout()));
 
     for (unsigned i = FirstVariadicGPR; i < NumArgRegs; ++i) {
       unsigned VReg = MF.addLiveIn(EpiphanyArgRegs[i], &Epiphany::GPR32RegClass);
@@ -205,8 +211,8 @@ EpiphanyTargetLowering::SaveVarArgRegisters(CCState &CCInfo, SelectionDAG &DAG,
                                    MachinePointerInfo::getStack(i * 4),
                                    false, false, 0);
       MemOps.push_back(Store);
-      FIN = DAG.getNode(ISD::ADD, DL, getPointerTy(), FIN,
-                        DAG.getConstant(4, getPointerTy()));
+      FIN = DAG.getNode(ISD::ADD, DL, getPointerTy(DAG.getDataLayout()), FIN,
+                        DAG.getConstant(4, DL, getPointerTy(DAG.getDataLayout())));
     }
   }
 
@@ -219,8 +225,7 @@ EpiphanyTargetLowering::SaveVarArgRegisters(CCState &CCInfo, SelectionDAG &DAG,
   FuncInfo->setVariadicFPRSize(0);
 
   if (!MemOps.empty()) {
-    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, &MemOps[0],
-                        MemOps.size());
+    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOps);
   }
 }
 
@@ -229,7 +234,7 @@ SDValue
 EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
                                       CallingConv::ID CallConv, bool isVarArg,
                                       const SmallVectorImpl<ISD::InputArg> &Ins,
-                                      DebugLoc dl, SelectionDAG &DAG,
+                                      SDLoc dl, SelectionDAG &DAG,
                                       SmallVectorImpl<SDValue> &InVals) const {
   MachineFunction &MF = DAG.getMachineFunction();
   EpiphanyMachineFunctionInfo *FuncInfo = MF.getInfo<EpiphanyMachineFunctionInfo>();
@@ -237,7 +242,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
   //bool TailCallOpt = MF.getTarget().Options.GuaranteedTailCallOpt;
 
   SmallVector<CCValAssign, 16> ArgLocs;
-  CCState CCInfo(CallConv, isVarArg, DAG.getMachineFunction(), getTargetMachine(), ArgLocs, *DAG.getContext());
+  CCState CCInfo(CallConv, isVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
   CCInfo.AnalyzeFormalArguments(Ins, CCAssignFnForNode(CallConv));
 
   SmallVector<SDValue, 16> ArgValues;
@@ -272,7 +277,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
       assert(VA.isMemLoc());
 	// hm. byval?
       int FI = MFI->CreateFixedObject(VA.getLocVT().getSizeInBits()/8, VA.getLocMemOffset(), true);
-      SDValue FIN = DAG.getFrameIndex(FI, getPointerTy());
+      SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
       ArgValue = DAG.getLoad(VA.getLocVT(), dl, Chain, FIN, MachinePointerInfo::getFixedStack(FI),false, false, false, 0);
     }
 
@@ -292,12 +297,12 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
 
 SDValue
 EpiphanyTargetLowering::LowerFNEG(SDValue Op, SelectionDAG &DAG) const{
-	DebugLoc dl = Op.getDebugLoc();
+	SDLoc dl = SDLoc(Op);
 	SDValue Operand0 = Op.getOperand(0);
 	EVT VT = Op.getValueType();
 
 	// y = fneg(x) -> xor rd, 0x80000000
-	SDValue Val = DAG.getConstant(0x80000000, MVT::i32);
+	SDValue Val = DAG.getConstant(0x80000000, dl, MVT::i32);
 	SDValue Arg = DAG.getNode(ISD::BITCAST, dl, MVT::i32, Operand0);
 	SDValue Xor = DAG.getNode(ISD::XOR, dl, MVT::i32, Arg, Val);
 	return DAG.getNode(ISD::BITCAST, dl, VT, Xor);
@@ -308,13 +313,13 @@ EpiphanyTargetLowering::LowerReturn(SDValue Chain,
                                    CallingConv::ID CallConv, bool isVarArg,
                                    const SmallVectorImpl<ISD::OutputArg> &Outs,
                                    const SmallVectorImpl<SDValue> &OutVals,
-                                   DebugLoc dl, SelectionDAG &DAG) const {
+                                   SDLoc dl, SelectionDAG &DAG) const {
   // CCValAssign - represent the assignment of the return value to a location.
   SmallVector<CCValAssign, 16> RVLocs;
 
   // CCState - Info about the registers and stack slots.
   CCState CCInfo(CallConv, isVarArg, DAG.getMachineFunction(),
-                 getTargetMachine(), RVLocs, *DAG.getContext());
+                 RVLocs, *DAG.getContext());
 
   // Analyze outgoing return values.
   CCInfo.AnalyzeReturn(Outs, CCAssignFnForNode(CallConv));
@@ -373,14 +378,13 @@ EpiphanyTargetLowering::LowerReturn(SDValue Chain,
   if (Flag.getNode())
     RetOps.push_back(Flag);
 
-  return DAG.getNode(EpiphanyISD::Ret, dl, MVT::Other,
-                     &RetOps[0], RetOps.size());
+  return DAG.getNode(EpiphanyISD::Ret, dl, MVT::Other, RetOps);
 }
 
 SDValue
 EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue> &InVals) const {
 	SelectionDAG &DAG                     = CLI.DAG;
-	DebugLoc &dl                          = CLI.DL;
+	SDLoc &dl                             = CLI.DL;
 	SmallVector<ISD::OutputArg, 32> &Outs = CLI.Outs;
 	SmallVector<SDValue, 32> &OutVals     = CLI.OutVals;
 	SmallVector<ISD::InputArg, 32> &Ins   = CLI.Ins;
@@ -391,8 +395,6 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 	bool IsVarArg                         = CLI.IsVarArg;
 
 	MachineFunction &MF = DAG.getMachineFunction();
-	EpiphanyMachineFunctionInfo *FuncInfo = MF.getInfo<EpiphanyMachineFunctionInfo>();
-	//bool TailCallOpt = MF.getTarget().Options.GuaranteedTailCallOpt;
 	bool IsStructRet = !Outs.empty() && Outs[0].Flags.isSRet();
 
 
@@ -401,16 +403,16 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 	}
 
 	SmallVector<CCValAssign, 16> ArgLocs;
-	CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), getTargetMachine(), ArgLocs, *DAG.getContext());
+	CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
 	CCInfo.AnalyzeCallOperands(Outs, CCAssignFnForNode(CallConv));
 
 	// On Epiphany (and all other architectures I'm aware of) the most this has to
 	// do is adjust the stack pointer.
 	unsigned NumBytes = RoundUpToAlignment(CCInfo.getNextStackOffset(), 4);
 
-	Chain = DAG.getCALLSEQ_START(Chain, DAG.getIntPtrConstant(NumBytes, true));
+	Chain = DAG.getCALLSEQ_START(Chain, DAG.getIntPtrConstant(NumBytes, dl, /* isTarget = */ true), dl);
 
-	SDValue StackPtr = DAG.getCopyFromReg(Chain, dl, Epiphany::SP, getPointerTy());
+	SDValue StackPtr = DAG.getCopyFromReg(Chain, dl, Epiphany::SP, getPointerTy(DAG.getDataLayout()));
 
 	SmallVector<SDValue, 8> MemOpChains;
 	SmallVector<std::pair<unsigned, SDValue>, 8> RegsToPass;
@@ -450,18 +452,19 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 
 		assert(VA.isMemLoc() && "unexpected argument location");
 
-		SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset());
-		SDValue DstAddr = DAG.getNode(ISD::ADD, dl, getPointerTy(), StackPtr, PtrOff);
+		SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset(), dl, /* isTarget = */ false);
+		SDValue DstAddr = DAG.getNode(ISD::ADD, dl, getPointerTy(DAG.getDataLayout()), StackPtr, PtrOff);
 		MachinePointerInfo DstInfo = MachinePointerInfo::getStack(VA.getLocMemOffset());
 
 
 		if (Flags.isByVal()) {
-			SDValue SizeNode = DAG.getConstant(Flags.getByValSize(), MVT::i32);
+			SDValue SizeNode = DAG.getConstant(Flags.getByValSize(), dl, MVT::i32);
 			SDValue Cpy = DAG.getMemcpy(Chain, dl, DstAddr, Arg, SizeNode,
 				Flags.getByValAlign(),
 				/*isVolatile = */ false,
 				/*alwaysInline = */ false,
-				DstInfo, MachinePointerInfo(0));
+				/*isTailCall = */ false,
+				DstInfo, MachinePointerInfo());
 			MemOpChains.push_back(Cpy);
 		} else {
 			// Normal stack argument, put it where it's needed.
@@ -474,7 +477,7 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 	// other. Combining them with this TokenFactor notes that fact for the rest of
 	// the backend.
 	if (!MemOpChains.empty())
-		Chain = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, &MemOpChains[0], MemOpChains.size());
+		Chain = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, MemOpChains);
 
 	// Most of the rest of the instructions need to be glued together; we don't
 	// want assignments to actual registers used by a call to be rearranged by a
@@ -491,10 +494,10 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 	// wrapper here.
 	if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
 		const GlobalValue *GV = G->getGlobal();
-		Callee = DAG.getTargetGlobalAddress(GV, dl, getPointerTy());
+		Callee = DAG.getTargetGlobalAddress(GV, dl, getPointerTy(DAG.getDataLayout()));
 	} else if (ExternalSymbolSDNode *S = dyn_cast<ExternalSymbolSDNode>(Callee)) {
 		const char *Sym = S->getSymbol();
-		Callee = DAG.getTargetExternalSymbol(Sym, getPointerTy());
+		Callee = DAG.getTargetExternalSymbol(Sym, getPointerTy(DAG.getDataLayout()));
 	}
 
 	// We produce the following DAG scheme for the actual call instruction:
@@ -513,8 +516,8 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 
 	// Add a register mask operand representing the call-preserved registers. This
 	// is used later in codegen to constrain register-allocation.
-	const TargetRegisterInfo *TRI = getTargetMachine().getRegisterInfo();
-	const uint32_t *Mask = TRI->getCallPreservedMask(CallConv);
+	const TargetRegisterInfo *TRI = MF.getSubtarget<EpiphanySubtarget>().getRegisterInfo();
+	const uint32_t *Mask = TRI->getCallPreservedMask(MF, CallConv);
 	assert(Mask && "Missing call preserved mask for calling convention");
 	Ops.push_back(DAG.getRegisterMask(Mask));
 
@@ -524,7 +527,7 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 
 	SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
 
-	Chain = DAG.getNode(EpiphanyISD::Call, dl, NodeTys, &Ops[0], Ops.size());
+	Chain = DAG.getNode(EpiphanyISD::Call, dl, NodeTys, Ops);
 	InFlag = Chain.getValue(1);
 
 	// Now we can reclaim the stack, just as well do it before working out where
@@ -532,9 +535,10 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 
 	uint64_t CalleePopBytes = /*DoesCalleeRestoreStack(CallConv, TailCallOpt) ? NumBytes :*/ 0;
 
-	Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NumBytes, true),
-		DAG.getIntPtrConstant(CalleePopBytes, true),
-		InFlag);
+	Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NumBytes, dl, /* isTarget = */ true),
+		DAG.getIntPtrConstant(CalleePopBytes, dl, /* isTarget = */ true),
+		InFlag,
+		dl);
 	InFlag = Chain.getValue(1);
 
 
@@ -545,12 +549,12 @@ SDValue
 EpiphanyTargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
                                       CallingConv::ID CallConv, bool IsVarArg,
                                       const SmallVectorImpl<ISD::InputArg> &Ins,
-                                      DebugLoc dl, SelectionDAG &DAG,
+                                      SDLoc dl, SelectionDAG &DAG,
                                       SmallVectorImpl<SDValue> &InVals) const {
   // Assign locations to each value returned by this call.
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(),
-                 getTargetMachine(), RVLocs, *DAG.getContext());
+                 RVLocs, *DAG.getContext());
   CCInfo.AnalyzeCallResult(Ins, CCAssignFnForNode(CallConv));
 
   for (unsigned i = 0; i != RVLocs.size(); ++i) {
@@ -616,8 +620,7 @@ SDValue EpiphanyTargetLowering::addTokenForArgument(SDValue Chain,
         }
 
    // Build a tokenfactor for all the chains.
-   return DAG.getNode(ISD::TokenFactor, Chain.getDebugLoc(), MVT::Other,
-                      &ArgChains[0], ArgChains.size());
+   return DAG.getNode(ISD::TokenFactor, SDLoc(Chain), MVT::Other, ArgChains);
 }
 
 static EpiphanyCC::CondCodes IntCCToEpiphanyCC(ISD::CondCode CC) {
@@ -648,7 +651,7 @@ bool EpiphanyTargetLowering::isLegalICmpImmediate(int64_t Val) const {
 
 SDValue EpiphanyTargetLowering::getSelectableIntSetCC(SDValue LHS, SDValue RHS,
                                         ISD::CondCode CC, SDValue &A64cc,
-                                        SelectionDAG &DAG, DebugLoc &dl) const {
+                                        SelectionDAG &DAG, SDLoc &dl) const {
   if (ConstantSDNode *RHSC = dyn_cast<ConstantSDNode>(RHS.getNode())) {
     int64_t C = 0;
     EVT VT = RHSC->getValueType(0);
@@ -674,28 +677,28 @@ SDValue EpiphanyTargetLowering::getSelectableIntSetCC(SDValue LHS, SDValue RHS,
       case ISD::SETGE:
         if (isLegalICmpImmediate(C-1)) {
           CC = (CC == ISD::SETLT) ? ISD::SETLE : ISD::SETGT;
-          RHS = DAG.getConstant(C-1, VT);
+          RHS = DAG.getConstant(C-1, dl, VT);
         }
         break;
       case ISD::SETULT:
       case ISD::SETUGE:
         if (isLegalICmpImmediate(C-1)) {
           CC = (CC == ISD::SETULT) ? ISD::SETULE : ISD::SETUGT;
-          RHS = DAG.getConstant(C-1, VT);
+          RHS = DAG.getConstant(C-1, dl, VT);
         }
         break;
       case ISD::SETLE:
       case ISD::SETGT:
         if (isLegalICmpImmediate(C+1)) {
           CC = (CC == ISD::SETLE) ? ISD::SETLT : ISD::SETGE;
-          RHS = DAG.getConstant(C+1, VT);
+          RHS = DAG.getConstant(C+1, dl, VT);
         }
         break;
       case ISD::SETULE:
       case ISD::SETUGT:
         if (isLegalICmpImmediate(C+1)) {
           CC = (CC == ISD::SETULE) ? ISD::SETULT : ISD::SETUGE;
-          RHS = DAG.getConstant(C+1, VT);
+          RHS = DAG.getConstant(C+1, dl, VT);
         }
         break;
       }
@@ -703,7 +706,7 @@ SDValue EpiphanyTargetLowering::getSelectableIntSetCC(SDValue LHS, SDValue RHS,
   }
 
   EpiphanyCC::CondCodes CondCode = IntCCToEpiphanyCC(CC);
-  A64cc = DAG.getConstant(CondCode, MVT::i32);
+  A64cc = DAG.getConstant(CondCode, dl, MVT::i32);
   return DAG.getNode(EpiphanyISD::SETCC, dl, MVT::i32, LHS, RHS,
                      DAG.getCondCode(CC));
 }
@@ -746,8 +749,8 @@ static EpiphanyCC::CondCodes FPCCToEpiphanyCC(ISD::CondCode CC, bool& invert) {
 
 SDValue
 EpiphanyTargetLowering::LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const {
-  DebugLoc DL = Op.getDebugLoc();
-  EVT PtrVT = getPointerTy();
+  SDLoc DL = SDLoc(Op);
+  EVT PtrVT = getPointerTy(DAG.getDataLayout());
   const BlockAddress *BA = cast<BlockAddressSDNode>(Op)->getBlockAddress();
 
   assert(getTargetMachine().getCodeModel() == CodeModel::Small
@@ -760,14 +763,14 @@ EpiphanyTargetLowering::LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const {
                                                EpiphanyII::MO_HI16),
                      DAG.getTargetBlockAddress(BA, PtrVT, 0,
                                                EpiphanyII::MO_LO16),
-                     DAG.getConstant(/*Alignment=*/ 4, MVT::i32));
+                     DAG.getConstant(/*Alignment=*/ 4, DL, MVT::i32));
 }
 
 
 // (BRCOND chain, val, dest)
 SDValue
 EpiphanyTargetLowering::LowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
-  DebugLoc dl = Op.getDebugLoc();
+  SDLoc dl = SDLoc(Op);
   SDValue Chain = Op.getOperand(0);
   SDValue TheBit = Op.getOperand(1);
   SDValue DestBB = Op.getOperand(2);
@@ -776,21 +779,21 @@ EpiphanyTargetLowering::LowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
   // that as the consumer we are responsible for ignoring rubbish in higher
   // bits.
   TheBit = DAG.getNode(ISD::AND, dl, MVT::i32, TheBit,
-                       DAG.getConstant(1, MVT::i32));
+                       DAG.getConstant(1, dl, MVT::i32));
 
   SDValue A64CMP = DAG.getNode(EpiphanyISD::SETCC, dl, MVT::i32, TheBit,
-                               DAG.getConstant(0, TheBit.getValueType()),
+                               DAG.getConstant(0, dl, TheBit.getValueType()),
                                DAG.getCondCode(ISD::SETNE));
 
   return DAG.getNode(EpiphanyISD::BR_CC, dl, MVT::Other, Chain,
-                     A64CMP, DAG.getConstant(EpiphanyCC::NE, MVT::i32),
+                     A64CMP, DAG.getConstant(EpiphanyCC::NE, dl, MVT::i32),
                      DestBB);
 }
 
 // (BR_CC chain, condcode, lhs, rhs, dest)
 SDValue
 EpiphanyTargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
-  DebugLoc dl = Op.getDebugLoc();
+  SDLoc dl = SDLoc(Op);
   SDValue Chain = Op.getOperand(0);
   ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(1))->get();
   SDValue LHS = Op.getOperand(2);
@@ -812,7 +815,7 @@ EpiphanyTargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
   bool invert;
   SDValue SetCC;
   CondCode = FPCCToEpiphanyCC(CC, invert);
-  SDValue A64cc = DAG.getConstant(CondCode, MVT::i32);
+  SDValue A64cc = DAG.getConstant(CondCode, dl, MVT::i32);
   if(invert)
 	  std::swap(LHS, RHS);
 	SetCC = DAG.getNode(EpiphanyISD::SETCC, dl, MVT::i32, LHS, RHS, DAG.getCondCode(CC));
@@ -830,8 +833,8 @@ EpiphanyTargetLowering::LowerGlobalAddressELF(SDValue Op,
   // We support the small memory model for now.
   assert(getTargetMachine().getCodeModel() == CodeModel::Small);
 
-  EVT PtrVT = getPointerTy();
-  DebugLoc dl = Op.getDebugLoc();
+  EVT PtrVT = getPointerTy(DAG.getDataLayout());
+  SDLoc dl = SDLoc(Op);
   const GlobalAddressSDNode *GN = cast<GlobalAddressSDNode>(Op);
   const GlobalValue *GV = GN->getGlobal();
   unsigned Alignment = GV->getAlignment();
@@ -849,7 +852,7 @@ EpiphanyTargetLowering::LowerGlobalAddressELF(SDValue Op,
     PoolAddr = DAG.getNode(EpiphanyISD::WrapperSmall, dl, PtrVT,
                            DAG.getTargetConstantPool(GV, PtrVT, 0, 0, EpiphanyII::MO_HI16),
                            DAG.getTargetConstantPool(GV, PtrVT, 0, 0, EpiphanyII::MO_LO16),
-                           DAG.getConstant(4, MVT::i32));
+                           DAG.getConstant(4, dl, MVT::i32));
     return DAG.getLoad(PtrVT, dl, DAG.getEntryNode(), PoolAddr,
                        MachinePointerInfo::getConstantPool(),
                        /*isVolatile=*/ false,  /*isNonTemporal=*/ true,
@@ -859,7 +862,7 @@ EpiphanyTargetLowering::LowerGlobalAddressELF(SDValue Op,
   if (Alignment == 0) {
     const PointerType *GVPtrTy = cast<PointerType>(GV->getType());
     if (GVPtrTy->getElementType()->isSized()) {
-      Alignment = getDataLayout()->getABITypeAlignment(GVPtrTy->getElementType());
+      Alignment = DAG.getDataLayout().getABITypeAlignment(GVPtrTy->getElementType());
     } else {
       // Be conservative if we can't guess, not that it really matters:
       // functions and labels aren't valid for loads, and the methods used to
@@ -871,10 +874,10 @@ EpiphanyTargetLowering::LowerGlobalAddressELF(SDValue Op,
   SDValue GlobalRef = DAG.getNode(EpiphanyISD::WrapperSmall, dl, PtrVT,
                                   DAG.getTargetGlobalAddress(GV, dl, PtrVT, 0, EpiphanyII::MO_HI16),
                                   DAG.getTargetGlobalAddress(GV, dl, PtrVT, 0, EpiphanyII::MO_LO16),
-                                  DAG.getConstant(Alignment, MVT::i32));
+                                  DAG.getConstant(Alignment, dl, MVT::i32));
 
   if (GN->getOffset() != 0)
-    return DAG.getNode(ISD::ADD, dl, PtrVT, GlobalRef, DAG.getConstant(GN->getOffset(), PtrVT));
+    return DAG.getNode(ISD::ADD, dl, PtrVT, GlobalRef, DAG.getConstant(GN->getOffset(), dl, PtrVT));
 
   return GlobalRef;
 }
@@ -882,20 +885,20 @@ EpiphanyTargetLowering::LowerGlobalAddressELF(SDValue Op,
 SDValue
 EpiphanyTargetLowering::LowerJumpTable(SDValue Op, SelectionDAG &DAG) const {
   JumpTableSDNode *JT = cast<JumpTableSDNode>(Op);
-  DebugLoc dl = JT->getDebugLoc();
+  SDLoc dl = SDLoc(JT);
 
   // When compiling PIC, jump tables get put in the code section so a static
   // relocation-style is acceptable for both cases.
-  return DAG.getNode(EpiphanyISD::WrapperSmall, dl, getPointerTy(),
-                     DAG.getTargetJumpTable(JT->getIndex(), getPointerTy(), EpiphanyII::MO_HI16),
-                     DAG.getTargetJumpTable(JT->getIndex(), getPointerTy(), EpiphanyII::MO_LO16),
-                     DAG.getConstant(1, MVT::i32));
+  return DAG.getNode(EpiphanyISD::WrapperSmall, dl, getPointerTy(DAG.getDataLayout()),
+                     DAG.getTargetJumpTable(JT->getIndex(), getPointerTy(DAG.getDataLayout()), EpiphanyII::MO_HI16),
+                     DAG.getTargetJumpTable(JT->getIndex(), getPointerTy(DAG.getDataLayout()), EpiphanyII::MO_LO16),
+                     DAG.getConstant(1, dl, MVT::i32));
 }
 
 // (SELECT_CC lhs, rhs, iftrue, iffalse, condcode)
 SDValue
 EpiphanyTargetLowering::LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const {
-  DebugLoc dl = Op.getDebugLoc();
+  SDLoc dl = SDLoc(Op);
   SDValue LHS = Op.getOperand(0);
   SDValue RHS = Op.getOperand(1);
   SDValue IfTrue = Op.getOperand(2);
@@ -918,7 +921,7 @@ EpiphanyTargetLowering::LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const {
   bool invert;
   SDValue SetCC;
   CondCode = FPCCToEpiphanyCC(CC, invert);
-  SDValue A64cc = DAG.getConstant(CondCode, MVT::i32);
+  SDValue A64cc = DAG.getConstant(CondCode, dl, MVT::i32);
   if(invert)
 	 std::swap(LHS, RHS);
 	SetCC = DAG.getNode(EpiphanyISD::SETCC, dl, MVT::i32, LHS, RHS, DAG.getCondCode(CC));
@@ -930,7 +933,7 @@ EpiphanyTargetLowering::LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const {
 // (SELECT testbit, iftrue, iffalse)
 SDValue
 EpiphanyTargetLowering::LowerSELECT(SDValue Op, SelectionDAG &DAG) const {
-  DebugLoc dl = Op.getDebugLoc();
+  SDLoc dl = SDLoc(Op);
   SDValue TheBit = Op.getOperand(0);
   SDValue IfTrue = Op.getOperand(1);
   SDValue IfFalse = Op.getOperand(2);
@@ -939,20 +942,20 @@ EpiphanyTargetLowering::LowerSELECT(SDValue Op, SelectionDAG &DAG) const {
   // that as the consumer we are responsible for ignoring rubbish in higher
   // bits.
   TheBit = DAG.getNode(ISD::AND, dl, MVT::i32, TheBit,
-                       DAG.getConstant(1, MVT::i32));
+                       DAG.getConstant(1, dl, MVT::i32));
   SDValue A64CMP = DAG.getNode(EpiphanyISD::SETCC, dl, MVT::i32, TheBit,
-                               DAG.getConstant(0, TheBit.getValueType()),
+                               DAG.getConstant(0, dl, TheBit.getValueType()),
                                DAG.getCondCode(ISD::SETNE));
 
   return DAG.getNode(EpiphanyISD::SELECT_CC, dl, Op.getValueType(),
                      A64CMP, IfTrue, IfFalse,
-                     DAG.getConstant(EpiphanyCC::NE, MVT::i32));
+                     DAG.getConstant(EpiphanyCC::NE, dl, MVT::i32));
 }
 
 // (SETCC lhs, rhs, condcode)
 SDValue
 EpiphanyTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
-  DebugLoc dl = Op.getDebugLoc();
+  SDLoc dl = SDLoc(Op);
   SDValue LHS = Op.getOperand(0);
   SDValue RHS = Op.getOperand(1);
   ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(2))->get();
@@ -966,7 +969,7 @@ EpiphanyTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
     SDValue CmpOp = getSelectableIntSetCC(LHS, RHS, CC, A64cc, DAG, dl);
 
     return DAG.getNode(EpiphanyISD::SELECT_CC, dl, VT,
-                       CmpOp, DAG.getConstant(1, VT), DAG.getConstant(0, VT),
+                       CmpOp, DAG.getConstant(1, dl, VT), DAG.getConstant(0, dl, VT),
                        A64cc);
   }
 
@@ -974,11 +977,11 @@ EpiphanyTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
   bool invert;
   SDValue CmpOp;
   CondCode = FPCCToEpiphanyCC(CC, invert);
-  SDValue A64cc = DAG.getConstant(CondCode, MVT::i32);
+  SDValue A64cc = DAG.getConstant(CondCode, dl, MVT::i32);
   if(invert)
 	  std::swap(LHS, RHS);
 	CmpOp = DAG.getNode(EpiphanyISD::SETCC, dl, MVT::i32, LHS, RHS, DAG.getCondCode(CC));
-  SDValue A64SELECT_CC = DAG.getNode(EpiphanyISD::SELECT_CC, dl, VT, CmpOp, DAG.getConstant(1, VT), DAG.getConstant(0, VT), A64cc);
+  SDValue A64SELECT_CC = DAG.getNode(EpiphanyISD::SELECT_CC, dl, VT, CmpOp, DAG.getConstant(1, dl, VT), DAG.getConstant(0, dl, VT), A64cc);
 
   return A64SELECT_CC;
 }
@@ -1009,20 +1012,20 @@ PerformFSUBCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI){
 SDValue N0 = N->getOperand(0);
 SDValue N1 = N->getOperand(1);
 EVT VT = N->getValueType(0);
-DebugLoc dl = N->getDebugLoc();
+SDLoc dl = SDLoc(N);
 SelectionDAG &DAG = DCI.DAG;
 
 	// FSUB -> FMA combines:
 
     // fold (fsub (fmul x, y), z) -> (fma z, x, y)
     if (N0.getOpcode() == ISD::FMUL && N0->hasOneUse()) {
-		return DAG.getNode(EpiphanyISD::FM_A_S, N->getDebugLoc(), VT, N1, N0.getOperand(0), N0.getOperand(1), DAG.getConstant(1, MVT::i32));
+		return DAG.getNode(EpiphanyISD::FM_A_S, SDLoc(N), VT, N1, N0.getOperand(0), N0.getOperand(1), DAG.getConstant(1, dl, MVT::i32));
     }
 
     // fold (fsub x, (fmul y, z)) -> (fma x, y, z)
     // Note: Commutes FSUB operands.
     if (N1.getOpcode() == ISD::FMUL && N1->hasOneUse()) {
-		return DAG.getNode(EpiphanyISD::FM_A_S, N->getDebugLoc(), VT, N0, N1.getOperand(0), N1.getOperand(1), DAG.getConstant(1, MVT::i32));
+		return DAG.getNode(EpiphanyISD::FM_A_S, SDLoc(N), VT, N0, N1.getOperand(0), N1.getOperand(1), DAG.getConstant(1, dl, MVT::i32));
     }
 
     // fold (fsub (-(fmul, x, y)), z) -> (fma (fneg x), y, (fneg z))
@@ -1044,19 +1047,19 @@ PerformFADDCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI){
 SDValue N0 = N->getOperand(0);
 SDValue N1 = N->getOperand(1);
 EVT VT = N->getValueType(0);
-DebugLoc dl = N->getDebugLoc();
+SDLoc dl = SDLoc(N);
 SelectionDAG &DAG = DCI.DAG;
 
 	// FADD -> FMA combines:
 	// fold (fadd (fmul x, y), z) -> (fma z, x, y)
 	if (N0.getOpcode() == ISD::FMUL && N0->hasOneUse()) {
-		return DAG.getNode(EpiphanyISD::FM_A_S, N->getDebugLoc(), VT, N1, N0.getOperand(0), N0.getOperand(1), DAG.getConstant(0, MVT::i32));
+		return DAG.getNode(EpiphanyISD::FM_A_S, SDLoc(N), VT, N1, N0.getOperand(0), N0.getOperand(1), DAG.getConstant(0, dl, MVT::i32));
 	}
 
 	// fold (fadd x, (fmul y, z)) -> (fma x, y, z)
 	// Note: Commutes FADD operands.
 	if (N1.getOpcode() == ISD::FMUL && N1->hasOneUse()) {
-		return DAG.getNode(EpiphanyISD::FM_A_S, N->getDebugLoc(), VT, N0, N1.getOperand(0), N1.getOperand(1), DAG.getConstant(0, MVT::i32));
+		return DAG.getNode(EpiphanyISD::FM_A_S, SDLoc(N), VT, N0, N1.getOperand(0), N1.getOperand(1), DAG.getConstant(0, dl, MVT::i32));
 	}
 
 	return SDValue();

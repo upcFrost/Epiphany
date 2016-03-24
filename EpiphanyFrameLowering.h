@@ -15,13 +15,12 @@
 #ifndef LLVM_EPIPHANY_FRAMEINFO_H
 #define LLVM_EPIPHANY_FRAMEINFO_H
 
-#include "EpiphanySubtarget.h"
 #include "llvm/Target/TargetFrameLowering.h"
 
 namespace llvm {
-class EpiphanySubtarget;
-
 class EpiphanyFrameLowering : public TargetFrameLowering {
+protected:
+
 private:
   // In order to unify the spilling and restoring of callee-saved registers into
   // emitFrameMemOps, we need to be able to specify which instructions to use
@@ -36,19 +35,15 @@ private:
     // Sometimes only a single register can be handled at once.
     unsigned SingleOpcode; // E.g. LS64_STR
   };
-protected:
-  const EpiphanySubtarget &STI;
 
 public:
-  explicit EpiphanyFrameLowering(const EpiphanySubtarget &sti)
-    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 8, 0, 4),
-      STI(sti) {
-  }
+  explicit EpiphanyFrameLowering()
+    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 8, 0, 4) {}
 
   /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
   /// the function.
-  virtual void emitPrologue(MachineFunction &MF) const;
-  virtual void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const;
+  void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const;
+  void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const;
 
   /// Decides how much stack adjustment to perform in each phase of the prologue
   /// and epilogue.
@@ -59,21 +54,21 @@ public:
                                      unsigned &FrameReg, int SPAdj,
                                      bool IsCalleeSaveOp) const;
 
-  virtual void processFunctionBeforeCalleeSavedScan(MachineFunction &MF,
+  void processFunctionBeforeCalleeSavedScan(MachineFunction &MF,
                                                     RegScavenger *RS) const;
 
-  virtual bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
+  bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
                                         const std::vector<CalleeSavedInfo> &CSI,
                                         const TargetRegisterInfo *TRI) const;
-  virtual bool restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
+  bool restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
                                         const std::vector<CalleeSavedInfo> &CSI,
                                         const TargetRegisterInfo *TRI) const;
    	
   void eliminateCallFramePseudoInstr(MachineFunction &MF,
-										MachineBasicBlock &MBB,
-										MachineBasicBlock::iterator MI) const;
+					MachineBasicBlock &MBB,
+					MachineBasicBlock::iterator MI) const;
 
   /// If the register is X30 (i.e. LR) and the return address is used in the
   /// function then the callee-save store doesn't actually kill the register,
@@ -92,12 +87,12 @@ public:
                        const TargetRegisterInfo *TRI) const;
 
 
-  virtual bool hasFP(const MachineFunction &MF) const;
+  bool hasFP(const MachineFunction &MF) const override;
 
-  virtual bool useFPForAddressing(const MachineFunction &MF) const;
+  bool useFPForAddressing(const MachineFunction &MF) const;
 
   /// On AA
-  virtual bool hasReservedCallFrame(const MachineFunction &MF) const;
+  bool hasReservedCallFrame(const MachineFunction &MF) const;
 
 };
 

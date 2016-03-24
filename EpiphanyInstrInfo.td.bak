@@ -62,11 +62,6 @@ def SDTEpiphanyWrapper : SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>,
                                              SDTCisVT<3, i32>,
                                              SDTCisPtrTy<0>]>;
 
-
-//def SDTEpiphanyWrapper : SDTypeProfile<1, 2, [SDTCisSameAs<0, 1>,
-//                                              SDTCisVT<2, i32>,
-//                                              SDTCisPtrTy<0>]>;
-
 def A64WrapperSmall : SDNode<"EpiphanyISD::WrapperSmall", SDTEpiphanyWrapper>;
 
 
@@ -96,68 +91,21 @@ def Epiphanycallseq_end : SDNode<"ISD::CALLSEQ_END",   SDT_EpiphanyCallSeqEnd,
 // pseudo-instructions which explicitly set the stack, and finally in the
 // RegisterInfo we convert them to a true stack adjustment.
 let Defs = [SP], Uses = [SP] in {
-  def ADJCALLSTACKDOWN : Pseudo<(outs), (ins i32imm:$amt),
+  def ADJCALLSTACKDOWN : PseudoInst<(outs), (ins i32imm:$amt),
                                     [(Epiphanycallseq_start timm:$amt)]>;
 
-  def ADJCALLSTACKUP : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
+  def ADJCALLSTACKUP : PseudoInst<(outs), (ins i32imm:$amt1, i32imm:$amt2),
                                  [(Epiphanycallseq_end timm:$amt1, timm:$amt2)]>;
 }
 
 //===----------------------------------------------------------------------===//
-// Integer arithmetic operations with registers
+// Logical (register) instructions
 //===----------------------------------------------------------------------===//
 let Defs = [NZCV] in {
-  def ADDrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "add\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (addc GPR32:$Rn, GPR32:$Rm))], 0b0011111, NoItinerary>;
-  def SUBrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "sub\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (subc GPR32:$Rn, GPR32:$Rm))], 0b0111111, NoItinerary>;
-  def ANDrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "and\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (and GPR32:$Rn, GPR32:$Rm))], 0b1011111, NoItinerary>;
-  def ORRrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "orr\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (or GPR32:$Rn, GPR32:$Rm))],  0b1111111, NoItinerary>;
-  def EORrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "eor\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (xor GPR32:$Rn, GPR32:$Rm))], 0b0001111, NoItinerary>;
+	def ANDrr : EP3INST<(outs GPR32:$Rd),(ins GPR32:$Rn, GPR32:$Rm),"and\t$Rd, $Rn, $Rm",[(set GPR32:$Rd, (and GPR32:$Rn, GPR32:$Rm))],NoItinerary>;
+	def ORRrr : EP3INST<(outs GPR32:$Rd),(ins GPR32:$Rn, GPR32:$Rm),"orr\t$Rd, $Rn, $Rm",[(set GPR32:$Rd, (or GPR32:$Rn, GPR32:$Rm))],NoItinerary>;
+	def EORrr : EP3INST<(outs GPR32:$Rd),(ins GPR32:$Rn, GPR32:$Rm),"eor\t$Rd, $Rn, $Rm",[(set GPR32:$Rd, (xor GPR32:$Rn, GPR32:$Rm))],NoItinerary>;
 }
-
-//===----------------------------------------------------------------------===//
-// Floating-point arithmetic operations with registers
-//===----------------------------------------------------------------------===//
-
-// All the instructions set NZCV flags
-let Defs = [NZCV] in {
-  def FMULrr : FpMath32<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), 
-                        "fmul\t$Rd, $Rn, $Rm", 
-                        [(set (f32 FPR32:$Rd), (fmul FPR32:$Rn, FPR32:$Rm))], 
-                        0b0101111, NoItinerary> {
-   let isCommutable = 1;
-  }
-
-  def FADDrr : FpMath32<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), 
-                        "fadd\t$Rd, $Rn, $Rm", 
-                        [(set (f32 FPR32:$Rd), (fadd FPR32:$Rn, FPR32:$Rm))], 
-                        0b0001111, NoItinerary> {
-   let isCommutable = 1;
-  }
-}
-
-
-//===----------------------------------------------------------------------===//
-// Move operations: Immediates
-//===----------------------------------------------------------------------===//
-let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1 in {
-  def MOVTri : Normal<(outs GPR32:$rd), (ins GPR32:$src, imm16:$imm), 
-                      "movt\t$rd, $imm", 
-                      [(set GPR32:$rd, (or (and GPR32:$src, 0xffff), i32:$imm))],
-                      NoItinerary> {
-    let Constraints = "$src = $rd";
-  }
-  
-  def MOVri  : Normal<(outs GPR32:$rd), (ins i32imm:$imm), 
-                      "mov\t$rd, $imm" , 
-                      [(set GPR32:$rd, i32:$imm)],
-                      NoItinerary> {
-  }
-}
-
-def : Pat<(or GPR32:$src, 0xffff0000), (MOVTri GPR32:$src, 0xffff)>;
-
-
-
 //===----------------------------------------------------------------------===//
 // Add-subtract (immediate) instructions
 //===----------------------------------------------------------------------===//
@@ -200,6 +148,8 @@ def : Pat<(A64setcc GPR32:$Rn, addsubimm_i32_normal:$Imm12, cond),(SUBri_cmp GPR
 //===----------------------------------------------------------------------===//
 
 let Defs = [NZCV] in {
+def ADDrr : EP3INST<(outs GPR32:$Rd),(ins GPR32:$Rn, GPR32:$Rm),"add\t$Rd, $Rn, $Rm",[(set GPR32:$Rd, (addc GPR32:$Rn, (i32 GPR32:$Rm)))],NoItinerary>;
+def SUBrr : EP3INST<(outs GPR32:$Rd),(ins GPR32:$Rn, GPR32:$Rm),"sub\t$Rd, $Rn, $Rm",[(set GPR32:$Rd, (subc GPR32:$Rn, (i32 GPR32:$Rm)))],NoItinerary>;
 	let isCompare = 1 in {
 		def CMPrr : EP3INST<(outs),(ins GPR32:$Rn, GPR32:$Rm),"cmp\tR63, $Rn, $Rm",[(set NZCV, (A64cmp GPR32:$Rn, (i32 GPR32:$Rm)))],NoItinerary>;
 	}
@@ -287,14 +237,14 @@ def fmov32_operand : Operand<f32>, PatLeaf<(f32 fpimm), [{ return EpiphanyImms::
 
 let isMoveImm = 1, isAsCheapAsAMove = 1, hasSideEffects  = 0 in {
 	let Constraints = "$src = $rt" in {
-//			def MOVTri : EP2INST<(outs GPR32:$rt), (ins GPR32:$src, i32imm:$imm16),"movt\t$rt, $imm16",[(set GPR32:$rt, (or (and GPR32:$src, 0xffff), immLow16Zero:$imm16))],NoItinerary>;
+			def MOVTri : EP2INST<(outs GPR32:$rt), (ins GPR32:$src, i32imm:$imm16),"movt\t$rt, $imm16",[(set GPR32:$rt, (or (and GPR32:$src, 0xffff), immLow16Zero:$imm16))],NoItinerary>;
 			def MOVTri_nopat : EP2INST<(outs GPR32:$rt), (ins GPR32:$src, i32imm:$imm16),"movt\t$rt, $imm16",[],NoItinerary>;
 			
 			def MOVTri_nopat_f : EP2INST<(outs FPR32:$rt), (ins FPR32:$src, fmov32_operand:$imm16),"movt\t$rt, $imm16",[],NoItinerary>;
 	}
 	def MOVTri_nopat_nodstsrc : EP2INST<(outs GPR32:$rt), (ins i32imm:$imm16),"movt\t$rt, $imm16",[],NoItinerary>;
 
-//	def MOVri : EP2INST<(outs GPR32:$rt), (ins i32imm:$imm16), "mov\t$rt, $imm16", [(set GPR32:$rt, immZExt16:$imm16)], NoItinerary>;
+	def MOVri : EP2INST<(outs GPR32:$rt), (ins i32imm:$imm16), "mov\t$rt, $imm16", [(set GPR32:$rt, immZExt16:$imm16)], NoItinerary>;
 	def MOVri_nopat  :  EP2INST<(outs GPR32:$rt),(ins i32imm:$imm16), "mov\t$rt, $imm16", [], NoItinerary>;
 	
 	def MOVri_nopat_f  :  EP2INST<(outs FPR32:$rt),(ins fmov32_operand:$imm16), "mov\t$rt, $imm16", [], NoItinerary>;
@@ -304,7 +254,7 @@ let isMoveImm = 1, isAsCheapAsAMove = 1, hasSideEffects  = 0 in {
 //Arbitrary immediates - unfortunately selecting those instead of the rr version fails, so -> code.
 // def : Pat<(i32 imm:$imm), (MOVTri_nopat (MOVri_nopat (imm:$imm)),(imm:$imm))>;		
 // def : Pat<(f32 fpimm:$imm), (MOVTri_nopat_f (MOVri_nopat_f (fmov32_operand:$imm)),(fmov32_operand:$imm))>;		
-// def : Pat<(or GPR32:$src, 0xffff0000), (MOVTri_nopat GPR32:$src, 0xffff)>;
+def : Pat<(or GPR32:$src, 0xffff0000), (MOVTri_nopat GPR32:$src, 0xffff)>;
 
 
 class BitconvertPat<ValueType DstVT, ValueType SrcVT, RegisterClass DstRC,RegisterClass SrcRC> : Pat<(DstVT (bitconvert (SrcVT SrcRC:$src))), (COPY_TO_REGCLASS SrcRC:$src, DstRC)>;
@@ -432,7 +382,6 @@ def RETAlias : InstAlias<"rts", (RETx LR)>;
 //===----------------------------------------------------------------------===//
 
 class ADRP_ADD<SDNode addrop> : Pat<(A64WrapperSmall addrop:$Hi16, addrop:$Lo16, (i32 imm)),  (MOVTri_nopat (MOVri_nopat (addrop:$Lo16)),(addrop:$Hi16))>;
-//class ADRP_ADD<SDNode addrop> : Pat<(A64WrapperSmall addrop:$addr, (i32 imm)),  (MOVri(addrop:$addr))>;
 
 def : ADRP_ADD<tblockaddress>;
 def : ADRP_ADD<texternalsym>;
@@ -609,18 +558,18 @@ defm : simm11_pats_hword<(add_like_or GPR32:$Rn, hword_simm11:$SImm11), (i32 GPR
 defm : simm11_pats_word<(add_like_or GPR32:$Rn, word_simm11:$SImm11), (i32 GPR32:$Rn), (i32 word_simm11:$SImm11)>;
 // Global addresses under the small-absolute model should use these
 // instructions. There are ELF relocations specifically for it.
-//defm : simm11_pats_byte<(A64WrapperSmall tglobaladdr:$Hi, tglobaladdr:$Lo12, any_align), (MOVTri_nopat (MOVri_nopat (tglobaladdr:$Lo12)),(tglobaladdr:$Hi)), (i32 0)>;
-//defm : simm11_pats_hword<(A64WrapperSmall tglobaladdr:$Hi, tglobaladdr:$Lo12, min_align2), (MOVTri_nopat (MOVri_nopat (tglobaladdr:$Lo12)),(tglobaladdr:$Hi)), (i32 0)>;
-//defm : simm11_pats_word<(A64WrapperSmall tglobaladdr:$Hi, tglobaladdr:$Lo12, min_align4), (MOVTri_nopat (MOVri_nopat (tglobaladdr:$Lo12)),(tglobaladdr:$Hi)), (i32 0)>;
+defm : simm11_pats_byte<(A64WrapperSmall tglobaladdr:$Hi, tglobaladdr:$Lo12, any_align), (MOVTri_nopat (MOVri_nopat (tglobaladdr:$Lo12)),(tglobaladdr:$Hi)), (i32 0)>;
+defm : simm11_pats_hword<(A64WrapperSmall tglobaladdr:$Hi, tglobaladdr:$Lo12, min_align2), (MOVTri_nopat (MOVri_nopat (tglobaladdr:$Lo12)),(tglobaladdr:$Hi)), (i32 0)>;
+defm : simm11_pats_word<(A64WrapperSmall tglobaladdr:$Hi, tglobaladdr:$Lo12, min_align4), (MOVTri_nopat (MOVri_nopat (tglobaladdr:$Lo12)),(tglobaladdr:$Hi)), (i32 0)>;
 
 // External symbols that make it this far should also get standard relocations.
-//defm : simm11_pats_byte<(A64WrapperSmall texternalsym:$Hi, texternalsym:$Lo12, any_align), (MOVTri_nopat (MOVri_nopat (texternalsym:$Lo12)),(texternalsym:$Hi)), (i32 0)>;
-//defm : simm11_pats_hword<(A64WrapperSmall texternalsym:$Hi, texternalsym:$Lo12, min_align2), (MOVTri_nopat (MOVri_nopat (texternalsym:$Lo12)),(texternalsym:$Hi)), (i32 0)>;
-//defm : simm11_pats_word<(A64WrapperSmall texternalsym:$Hi, texternalsym:$Lo12, min_align4), (MOVTri_nopat (MOVri_nopat (texternalsym:$Lo12)),(texternalsym:$Hi)), (i32 0)>;
+defm : simm11_pats_byte<(A64WrapperSmall texternalsym:$Hi, texternalsym:$Lo12, any_align), (MOVTri_nopat (MOVri_nopat (texternalsym:$Lo12)),(texternalsym:$Hi)), (i32 0)>;
+defm : simm11_pats_hword<(A64WrapperSmall texternalsym:$Hi, texternalsym:$Lo12, min_align2), (MOVTri_nopat (MOVri_nopat (texternalsym:$Lo12)),(texternalsym:$Hi)), (i32 0)>;
+defm : simm11_pats_word<(A64WrapperSmall texternalsym:$Hi, texternalsym:$Lo12, min_align4), (MOVTri_nopat (MOVri_nopat (texternalsym:$Lo12)),(texternalsym:$Hi)), (i32 0)>;
 
-//defm : simm11_pats_byte<(A64WrapperSmall tconstpool:$Hi, tconstpool:$Lo12, any_align), (MOVTri_nopat (MOVri_nopat (tconstpool:$Lo12)),(tconstpool:$Hi)), (i32 0)>;
-//defm : simm11_pats_hword<(A64WrapperSmall tconstpool:$Hi, tconstpool:$Lo12, min_align2), (MOVTri_nopat (MOVri_nopat (tconstpool:$Lo12)),(tconstpool:$Hi)), (i32 0)>;
-//defm : simm11_pats_word<(A64WrapperSmall tconstpool:$Hi, tconstpool:$Lo12, min_align4), (MOVTri_nopat (MOVri_nopat (tconstpool:$Lo12)),(tconstpool:$Hi)), (i32 0)>;
+defm : simm11_pats_byte<(A64WrapperSmall tconstpool:$Hi, tconstpool:$Lo12, any_align), (MOVTri_nopat (MOVri_nopat (tconstpool:$Lo12)),(tconstpool:$Hi)), (i32 0)>;
+defm : simm11_pats_hword<(A64WrapperSmall tconstpool:$Hi, tconstpool:$Lo12, min_align2), (MOVTri_nopat (MOVri_nopat (tconstpool:$Lo12)),(tconstpool:$Hi)), (i32 0)>;
+defm : simm11_pats_word<(A64WrapperSmall tconstpool:$Hi, tconstpool:$Lo12, min_align4), (MOVTri_nopat (MOVri_nopat (tconstpool:$Lo12)),(tconstpool:$Hi)), (i32 0)>;
 
 // We also want to use simm11 instructions for local variables at the moment.
 defm : simm11_pats_byte<(i32 frameindex:$Rn), (tframeindex_XFORM tframeindex:$Rn), (i32 0)>;

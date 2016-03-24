@@ -133,8 +133,8 @@ namespace {
 
 bool EpiphanyPreAllocLoadStoreOpt::runOnMachineFunction(MachineFunction &Fn) {
   TD  = Fn.getTarget().getDataLayout();
-  TII = Fn.getTarget().getInstrInfo();
-  TRI = Fn.getTarget().getRegisterInfo();
+  TII = Fn.getSubtarget().getInstrInfo();
+  TRI = Fn.getSubtarget().getRegisterInfo();
   MRI = &Fn.getRegInfo();
   MF  = &Fn;
 

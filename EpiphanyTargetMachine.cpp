@@ -15,9 +15,12 @@
 
 #include "Epiphany.h"
 #include "EpiphanyTargetMachine.h"
+#include "EpiphanyTargetObjectFile.h"
 #include "MCTargetDesc/EpiphanyMCTargetDesc.h"
-#include "llvm/PassManager.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/CodeGen/Passes.h"
+#include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -33,20 +36,19 @@ extern "C" void LLVMInitializeEpiphanyTarget() {
   RegisterTargetMachine<EpiphanyTargetMachine> X(TheEpiphanyTarget);
 }
 
-EpiphanyTargetMachine::EpiphanyTargetMachine(const Target &T, StringRef TT,
+EpiphanyTargetMachine::EpiphanyTargetMachine(const Target &T, const Triple &TT,
                                            StringRef CPU, StringRef FS,
                                            const TargetOptions &Options,
                                            Reloc::Model RM, CodeModel::Model CM,
                                            CodeGenOpt::Level OL)
-  : LLVMTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL),
-    Subtarget(TT, CPU, FS),
-    InstrInfo(Subtarget),
-    DL("e-p:32:32-i8:8:8-i16:16:16-i32:32:32-f32:32:32-i64:64:64-f64:64:64-s64:64:64-S64:64:64-a0:32:32"),
-    TLInfo(*this),
-    TSInfo(*this),
-    FrameLowering(Subtarget) {
-      initAsmInfo();
+      : LLVMTargetMachine(T, "e-p:32:32-i8:8:8-i16:16:16-i32:32:32-f32:32:32-i64:64:64-f64:64:64-s64:64:64-S64:64:64-a0:32:32", 
+                          TT, CPU, FS, Options, RM, CM, OL),
+        TLOF(make_unique<EpiphanyLinuxTargetObjectFile>()),
+        Subtarget(TT, CPU, FS, *this) {
+  initAsmInfo();
 }
+
+EpiphanyTargetMachine::~EpiphanyTargetMachine() {}
 
 namespace {
 /// Epiphany Code Generator Pass Configuration Options.
@@ -59,14 +61,14 @@ public:
     return getTM<EpiphanyTargetMachine>();
   }
 
-  const EpiphanySubtarget &getEpiphanySubtarget() const {
-    return *getEpiphanyTargetMachine().getSubtargetImpl();
-  }
+//  const EpiphanySubtarget &getEpiphanySubtarget() const {
+//    return *getEpiphanyTargetMachine().getSubtargetImpl();
+//  }
 
-  virtual bool addInstSelector();
-  virtual bool addPreEmitPass();
-  virtual bool addPreRegAlloc();
-  virtual bool addPostRegAlloc();
+  bool addInstSelector() override;
+  void addPreEmitPass() override;
+  void addPreRegAlloc() override;
+  void addPostRegAlloc() override;
 };
 } // namespace
 
@@ -74,23 +76,20 @@ TargetPassConfig *EpiphanyTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new EpiphanyPassConfig(this, PM);
 }
 
-bool EpiphanyPassConfig::addPreEmitPass() {
+void EpiphanyPassConfig::addPreEmitPass() {
   addPass(&UnpackMachineBundlesID);
-  return true;
 }
 
 bool EpiphanyPassConfig::addInstSelector() {
   addPass(createEpiphanyISelDAG(getEpiphanyTargetMachine(), getOptLevel()));
-    return false;
+  return false;
 }
 
-bool EpiphanyPassConfig::addPreRegAlloc() {
-	if (EnableLSD)
-		addPass(createEpiphanyLSOptPass());
-  return true;
+void EpiphanyPassConfig::addPreRegAlloc() {
+  if (EnableLSD)
+	addPass(createEpiphanyLSOptPass());
 }
 
-bool EpiphanyPassConfig::addPostRegAlloc() {
+void EpiphanyPassConfig::addPostRegAlloc() {
   addPass(createEpiphanyCondMovPass(getEpiphanyTargetMachine()));
-  return true;
 }

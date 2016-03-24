@@ -30,7 +30,7 @@
 
 #include <algorithm>
 
-#define GET_INSTRINFO_CTOR
+#define GET_INSTRINFO_CTOR_DTOR
 #include "EpiphanyGenInstrInfo.inc"
 
 using namespace llvm;
@@ -103,11 +103,11 @@ bool
 EpiphanyInstrInfo::optimizeCompareInstr(MachineInstr *CmpInstr, unsigned SrcReg, unsigned SrcReg2, int CmpMask, int CmpValue, const MachineRegisterInfo *MRI) const {
 
   MachineRegisterInfo::def_iterator DI = MRI->def_begin(SrcReg);
-  if (llvm::next(DI) != MRI->def_end())
+  if (std::next(DI) != MRI->def_end())
     // Only support one definition.
     return false;
 
-  MachineInstr *MI = &*DI;
+  MachineInstr *MI = DI->getParent();
 
   // Get ready to iterate backward from CmpInstr.
   MachineBasicBlock::iterator I = CmpInstr, E = MI, B = CmpInstr->getParent()->begin();
@@ -636,7 +636,7 @@ unsigned EpiphanyInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     return getInstBundleLength(MI);
   case TargetOpcode::IMPLICIT_DEF:
   case TargetOpcode::KILL:
-  case TargetOpcode::PROLOG_LABEL:
+  case TargetOpcode::CFI_INSTRUCTION:
   case TargetOpcode::EH_LABEL:
   case TargetOpcode::DBG_VALUE:
     return 0;
@@ -674,11 +674,11 @@ void llvm::EPIPHemitRegUpdate(MachineBasicBlock &MBB,
                          int64_t NumBytes, MachineInstr::MIFlag MIFlags) {
   if (NumBytes == 0 && DstReg == SrcReg)
     return;
-  else if (abs(NumBytes) & ~0x3FF) { // 11bit signed = 10b unsigned
+  else if (NumBytes & ~0x3FF) { // 11bit signed = 10b unsigned
     // Generically, we have to materialize the offset into a temporary register
     // and subtract it. There are a couple of ways this could be done, for now
     // we'll use a movz/movk or movn/movk sequence.
-    uint64_t Bits = static_cast<uint64_t>(abs(NumBytes));
+    uint64_t Bits = static_cast<uint64_t>(NumBytes);
 	BuildMI(MBB, MBBI, dl, TII.get(Epiphany::MOVri), ScratchReg)
       .addImm(0xffff & Bits).setMIFlags(MIFlags);
 
@@ -690,12 +690,12 @@ void llvm::EPIPHemitRegUpdate(MachineBasicBlock &MBB,
 
 	//HACK since we have only 32b at most this needs only a mov + movt
     // ADD DST, SRC, xTMP (, lsl #0)
-    unsigned AddOp = NumBytes > 0 ? Epiphany::ADDrr : Epiphany::SUBrr;
-    BuildMI(MBB, MBBI, dl, TII.get(AddOp), DstReg)
-      .addReg(SrcReg, RegState::Kill)
-      .addReg(ScratchReg, RegState::Kill)
-      .addImm(0)
-      .setMIFlag(MIFlags);
+//    unsigned AddOp = NumBytes > 0 ? Epiphany::ADDrr : Epiphany::SUBrr;
+//    BuildMI(MBB, MBBI, dl, TII.get(AddOp), DstReg)
+//      .addReg(SrcReg, RegState::Kill)
+//      .addReg(ScratchReg, RegState::Kill)
+//      .addImm(0)
+//      .setMIFlag(MIFlags);
     return;
   }
 
@@ -711,7 +711,7 @@ void llvm::EPIPHemitRegUpdate(MachineBasicBlock &MBB,
   } else {
     LowOp = Epiphany::SUBri;
     //HighOp = Epiphany::SUBwwi_lsl12_s;
-    NumBytes = abs(NumBytes);
+    NumBytes = -NumBytes;
   }
 
   // If we're here, at the very least a move needs to be produced, which just
