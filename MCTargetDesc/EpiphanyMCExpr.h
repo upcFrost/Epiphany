@@ -60,15 +60,19 @@ public:
 
   /// @}
 
-  void PrintImpl(raw_ostream &OS) const;
-  bool EvaluateAsRelocatableImpl(MCValue &Res,
-                                 const MCAsmLayout *Layout) const;
-  void AddValueSymbols(MCAssembler *) const;
-  const MCSection *FindAssociatedSection() const {
-    return getSubExpr()->FindAssociatedSection();
-  }
+  void printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const override;
 
-  void fixELFSymbolsInTLSFixups(MCAssembler &Asm) const;
+  void visitUsedExpr(MCStreamer &Streamer) const override;
+
+  MCSection *findAssociatedSection() const override;
+
+  bool evaluateAsRelocatableImpl(MCValue &Res,
+                                 const MCAsmLayout *Layout,
+                                 const MCFixup *Fixup) const override;
+
+  void fixELFSymbolsInTLSFixups(MCAssembler &Asm) const override;
+
+  void AddValueSymbols(MCAssembler *) const;
 
   static bool classof(const MCExpr *E) {
     return E->getKind() == MCExpr::Target;

@@ -16,7 +16,7 @@
 #include "EpiphanyMCExpr.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCAssembler.h"
-#include "llvm/MC/MCELF.h"
+#include "llvm/MC/MCStreamer.h"
 #include "llvm/Object/ELF.h"
 
 using namespace llvm;
@@ -27,7 +27,7 @@ EpiphanyMCExpr::Create(VariantKind Kind, const MCExpr *Expr,
   return new (Ctx) EpiphanyMCExpr(Kind, Expr);
 }
 
-void EpiphanyMCExpr::PrintImpl(raw_ostream &OS) const {
+void EpiphanyMCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
   switch (Kind) {
   default: llvm_unreachable("Invalid kind!");
   case VK_EPIPHANY_LO16:             OS << "%low("; break;
@@ -37,7 +37,7 @@ void EpiphanyMCExpr::PrintImpl(raw_ostream &OS) const {
   const MCExpr *Expr = getSubExpr();
   if (Expr->getKind() != MCExpr::SymbolRef)
     OS << '(';
-  Expr->print(OS);
+  Expr->print(OS, MAI);
   if (Expr->getKind() != MCExpr::SymbolRef)
     OS << ')';
 
@@ -48,15 +48,21 @@ void EpiphanyMCExpr::PrintImpl(raw_ostream &OS) const {
 	}
 }
 
-bool
-EpiphanyMCExpr::EvaluateAsRelocatableImpl(MCValue &Res,
-                                         const MCAsmLayout *Layout) const {
-  return getSubExpr()->EvaluateAsRelocatable(Res, *Layout);
+void EpiphanyMCExpr::visitUsedExpr(MCStreamer &Streamer) const {
+    Streamer.visitUsedExpr(*getSubExpr());
 }
 
-static void fixELFSymbolsInTLSFixupsImpl(const MCExpr *Expr, MCAssembler &Asm) {
-    llvm_unreachable("Can't handle nested target expression");
+MCSection *EpiphanyMCExpr::findAssociatedSection() const {
+    llvm_unreachable("TODO: add code");
 }
+
+bool
+EpiphanyMCExpr::evaluateAsRelocatableImpl(MCValue &Res,
+                                         const MCAsmLayout *Layout,
+                                         const MCFixup *Fixup) const {
+  return getSubExpr()->evaluateAsRelocatable(Res, Layout, Fixup);
+}
+
 
 void EpiphanyMCExpr::fixELFSymbolsInTLSFixups(MCAssembler &Asm) const {
 }
@@ -81,7 +87,8 @@ static void AddValueSymbolsImpl(const MCExpr *Value, MCAssembler *Asm) {
   }
 
   case MCExpr::SymbolRef:
-    Asm->getOrCreateSymbolData(cast<MCSymbolRefExpr>(Value)->getSymbol());
+    //TODO: Figure out what this should do
+    //Asm->getOrCreateSymbolData(cast<MCSymbolRefExpr>(Value)->getSymbol());
     break;
 
   case MCExpr::Unary:

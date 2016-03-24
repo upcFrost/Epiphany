@@ -12,8 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 let Namespace = "Epiphany" in {
-def sub_even : SubRegIndex;
-def sub_odd : SubRegIndex;
+def sub_even : SubRegIndex<64>;
+def sub_odd : SubRegIndex<64>;
 }
 
 // Registers are identified with 5-bit ID numbers.

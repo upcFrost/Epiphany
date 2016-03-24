@@ -30,7 +30,7 @@
 
 #include <algorithm>
 
-#define GET_INSTRINFO_CTOR
+#define GET_INSTRINFO_CTOR_DTOR
 #include "EpiphanyGenInstrInfo.inc"
 
 using namespace llvm;
@@ -103,11 +103,13 @@ bool
 EpiphanyInstrInfo::optimizeCompareInstr(MachineInstr *CmpInstr, unsigned SrcReg, unsigned SrcReg2, int CmpMask, int CmpValue, const MachineRegisterInfo *MRI) const {
 
   MachineRegisterInfo::def_iterator DI = MRI->def_begin(SrcReg);
-  if (llvm::next(DI) != MRI->def_end())
+  if (++DI != MRI->def_end())
     // Only support one definition.
     return false;
 
-  MachineInstr *MI = &*DI;
+  // TODO: fix this  - should not need to get iterator again?
+  MachineRegisterInfo::def_iterator DI2 = MRI->def_begin(SrcReg);
+  MachineInstr *MI = DI2->getParent();
 
   // Get ready to iterate backward from CmpInstr.
   MachineBasicBlock::iterator I = CmpInstr, E = MI, B = CmpInstr->getParent()->begin();
@@ -636,7 +638,7 @@ unsigned EpiphanyInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     return getInstBundleLength(MI);
   case TargetOpcode::IMPLICIT_DEF:
   case TargetOpcode::KILL:
-  case TargetOpcode::PROLOG_LABEL:
+  case TargetOpcode::CFI_INSTRUCTION:
   case TargetOpcode::EH_LABEL:
   case TargetOpcode::DBG_VALUE:
     return 0;
@@ -674,11 +676,11 @@ void llvm::EPIPHemitRegUpdate(MachineBasicBlock &MBB,
                          int64_t NumBytes, MachineInstr::MIFlag MIFlags) {
   if (NumBytes == 0 && DstReg == SrcReg)
     return;
-  else if (abs(NumBytes) & ~0x3FF) { // 11bit signed = 10b unsigned
+  else if (std::abs(NumBytes) & ~0x3FF) { // 11bit signed = 10b unsigned
     // Generically, we have to materialize the offset into a temporary register
     // and subtract it. There are a couple of ways this could be done, for now
     // we'll use a movz/movk or movn/movk sequence.
-    uint64_t Bits = static_cast<uint64_t>(abs(NumBytes));
+    uint64_t Bits = static_cast<uint64_t>(std::abs(NumBytes));
 	BuildMI(MBB, MBBI, dl, TII.get(Epiphany::MOVri), ScratchReg)
       .addImm(0xffff & Bits).setMIFlags(MIFlags);
 
@@ -711,7 +713,7 @@ void llvm::EPIPHemitRegUpdate(MachineBasicBlock &MBB,
   } else {
     LowOp = Epiphany::SUBri;
     //HighOp = Epiphany::SUBwwi_lsl12_s;
-    NumBytes = abs(NumBytes);
+    NumBytes = std::abs(NumBytes);
   }
 
   // If we're here, at the very least a move needs to be produced, which just

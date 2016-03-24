@@ -16,10 +16,3 @@
 #include "llvm/CodeGen/SelectionDAG.h"
 using namespace llvm;
 
-EpiphanySelectionDAGInfo::EpiphanySelectionDAGInfo(const EpiphanyTargetMachine &TM)
-  : TargetSelectionDAGInfo(TM),
-    Subtarget(&TM.getSubtarget<EpiphanySubtarget>()) {
-}
-
-EpiphanySelectionDAGInfo::~EpiphanySelectionDAGInfo() {
-}

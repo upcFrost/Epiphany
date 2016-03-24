@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "epiphany-subtarget"
 #include "EpiphanySubtarget.h"
 #include "EpiphanyRegisterInfo.h"
 #include "MCTargetDesc/EpiphanyMCTargetDesc.h"
@@ -25,12 +26,20 @@
 
 using namespace llvm;
 
-EpiphanySubtarget::EpiphanySubtarget(StringRef TT, StringRef CPU, StringRef FS)
-  : EpiphanyGenSubtargetInfo(TT, CPU, FS)
-  , TargetTriple(TT) {
-
-  ParseSubtargetFeatures(CPU, FS);
+EpiphanySubtarget &
+EpiphanySubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS)
+{
+    ParseSubtargetFeatures(CPU, FS);
+    return *this;
 }
+
+EpiphanySubtarget::EpiphanySubtarget(const Triple &TT, StringRef CPU, StringRef FS, const TargetMachine &TM)
+  : EpiphanyGenSubtargetInfo(TT, CPU, FS)
+  , TargetTriple(TT)
+  , FrameLowering()
+  , InstrInfo(initializeSubtargetDependencies(CPU, FS))
+  , TLInfo(TM, *this)
+{}
 
 bool EpiphanySubtarget::GVIsIndirectSymbol(const GlobalValue *GV,
                                           Reloc::Model RelocM) const {

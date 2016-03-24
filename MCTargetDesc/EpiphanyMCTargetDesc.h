@@ -26,12 +26,13 @@ class MCRegisterInfo;
 class MCSubtargetInfo;
 class StringRef;
 class Target;
+class Triple;
 class raw_ostream;
 
 extern Target TheEpiphanyTarget;
 
 namespace Epiphany_MC {
-  MCSubtargetInfo *createEpiphanyMCSubtargetInfo(StringRef TT, StringRef CPU,
+  MCSubtargetInfo *createEpiphanyMCSubtargetInfo(const Triple &TT, StringRef CPU,
                                                 StringRef FS);
 }
 

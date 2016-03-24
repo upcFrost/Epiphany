@@ -14,8 +14,9 @@
 
 #define DEBUG_TYPE "asm-printer"
 #include "EpiphanyAsmPrinter.h"
+#include "EpiphanySubtarget.h"
 #include "InstPrinter/EpiphanyInstPrinter.h"
-#include "llvm/DebugInfo.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/CodeGen/MachineModuleInfoImpls.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
@@ -93,7 +94,7 @@ bool EpiphanyAsmPrinter::printSymbolicAddress(const MachineOperand &MO,
   default:
     llvm_unreachable("Unexpected operand for symbolic address constraint");
   case MachineOperand::MO_GlobalAddress:
-    Name = Mang->getSymbol(MO.getGlobal())->getName();
+    Name = TM.getSymbol(MO.getGlobal(), *Mang)->getName();
 
     // Global variables may be accessed either via a GOT or in various fun and
     // interesting TLS-model specific ways. Set the prefix modifier as
@@ -139,7 +140,7 @@ bool EpiphanyAsmPrinter::printSymbolicAddress(const MachineOperand &MO,
 bool EpiphanyAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
                                         unsigned AsmVariant,
                                         const char *ExtraCode, raw_ostream &O) {
-  const TargetRegisterInfo *TRI = MF->getTarget().getRegisterInfo();
+  const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
   if (!ExtraCode || !ExtraCode[0]) {
     // There's actually no operand modifier, which leads to a slightly eclectic
     // set of behaviour which we have to handle here.
@@ -263,8 +264,9 @@ void EpiphanyAsmPrinter::PrintDebugValueComment(const MachineInstr *MI,
   assert(NOps==4);
   OS << '\t' << MAI->getCommentString() << "DEBUG_VALUE: ";
   // cast away const; DIetc do not take const operands for some reason.
-  DIVariable V(const_cast<MDNode *>(MI->getOperand(NOps-1).getMetadata()));
-  OS << V.getName();
+  //DIVariable V(const_cast<MDNode *>(MI->getOperand(NOps-1).getMetadata()));
+  //OS << V.getName();
+  OS << "TODO: getName on DIVariable";
   OS << " <- ";
   // Frame address.  Currently handles register +- offset only.
   assert(MI->getOperand(0).isReg() && MI->getOperand(1).isImm());
@@ -279,16 +281,16 @@ void EpiphanyAsmPrinter::PrintDebugValueComment(const MachineInstr *MI,
 
 void EpiphanyAsmPrinter::EmitInstruction(const MachineInstr *MI) {
   // Do any auto-generated pseudo lowerings.
-  if (emitPseudoExpansionLowering(OutStreamer, MI))
+  if (emitPseudoExpansionLowering(*OutStreamer, MI))
     return;
 
   switch (MI->getOpcode()) {
   case Epiphany::DBG_VALUE: {
-    if (isVerbose() && OutStreamer.hasRawTextSupport()) {
+    if (isVerbose() && OutStreamer->hasRawTextSupport()) {
       SmallString<128> TmpStr;
       raw_svector_ostream OS(TmpStr);
       PrintDebugValueComment(MI, OS);
-      OutStreamer.EmitRawText(StringRef(OS.str()));
+      OutStreamer->EmitRawText(StringRef(OS.str()));
     }
     return;
   }
@@ -296,7 +298,7 @@ void EpiphanyAsmPrinter::EmitInstruction(const MachineInstr *MI) {
 
   MCInst TmpInst;
   LowerEpiphanyMachineInstrToMCInst(MI, TmpInst, *this);
-  OutStreamer.EmitInstruction(TmpInst);
+  OutStreamer->EmitInstruction(TmpInst, MF->getSubtarget<EpiphanySubtarget>());
 }
 
 void EpiphanyAsmPrinter::EmitEndOfAsmFile(Module &M) {
@@ -309,12 +311,12 @@ void EpiphanyAsmPrinter::EmitEndOfAsmFile(Module &M) {
     // Output stubs for external and common global variables.
     MachineModuleInfoELF::SymbolListTy Stubs = MMIELF.GetGVStubList();
     if (!Stubs.empty()) {
-      OutStreamer.SwitchSection(TLOFELF.getDataRelSection());
+      OutStreamer->SwitchSection(TLOFELF.getDataRelSection());
       const DataLayout *TD = TM.getDataLayout();
 
       for (unsigned i = 0, e = Stubs.size(); i != e; ++i) {
-        OutStreamer.EmitLabel(Stubs[i].first);
-        OutStreamer.EmitSymbolValue(Stubs[i].second.getPointer(),
+        OutStreamer->EmitLabel(Stubs[i].first);
+        OutStreamer->EmitSymbolValue(Stubs[i].second.getPointer(),
                                     TD->getPointerSize(0), 0);
       }
       Stubs.clear();
@@ -323,6 +325,7 @@ void EpiphanyAsmPrinter::EmitEndOfAsmFile(Module &M) {
 }
 
 bool EpiphanyAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
+  Subtarget = &MF.getSubtarget<EpiphanySubtarget>();
   return AsmPrinter::runOnMachineFunction(MF);
 }
 
