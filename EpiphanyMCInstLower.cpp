@@ -23,7 +23,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
-#include "llvm/Target/Mangler.h"
+#include "llvm/IR/Mangler.h"
 
 using namespace llvm;
 

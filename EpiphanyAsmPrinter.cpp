@@ -24,7 +24,7 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/TargetRegistry.h"
-#include "llvm/Target/Mangler.h"
+#include "llvm/IR/Mangler.h"
 
 using namespace llvm;
 

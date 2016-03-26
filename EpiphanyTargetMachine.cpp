@@ -17,7 +17,7 @@
 #include "EpiphanyTargetMachine.h"
 #include "EpiphanyTargetObjectFile.h"
 #include "MCTargetDesc/EpiphanyMCTargetDesc.h"
-#include "llvm/PassManager.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
