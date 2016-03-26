@@ -29,6 +29,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "frame-info"
+
 void EpiphanyFrameLowering::splitSPAdjustments(uint64_t Total,
                                               uint64_t &Initial,
                                               uint64_t &Residual) const {
@@ -44,20 +46,24 @@ void EpiphanyFrameLowering::splitSPAdjustments(uint64_t Total,
   }
 }
 
-void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
-  EpiphanyMachineFunctionInfo *FuncInfo =
-    MF.getInfo<EpiphanyMachineFunctionInfo>();
-  //MachineBasicBlock &MBB = MF.front();
+void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF, 
+					 MachineBasicBlock &MBB) const {
+  // Call frame information
+  unsigned CFIIndex;
+  // Machine functions
   MachineBasicBlock::iterator MBBI = MBB.begin();
   MachineFrameInfo *MFI = MF.getFrameInfo();
-  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
-  DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
-
+  const Function *Fn = MF.getFunction();
+  const EpiphanyRegisterInfo *RegInfo = static_cast<const EpiphanyRegisterInfo *>(
+    MF.getSubtarget().getRegisterInfo());
+  const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
   MachineModuleInfo &MMI = MF.getMMI();
-  const MCRegisterInfo &MRI = *MF.getSubtarget().getRegisterInfo();
-  bool NeedsFrameMoves = MMI.hasDebugInfo()
-    || MF.getFunction()->needsUnwindTableEntry();
+  EpiphanyMachineFunctionInfo *FuncInfo = MF.getInfo<EpiphanyMachineFunctionInfo>();
+  bool NeedsFrameMoves = MMI.hasDebugInfo() || Fn->needsUnwindTableEntry();
+  bool HasFP = hasFP(MF);
+  DebugLoc DL = MBB.findDebugLoc(MBBI);
 
+//  const MCRegisterInfo *MRI = MMI.getContext().getRegisterInfo();
   uint64_t NumInitialBytes, NumResidualBytes;
 
   // Currently we expect the stack to be laid out by
@@ -86,67 +92,77 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock 
   // have a different view of things.
   FuncInfo->setInitialStackAdjust(NumInitialBytes);
 
-  EPIPHemitSPUpdate(MBB, MBBI, DL, TII, Epiphany::R63, -NumInitialBytes,
-               MachineInstr::FrameSetup);
+  EPIPHemitSPUpdate(MBB, MBBI, DL, *TII, Epiphany::R63, -NumInitialBytes,
+                    MachineInstr::FrameSetup);
 
   if (NeedsFrameMoves && NumInitialBytes) {
+//    emitFrameOffset(MBB, MBBI, DL, Epiphany::SP, Epiphany::SP, -NumInitialBytes, TII,
+//                    MachineInstr::FrameSetup);
     // We emit this update even if the CFA is set from a frame pointer later so
     // that the CFA is valid in the interim.
-    MCSymbol *SPLabel = MMI.getContext().createTempSymbol();
-    BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
-      .addSym(SPLabel);
+//    MCSymbol *SPLabel = MMI.getContext().createTempSymbol();
+//    BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+//      .addSym(SPLabel);
 
+//    MachineLocation Dst(MachineLocation::VirtualFP);
+//    unsigned Reg = RegInfo->getDwarfRegNum(Epiphany::SP, true);
+//    CFIIndex = MMI.addFrameInst(
+//        MCCFIInstruction::createDefCfa(SPLabel, Reg, -NumInitialBytes));
+
+    MCSymbol *FrameLabel = MMI.getContext().createTempSymbol();
     MachineLocation Dst(MachineLocation::VirtualFP);
-    unsigned Reg = MRI.getDwarfRegNum(Epiphany::SP, true);
-    MMI.addFrameInst(
-        MCCFIInstruction::createDefCfa(SPLabel, Reg, -NumInitialBytes));
+    unsigned Reg = RegInfo->getDwarfRegNum(Epiphany::SP, true);
+    CFIIndex = MMI.addFrameInst(
+          MCCFIInstruction::createDefCfa(FrameLabel, Reg, -NumInitialBytes));
+    BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+      .addCFIIndex(CFIIndex)
+      .setMIFlags(MachineInstr::FrameSetup);
   }
 
   // Otherwise we need to set the frame pointer and/or add a second stack
   // adjustment.
 
-  bool FPNeedsSetting = hasFP(MF);
   for (; MBBI != MBB.end(); ++MBBI) {
     // Note that this search makes strong assumptions about the operation used
     // to store the frame-pointer: it must be "STP R11, W30, ...". This could
     // change in future, but until then there's no point in implementing
     // untestable more generic cases.
-    //if (FPNeedsSetting && MBBI->getOpcode() == Epiphany::LSPair64_STR <------------------------ we don't have a pair instruction :(
-    //                   && MBBI->getOperand(0).getReg() == Epiphany::R11) {
-    //  int64_t R11FrameIdx = MBBI->getOperand(2).getIndex();
-    //  FuncInfo->setFramePointerOffset(MFI->getObjectOffset(R11FrameIdx));
+    if (HasFP // && MBBI->getOpcode() == Epiphany::LSPair64_STR  <------------------------ we don't have a pair instruction :(
+                       && MBBI->getOperand(0).getReg() == Epiphany::R11) {
+      int64_t R11FrameIdx = MBBI->getOperand(2).getIndex();
+      FuncInfo->setFramePointerOffset(MFI->getObjectOffset(R11FrameIdx));
 
-    //  ++MBBI;
-    //  EPIPHemitRegUpdate(MBB, MBBI, DL, TII, Epiphany::R11, Epiphany::SP,
-    //                Epiphany::R11,
-    //                NumInitialBytes + MFI->getObjectOffset(R11FrameIdx),
-    //                MachineInstr::FrameSetup);
+      ++MBBI;
+      EPIPHemitRegUpdate(MBB, MBBI, DL, *TII, Epiphany::R11, Epiphany::SP,
+                    Epiphany::R11,
+                    NumInitialBytes + MFI->getObjectOffset(R11FrameIdx),
+                    MachineInstr::FrameSetup);
 
     //  // The offset adjustment used when emitting debugging locations relative
     //  // to whatever frame base is set. Epiphany uses the default frame base (FP
     //  // or SP) and this adjusts the calculations to be correct.
-    //  MFI->setOffsetAdjustment(- MFI->getObjectOffset(R11FrameIdx)
-    //                           - MFI->getStackSize());
+      MFI->setOffsetAdjustment(- MFI->getObjectOffset(R11FrameIdx)
+                               - MFI->getStackSize());
 
-    //  if (NeedsFrameMoves) {
-    //    MCSymbol *FPLabel = MMI.getContext().CreateTempSymbol();
-    //    BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::PROLOG_LABEL))
-    //      .addSym(FPLabel);
-    //    MachineLocation Dst(MachineLocation::VirtualFP);
-    //    MachineLocation Src(Epiphany::R11, -MFI->getObjectOffset(R11FrameIdx));
-    //    Moves.push_back(MachineMove(FPLabel, Dst, Src));
-    //  }
+      if (NeedsFrameMoves) {
+        MCSymbol *FPLabel = MMI.getContext().createTempSymbol();
+        BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+          .addSym(FPLabel);
+        MachineLocation Dst(MachineLocation::VirtualFP);
+        MachineLocation Src(Epiphany::R11, -MFI->getObjectOffset(R11FrameIdx));
+        //Moves.push_back(MachineMove(FPLabel, Dst, Src));
+      }
 
-    //  FPNeedsSetting = false;
-    //}
+      HasFP = false;
+    }
 
     if (!MBBI->getFlag(MachineInstr::FrameSetup))
       break;
   }
 
-  assert(!FPNeedsSetting && "Frame pointer couldn't be set");
+  assert(!HasFP && "Frame pointer couldn't be set");
 
-  EPIPHemitSPUpdate(MBB, MBBI, DL, TII, Epiphany::R63, -NumResidualBytes,
+  EPIPHemitSPUpdate(MBB, MBBI, DL, *TII, Epiphany::R63, -NumResidualBytes,
                MachineInstr::FrameSetup);
 
   // Now we emit the rest of the frame setup information, if necessary: we've
@@ -161,13 +177,15 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock 
   // The rest of the stack adjustment
   if (!hasFP(MF) && NumResidualBytes) {
     CSLabel = MMI.getContext().createTempSymbol();
-    BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
+    BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
       .addSym(CSLabel);
 
     MachineLocation Dst(MachineLocation::VirtualFP);
-    unsigned Reg = MRI.getDwarfRegNum(Epiphany::SP, true);
+    unsigned Reg = RegInfo->getDwarfRegNum(Epiphany::SP, true);
     unsigned Offset = NumResidualBytes + NumInitialBytes;
-    MMI.addFrameInst(MCCFIInstruction::createDefCfa(CSLabel, Reg, -Offset));
+    CFIIndex = MMI.addFrameInst(MCCFIInstruction::createDefCfa(CSLabel, Reg, -Offset));
+    BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+      .addCFIIndex(CFIIndex);
   }
 
   // And any callee-saved registers (it's fine to leave them to the end here,
@@ -176,15 +194,17 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock 
   if (CSI.size()) {
     if (!CSLabel) {
       CSLabel = MMI.getContext().createTempSymbol();
-      BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
+      BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
         .addSym(CSLabel);
     }
 
     for (std::vector<CalleeSavedInfo>::const_iterator I = CSI.begin(),
            E = CSI.end(); I != E; ++I) {
       unsigned Offset = MFI->getObjectOffset(I->getFrameIdx());
-      unsigned Reg = MRI.getDwarfRegNum(I->getReg(), true);
-      MMI.addFrameInst(MCCFIInstruction::createOffset(CSLabel, Reg, Offset));
+      unsigned Reg = RegInfo->getDwarfRegNum(I->getReg(), true);
+      CFIIndex = MMI.addFrameInst(MCCFIInstruction::createOffset(CSLabel, Reg, Offset));
+      BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+        .addCFIIndex(CFIIndex);
     }
   }
 }
@@ -198,23 +218,23 @@ EpiphanyFrameLowering::emitEpilogue(MachineFunction &MF,
   MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
   DebugLoc DL = MBBI->getDebugLoc();
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
-  MachineFrameInfo &MFI = *MF.getFrameInfo();
+  MachineFrameInfo *MFI = MF.getFrameInfo();
   //unsigned RetOpcode = MBBI->getOpcode();
 
   // Initial and residual are named for consitency with the prologue. Note that
   // in the epilogue, the residual adjustment is executed first.
   uint64_t NumInitialBytes = FuncInfo->getInitialStackAdjust();
-  uint64_t NumResidualBytes = MFI.getStackSize() - NumInitialBytes;
+  uint64_t NumResidualBytes = MFI->getStackSize() - NumInitialBytes;
   uint64_t ArgumentPopSize = 0;
 
-    ArgumentPopSize = FuncInfo->getArgumentStackToRestore();
+  ArgumentPopSize = FuncInfo->getArgumentStackToRestore();
 
-  assert(NumInitialBytes % 8 == 0 && NumResidualBytes % 8 == 0
-         && "refusing to adjust stack by misaligned amt");
+//  assert(NumInitialBytes % 8 == 0 && NumResidualBytes % 8 == 0
+//         && "refusing to adjust stack by misaligned amt");
 
   // We may need to address callee-saved registers differently, so find out the
   // bound on the frame indices.
-  const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+  const std::vector<CalleeSavedInfo> &CSI = MFI->getCalleeSavedInfo();
   int MinCSFI = 0;
   int MaxCSFI = -1;
 
@@ -419,7 +439,7 @@ EpiphanyFrameLowering::emitFrameMemOps(bool isPrologue, MachineBasicBlock &MBB,
                                       const TargetRegisterInfo *TRI) const {
   DebugLoc DL = MBB.findDebugLoc(MBBI);
   MachineFunction &MF = *MBB.getParent();
-  MachineFrameInfo &MFI = *MF.getFrameInfo();
+  MachineFrameInfo *MFI = MF.getFrameInfo();
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
 
   // A certain amount of implicit contract is present here. The actual stack
@@ -492,7 +512,7 @@ EpiphanyFrameLowering::emitFrameMemOps(bool isPrologue, MachineBasicBlock &MBB,
     MachineMemOperand *MMO = MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(FrameIdx),
                              isPrologue ? MachineMemOperand::MOStore : MachineMemOperand::MOLoad,
                              Pair ? 8 : 4,
-                             MFI.getObjectAlignment(FrameIdx));
+                             MFI->getObjectAlignment(FrameIdx));
 
     NewMI.addFrameIndex(FrameIdx).addImm(0)/*address-register offset*/.addMemOperand(MMO);
 
