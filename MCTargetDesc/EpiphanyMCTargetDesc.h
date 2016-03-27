@@ -15,6 +15,7 @@
 #define LLVM_EPIPHANYMCTARGETDESC_H
 
 #include "llvm/Support/DataTypes.h"
+#include <string>
 
 namespace llvm {
 class MCAsmBackend;
@@ -28,18 +29,14 @@ class StringRef;
 class Target;
 class Triple;
 class raw_ostream;
+class raw_pwrite_stream;
 
 extern Target TheEpiphanyTarget;
 
-namespace Epiphany_MC {
-  MCSubtargetInfo *createEpiphanyMCSubtargetInfo(const Triple &TT, StringRef CPU,
-                                                StringRef FS);
-}
-
 //MCCodeEmitter *createEpiphanyMCCodeEmitter(const MCInstrInfo &MCII,
-//                                          const MCRegisterInfo &MRI,
-//                                          const MCSubtargetInfo &STI,
-//                                          MCContext &Ctx);
+//                                           const MCRegisterInfo &MRI,
+//                                           MCContext &Ctx);
+//
 
 //MCObjectWriter *createEpiphanyELFObjectWriter(raw_ostream &OS,
 //                                             uint8_t OSABI);

@@ -36,10 +36,10 @@
 
 using namespace llvm;
 
-MCSubtargetInfo *Epiphany_MC::createEpiphanyMCSubtargetInfo(const Triple &TT,
+static MCSubtargetInfo *createEpiphanyMCSubtargetInfo(const Triple &TT,
                                                           StringRef CPU,
                                                           StringRef FS) {
-  return createEpiphanyMCSubtargetInfoImpl(TT, CPU, FS);
+  return createEpiphanyMCSubtargetInfoImpl(TT,CPU,FS);
 }
 
 
@@ -56,17 +56,17 @@ static MCRegisterInfo *createEpiphanyMCRegisterInfo(const Triple &Triple) {
 }
 
 static MCAsmInfo *createEpiphanyMCAsmInfo(const MCRegisterInfo &MRI,
-                                          const Triple &TheTriple) {
-
+                                          const Triple &TT) {
   MCAsmInfo *MAI = new EpiphanyELFMCAsmInfo();
   unsigned Reg = MRI.getDwarfRegNum(Epiphany::SP, true);
-  MCCFIInstruction Inst = MCCFIInstruction::createDefCfa(0, Reg, 0);
+  MCCFIInstruction Inst = MCCFIInstruction::createDefCfa(nullptr, Reg, 0);
   MAI->addInitialFrameState(Inst);
 
   return MAI;
 }
 
-static MCCodeGenInfo *createEpiphanyMCCodeGenInfo(const Triple &TT, Reloc::Model RM,
+static MCCodeGenInfo *createEpiphanyMCCodeGenInfo(const Triple &TT, 
+                                                 Reloc::Model RM,
                                                  CodeModel::Model CM,
                                                  CodeGenOpt::Level OL) {
   MCCodeGenInfo *X = new MCCodeGenInfo();
@@ -78,13 +78,13 @@ static MCCodeGenInfo *createEpiphanyMCCodeGenInfo(const Triple &TT, Reloc::Model
 
 
 static MCInstPrinter *createEpiphanyMCInstPrinter(const Triple &T,
-                                                 unsigned SyntaxVariant,
-                                                 const MCAsmInfo &MAI,
-                                                 const MCInstrInfo &MII,
-                                                 const MCRegisterInfo &MRI) {
+                                                  unsigned SyntaxVariant,
+                                                  const MCAsmInfo &MAI,
+                                                  const MCInstrInfo &MII,
+                                                  const MCRegisterInfo &MRI) {
   if (SyntaxVariant == 0)
     return new EpiphanyInstPrinter(MAI, MII, MRI);
-  return 0;
+  return nullptr;
 }
 
 namespace {
@@ -131,7 +131,7 @@ static MCInstrAnalysis *createEpiphanyMCInstrAnalysis(const MCInstrInfo *Info) {
 
 extern "C" void LLVMInitializeEpiphanyTargetMC() {
   // Register the MC asm info.
-  RegisterMCAsmInfoFn A(TheEpiphanyTarget, createEpiphanyMCAsmInfo);
+  RegisterMCAsmInfoFn X(TheEpiphanyTarget, createEpiphanyMCAsmInfo);
 
   // Register the MC codegen info.
   TargetRegistry::RegisterMCCodeGenInfo(TheEpiphanyTarget,
@@ -146,7 +146,6 @@ extern "C" void LLVMInitializeEpiphanyTargetMC() {
                                     createEpiphanyMCRegisterInfo);
 
   // Register the MC subtarget info.
-  using Epiphany_MC::createEpiphanyMCSubtargetInfo;
   TargetRegistry::RegisterMCSubtargetInfo(TheEpiphanyTarget,
                                           createEpiphanyMCSubtargetInfo);
 
