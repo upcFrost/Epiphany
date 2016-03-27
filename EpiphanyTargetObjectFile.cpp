@@ -13,6 +13,7 @@
 
 
 #include "EpiphanyTargetObjectFile.h"
+#include "EpiphanyTargetMachine.h"
 
 using namespace llvm;
 

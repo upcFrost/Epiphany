@@ -34,6 +34,19 @@ EpiphanyInstPrinter::EpiphanyInstPrinter(const MCAsmInfo &MAI,
   MCInstPrinter(MAI, MII, MRI) {
 }
 
+void EpiphanyInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
+  OS << getRegisterName(RegNo);
+}
+
+void EpiphanyInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
+                                   StringRef Annot,
+                                   const MCSubtargetInfo &STI) {
+if (!printAliasInstr(MI, O))
+    printInstruction(MI, O);
+
+  printAnnotation(O, Annot);
+}
+
 void EpiphanyInstPrinter::printAddSubImmOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
 		const MCOperand &Imm11Op = MI->getOperand(OpNum);
 		int64_t Imm11 = Imm11Op.getImm();
@@ -106,14 +119,4 @@ void EpiphanyInstPrinter::printFPImmOperand(const MCInst *MI, unsigned OpNum,
   o << '#' << format("%.8f", MOImm.getFPImm());
 }
 
-void EpiphanyInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
-                                   StringRef Annot, const MCSubtargetInfo &STI) {
-if (!printAliasInstr(MI, O))
-    printInstruction(MI, O);
 
-  printAnnotation(O, Annot);
-}
-
-void EpiphanyInstPrinter::printRegName(raw_ostream &O, unsigned RegNo) const {
-    O << getRegisterName(RegNo);
-}

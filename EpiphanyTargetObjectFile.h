@@ -23,7 +23,7 @@ namespace llvm {
   /// EpiphanyLinuxTargetObjectFile - This implementation is used for linux
   /// Epiphany.
   class EpiphanyLinuxTargetObjectFile : public TargetLoweringObjectFileELF {
-    virtual void Initialize(MCContext &Ctx, const TargetMachine &TM);
+    void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
   };
 
 } // end namespace llvm
