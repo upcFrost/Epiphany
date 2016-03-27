@@ -14,17 +14,18 @@
 
 #define DEBUG_TYPE "epiphanymcexpr"
 #include "EpiphanyMCExpr.h"
-#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCAssembler.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCAssembler.h"
+#include "llvm/MC/MCSymbolELF.h"
 #include "llvm/Object/ELF.h"
 
 using namespace llvm;
 
-const EpiphanyMCExpr*
-EpiphanyMCExpr::Create(VariantKind Kind, const MCExpr *Expr,
-                      MCContext &Ctx) {
-  return new (Ctx) EpiphanyMCExpr(Kind, Expr);
+const EpiphanyMCExpr *EpiphanyMCExpr::create(const MCExpr *Expr, VariantKind Kind, 
+                                MCContext &Ctx) {
+  return new (Ctx) EpiphanyMCExpr(Expr, Kind);
 }
 
 void EpiphanyMCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
@@ -52,10 +53,6 @@ void EpiphanyMCExpr::visitUsedExpr(MCStreamer &Streamer) const {
     Streamer.visitUsedExpr(*getSubExpr());
 }
 
-MCSection *EpiphanyMCExpr::findAssociatedSection() const {
-    llvm_unreachable("TODO: add code");
-}
-
 bool
 EpiphanyMCExpr::evaluateAsRelocatableImpl(MCValue &Res,
                                          const MCAsmLayout *Layout,
@@ -63,6 +60,9 @@ EpiphanyMCExpr::evaluateAsRelocatableImpl(MCValue &Res,
   return getSubExpr()->evaluateAsRelocatable(Res, Layout, Fixup);
 }
 
+static void fixELFSymbolsInTLSFixupsImpl(const MCExpr *Expr, MCAssembler &Asm) {
+    llvm_unreachable("Can't handle nested target expression");
+}
 
 void EpiphanyMCExpr::fixELFSymbolsInTLSFixups(MCAssembler &Asm) const {
 }
@@ -70,29 +70,31 @@ void EpiphanyMCExpr::fixELFSymbolsInTLSFixups(MCAssembler &Asm) const {
 // FIXME: This basically copies MCObjectStreamer::AddValueSymbols. Perhaps
 // that method should be made public?
 // FIXME: really do above: now that two backends are using it.
-static void AddValueSymbolsImpl(const MCExpr *Value, MCAssembler *Asm) {
-  switch (Value->getKind()) {
+static void AddValueSymbolsImpl(const MCExpr *Expr, MCAssembler *Asm) {
+  switch (Expr->getKind()) {
   case MCExpr::Target:
-    llvm_unreachable("Can't handle nested target expr!");
+    llvm_unreachable("Can't handle nested target expression!");
     break;
 
   case MCExpr::Constant:
     break;
 
   case MCExpr::Binary: {
-    const MCBinaryExpr *BE = cast<MCBinaryExpr>(Value);
+    const MCBinaryExpr *BE = cast<MCBinaryExpr>(Expr);
     AddValueSymbolsImpl(BE->getLHS(), Asm);
     AddValueSymbolsImpl(BE->getRHS(), Asm);
     break;
   }
 
-  case MCExpr::SymbolRef:
-    //TODO: Figure out what this should do
-    //Asm->getOrCreateSymbolData(cast<MCSymbolRefExpr>(Value)->getSymbol());
+  case MCExpr::SymbolRef: {
+    // From AArch64
+    const MCSymbolRefExpr &SymRef = *cast<MCSymbolRefExpr>(Expr);
+    cast<MCSymbolELF>(SymRef.getSymbol()).setType(ELF::STT_TLS);
     break;
+  }
 
   case MCExpr::Unary:
-    AddValueSymbolsImpl(cast<MCUnaryExpr>(Value)->getSubExpr(), Asm);
+    AddValueSymbolsImpl(cast<MCUnaryExpr>(Expr)->getSubExpr(), Asm);
     break;
   }
 }

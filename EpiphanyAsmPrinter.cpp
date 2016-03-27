@@ -12,21 +12,78 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "asm-printer"
-#include "EpiphanyAsmPrinter.h"
-#include "EpiphanySubtarget.h"
+#include "Epiphany.h"
 #include "InstPrinter/EpiphanyInstPrinter.h"
-#include "llvm/IR/DebugInfo.h"
-#include "llvm/ADT/SmallString.h"
+#include "EpiphanyInstrInfo.h"
+#include "EpiphanyMCInstLower.h"
+#include "EpiphanyTargetMachine.h"
+#include "llvm/CodeGen/AsmPrinter.h"
+#include "llvm/CodeGen/MachineConstantPool.h"
+#include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineModuleInfoImpls.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Mangler.h"
+#include "llvm/IR/Module.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCInstBuilder.h"
+#include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/TargetRegistry.h"
-#include "llvm/IR/Mangler.h"
-
+#include "llvm/Support/raw_ostream.h"
 using namespace llvm;
+
+#define DEBUG_TYPE "asm-printer"
+
+namespace {
+  class EpiphanyAsmPrinter : public AsmPrinter {
+    EpiphanyMCInstLower MCInstLowering;
+     
+    public:
+    EpiphanyAsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer)
+      : AsmPrinter(TM, std::move(Streamer)), MCInstLowering(OutContext, *this) {}
+    
+    const char *getPassName() const override {
+      return "Epiphany Assembly Printer";
+    }
+
+    bool lowerOperand(const MachineOperand &MO, MCOperand &MCOp) const {
+      return MCInstLowering.lowerOperand(MO, MCOp);
+    }
+    
+    // emitPseudoExpansionLowering - tblgen'erated.
+    bool emitPseudoExpansionLowering(MCStreamer &OutStreamer,
+                                     const MachineInstr *MI);
+    void EmitInstruction(const MachineInstr *MI) override;
+//    void EmitEndOfAsmFile(Module &M) override;
+
+    /// printSymbolicAddress - Given some kind of reasonably bare symbolic
+    /// reference, print out the appropriate asm string to represent it. If
+    /// appropriate, a relocation-specifier will be produced, composed of a
+    /// general class derived from the MO parameter and an instruction-specific
+    /// suffix, provided in Suffix. E.g. ":got_lo12:" if a Suffix of "lo12" is
+    /// given.
+    bool printSymbolicAddress(const MachineOperand &MO,
+                              bool PrintImmediatePrefix,
+                              StringRef Suffix, raw_ostream &O);
+    bool runOnMachineFunction(MachineFunction &MF) override;
+    
+    private:
+    MachineLocation getDebugValueLocation(const MachineInstr *MI) const;
+    bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
+                         unsigned AsmVariant, const char *ExtraCode,
+                         raw_ostream &O) override;
+    bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNum,
+                               unsigned AsmVariant, const char *ExtraCode,
+                               raw_ostream &O) override;
+    void PrintDebugValueComment(const MachineInstr *MI, raw_ostream &OS);
+  };
+} // end of anonymous namespace
+
+
 
 MachineLocation
 EpiphanyAsmPrinter::getDebugValueLocation(const MachineInstr *MI) const {
@@ -99,12 +156,12 @@ bool EpiphanyAsmPrinter::printSymbolicAddress(const MachineOperand &MO,
     // Global variables may be accessed either via a GOT or in various fun and
     // interesting TLS-model specific ways. Set the prefix modifier as
     // appropriate here.
-    if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(MO.getGlobal())) {
-      Reloc::Model RelocM = TM.getRelocationModel();
-		if (Subtarget->GVIsIndirectSymbol(GV, RelocM)) {
+//    if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(MO.getGlobal())) {
+//      Reloc::Model RelocM = TM.getRelocationModel();
+//		if (Subtarget->GVIsIndirectSymbol(GV, RelocM)) {
         Modifier = "got";
-      }
-    }
+//      }
+//    }
     break;
   case MachineOperand::MO_BlockAddress:
     Name = GetBlockAddressSymbol(MO.getBlockAddress())->getName();
@@ -140,7 +197,12 @@ bool EpiphanyAsmPrinter::printSymbolicAddress(const MachineOperand &MO,
 bool EpiphanyAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
                                         unsigned AsmVariant,
                                         const char *ExtraCode, raw_ostream &O) {
-  const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
+  const TargetRegisterInfo *TRI = MF->getSubtarget<EpiphanySubtarget>().getRegisterInfo();
+  
+  // Try if the generic code knows about the modifier
+  if (!AsmPrinter::PrintAsmOperand(MI, OpNum, AsmVariant, ExtraCode, O))
+    return false;
+  
   if (!ExtraCode || !ExtraCode[0]) {
     // There's actually no operand modifier, which leads to a slightly eclectic
     // set of behaviour which we have to handle here.
@@ -176,8 +238,8 @@ bool EpiphanyAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
   // We have a real modifier to handle.
   switch(ExtraCode[0]) {
   default:
-    // See if this is a generic operand
-    return AsmPrinter::PrintAsmOperand(MI, OpNum, AsmVariant, ExtraCode, O);
+    llvm_unreachable("FIXME: Unimplemented register pairs");
+    return true;
   case 'c': // Don't print "#" before an immediate operand.
     if (!MI->getOperand(OpNum).isImm())
       return true;
@@ -265,8 +327,7 @@ void EpiphanyAsmPrinter::PrintDebugValueComment(const MachineInstr *MI,
   OS << '\t' << MAI->getCommentString() << "DEBUG_VALUE: ";
   // cast away const; DIetc do not take const operands for some reason.
   //DIVariable V(const_cast<MDNode *>(MI->getOperand(NOps-1).getMetadata()));
-  //OS << V.getName();
-  OS << "TODO: getName on DIVariable";
+  OS << static_cast <const void *> (MI->getOperand(NOps-1).getSymbolName());
   OS << " <- ";
   // Frame address.  Currently handles register +- offset only.
   assert(MI->getOperand(0).isReg() && MI->getOperand(1).isImm());
@@ -276,7 +337,7 @@ void EpiphanyAsmPrinter::PrintDebugValueComment(const MachineInstr *MI,
   OS << "+" << MI->getOperand(NOps - 2).getImm();
 }
 
-
+// Autogenerated simple instructions
 #include "EpiphanyGenMCPseudoLowering.inc"
 
 void EpiphanyAsmPrinter::EmitInstruction(const MachineInstr *MI) {
@@ -293,14 +354,27 @@ void EpiphanyAsmPrinter::EmitInstruction(const MachineInstr *MI) {
       OutStreamer->EmitRawText(StringRef(OS.str()));
     }
     return;
-  }
+    }
+  case Epiphany::MOVTri: {
+    EmitToStreamer(*OutStreamer, MCInstBuilder(Epiphany::MOVTri)
+      .addReg(MI->getOperand(0).getReg())
+      .addReg(MI->getOperand(0).getReg())
+      .addImm(MI->getOperand(1).getImm()));
+    return;
+    }
   }
 
-  MCInst TmpInst;
-  LowerEpiphanyMachineInstrToMCInst(MI, TmpInst, *this);
-  OutStreamer->EmitInstruction(TmpInst, MF->getSubtarget<EpiphanySubtarget>());
+  // Generic way
+  MachineBasicBlock::const_instr_iterator I = MI;
+  MachineBasicBlock::const_instr_iterator E = MI->getParent()->instr_end();
+  do {
+    MCInst TmpInst;
+    MCInstLowering.Lower(I, TmpInst);
+    EmitToStreamer(*OutStreamer, TmpInst);
+  } while ((++I != E) && I->isInsideBundle());
 }
 
+/*
 void EpiphanyAsmPrinter::EmitEndOfAsmFile(Module &M) {
   if (Subtarget->isTargetELF()) {
     const TargetLoweringObjectFileELF &TLOFELF =
@@ -323,9 +397,9 @@ void EpiphanyAsmPrinter::EmitEndOfAsmFile(Module &M) {
     }
   }
 }
+*/
 
 bool EpiphanyAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
-  Subtarget = &MF.getSubtarget<EpiphanySubtarget>();
   return AsmPrinter::runOnMachineFunction(MF);
 }
 

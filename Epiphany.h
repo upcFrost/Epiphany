@@ -20,7 +20,6 @@
 
 namespace llvm {
 
-class EpiphanyAsmPrinter;
 class FunctionPass;
 class EpiphanyTargetMachine;
 class MachineInstr;
@@ -32,10 +31,6 @@ FunctionPass *createEpiphanyISelDAG(EpiphanyTargetMachine &TM,
 FunctionPass *createEpiphanyCondMovPass(EpiphanyTargetMachine &TM);
 
 FunctionPass *createEpiphanyLSOptPass();
-
-void LowerEpiphanyMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
-                                      EpiphanyAsmPrinter &AP);
-
 
 }
 
