@@ -12,8 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "epiphany-isel"
+
 #include "Epiphany.h"
+#include "EpiphanySubtarget.h"
 #include "EpiphanyISelLowering.h"
 #include "EpiphanyMachineFunctionInfo.h"
 #include "EpiphanyTargetMachine.h"
@@ -28,14 +29,22 @@
 #include "llvm/IR/CallingConv.h"
 
 using namespace llvm;
+#define DEBUG_TYPE "epiphany-lower"
 
+
+//static TargetLoweringObjectFile *createTLOF(EpiphanyTargetMachine &TM) {
+//  const EpiphanySubtarget *Subtarget = &TM.getSubtarget<EpiphanySubtarget>();
+//
+//    return new EpiphanyLinuxTargetObjectFile();
+//}
 
 
 EpiphanyTargetLowering::EpiphanyTargetLowering(const TargetMachine &TM,
-                                               const EpiphanySubtarget &STI)
-  : TargetLowering(TM),
-    Subtarget(&STI)
+					       const EpiphanySubtarget &STI)
+  : TargetLowering(TM), Subtarget(&STI)
 {
+  RegInfo = STI.getRegisterInfo();
+  Itins = STI.getInstrItineraryData();
 
   // Scalar register <-> type mapping
   addRegisterClass(MVT::i32, &Epiphany::GPR32RegClass);
@@ -45,7 +54,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const TargetMachine &TM,
   //addRegisterClass(MVT::i64, &Epiphany::DPR64RegClass);
   //addRegisterClass(MVT::f64, &Epiphany::DPR64RegClass);
 
-  computeRegisterProperties(Subtarget->getRegisterInfo());
+  computeRegisterProperties(STI.getRegisterInfo());
 
   setTargetDAGCombine(ISD::FADD);
   setTargetDAGCombine(ISD::FSUB);
@@ -54,7 +63,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const TargetMachine &TM,
   for (MVT VT : MVT::integer_valuetypes()) {
     setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
     setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
-    setLoadExtAction(ISD::EXTLOAD, VT, MVT::i1, Promote);
+    setLoadExtAction(ISD::EXTLOAD,  VT, MVT::i1, Promote);
   }
 
   setStackPointerRegisterToSaveRestore(Epiphany::SP);
@@ -126,7 +135,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const TargetMachine &TM,
 
   }
 
-EVT EpiphanyTargetLowering::getSetCCResultType(EVT VT) const {
+EVT EpiphanyTargetLowering::getSetCCResultType(const DataLayout &DL, LLVMContext &, 
+                                               EVT VT) const {
   // It's reasonably important that this value matches the "natural" legal
   // promotion from i1 for scalar types. Otherwise LegalizeTypes can get itself
   // in a twist (e.g. inserting an any_extend which then becomes i32 -> i32).
@@ -385,8 +395,6 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 	bool IsVarArg                         = CLI.IsVarArg;
 
 	MachineFunction &MF = DAG.getMachineFunction();
-	//EpiphanyMachineFunctionInfo *FuncInfo = MF.getInfo<EpiphanyMachineFunctionInfo>();
-	//bool TailCallOpt = MF.getTarget().Options.GuaranteedTailCallOpt;
 	bool IsStructRet = !Outs.empty() && Outs[0].Flags.isSRet();
 
 
@@ -402,7 +410,7 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 	// do is adjust the stack pointer.
 	unsigned NumBytes = RoundUpToAlignment(CCInfo.getNextStackOffset(), 4);
 
-	Chain = DAG.getCALLSEQ_START(Chain, DAG.getIntPtrConstant(NumBytes, dl, true), dl);
+	Chain = DAG.getCALLSEQ_START(Chain, DAG.getIntPtrConstant(NumBytes, dl, /* isTarget = */ true), dl);
 
 	SDValue StackPtr = DAG.getCopyFromReg(Chain, dl, Epiphany::SP, getPointerTy(DAG.getDataLayout()));
 
@@ -444,7 +452,7 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 
 		assert(VA.isMemLoc() && "unexpected argument location");
 
-		SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset(), dl);
+		SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset(), dl, /* isTarget = */ false);
 		SDValue DstAddr = DAG.getNode(ISD::ADD, dl, getPointerTy(DAG.getDataLayout()), StackPtr, PtrOff);
 		MachinePointerInfo DstInfo = MachinePointerInfo::getStack(VA.getLocMemOffset());
 
@@ -527,9 +535,10 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 
 	uint64_t CalleePopBytes = /*DoesCalleeRestoreStack(CallConv, TailCallOpt) ? NumBytes :*/ 0;
 
-	Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NumBytes, dl, true),
-		DAG.getIntPtrConstant(CalleePopBytes, dl, true),
-		InFlag, dl);
+	Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NumBytes, dl, /* isTarget = */ true),
+		DAG.getIntPtrConstant(CalleePopBytes, dl, /* isTarget = */ true),
+		InFlag,
+		dl);
 	InFlag = Chain.getValue(1);
 
 
@@ -611,8 +620,7 @@ SDValue EpiphanyTargetLowering::addTokenForArgument(SDValue Chain,
         }
 
    // Build a tokenfactor for all the chains.
-   return DAG.getNode(ISD::TokenFactor, SDLoc(Chain), MVT::Other,
-                      ArgChains);
+   return DAG.getNode(ISD::TokenFactor, SDLoc(Chain), MVT::Other, ArgChains);
 }
 
 static EpiphanyCC::CondCodes IntCCToEpiphanyCC(ISD::CondCode CC) {

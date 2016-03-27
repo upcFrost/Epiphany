@@ -72,10 +72,10 @@ class EpiphanyTargetMachine;
 
 class EpiphanyTargetLowering : public TargetLowering {
 public:
-  explicit EpiphanyTargetLowering(const TargetMachine &TM,
+  explicit EpiphanyTargetLowering(const TargetMachine &TM, 
                                   const EpiphanySubtarget &STI);
 
-  const char *getTargetNodeName(unsigned Opcode) const;
+  const char *getTargetNodeName(unsigned Opcode) const override;
 
   CCAssignFn *CCAssignFnForNode(CallingConv::ID CC) const;
 
@@ -110,16 +110,18 @@ public:
   SDValue addTokenForArgument(SDValue Chain, SelectionDAG &DAG,
                               MachineFrameInfo *MFI, int ClobberedFI) const;
 
-  EVT getSetCCResultType(EVT VT) const;
+  EVT getSetCCResultType(const DataLayout &, LLVMContext &, 
+                         EVT VT) const override;
 
-  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 
-  bool isLegalICmpImmediate(int64_t Val) const;
+  bool isLegalICmpImmediate(int64_t Val) const override;
   SDValue getSelectableIntSetCC(SDValue LHS, SDValue RHS, ISD::CondCode CC,
                          SDValue &A64cc, SelectionDAG &DAG, SDLoc &dl) const;
 
-  virtual MachineBasicBlock *
-  EmitInstrWithCustomInserter(MachineInstr *MI, MachineBasicBlock *MBB) const;
+  MachineBasicBlock *
+  EmitInstrWithCustomInserter(MachineInstr *MI, 
+                              MachineBasicBlock *MBB) const override;
 
   SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
@@ -131,7 +133,7 @@ public:
   SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
 
-  virtual SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
   //nope.
   bool IsEligibleForTailCallOptimization(SDValue Callee,
@@ -144,11 +146,12 @@ public:
                                     const SmallVectorImpl<ISD::InputArg> &Ins,
 									SelectionDAG& DAG) const { return false;}
 // custom fma due to fneg, so we say no
-  virtual bool isFMAFasterThanMulAndAdd(EVT) const { return false; }
+  bool isFMAFasterThanFMulAndFAdd(EVT) const override { return false; }
 
 private:
   const EpiphanySubtarget *Subtarget;
   const TargetRegisterInfo *RegInfo;
+  const InstrItineraryData *Itins;
 };
 } // namespace llvm
 
