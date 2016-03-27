@@ -25,23 +25,26 @@
 #include "llvm/CodeGen/VirtRegMap.h" 
 #include "llvm/ADT/BitVector.h"
 
+using namespace llvm;
+
+#define DEBUG_TYPE "epiphany-reg-info"
+
 #define GET_REGINFO_TARGET_DESC
 #include "EpiphanyGenRegisterInfo.inc"
-
-using namespace llvm;
 
 EpiphanyRegisterInfo::EpiphanyRegisterInfo(const EpiphanyInstrInfo &tii,
                                          const EpiphanySubtarget &sti)
   : EpiphanyGenRegisterInfo(Epiphany::LR), TII(tii) {
 }
 
-const uint16_t *
+const MCPhysReg *
 EpiphanyRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   return CSR_PCS_SaveList;
 }
 
 const uint32_t*
-EpiphanyRegisterInfo::getCallPreservedMask(CallingConv::ID) const {
+EpiphanyRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
+                                           CallingConv::ID) const {
   return CSR_PCS_RegMask;
 }
 
@@ -58,7 +61,7 @@ EpiphanyRegisterInfo::getCrossCopyRegClass(const TargetRegisterClass *RC) const 
 BitVector
 EpiphanyRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
-  const TargetFrameLowering *TFI = getFrameLowering(MF);
+  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
 
   Reserved.set(Epiphany::SP);
   Reserved.set(Epiphany::R63);// hack: dst for cmp
@@ -87,7 +90,7 @@ EpiphanyRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MBBI,
   MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo *MFI = MF.getFrameInfo();
-  const EpiphanyFrameLowering *TFI = static_cast<const EpiphanyFrameLowering *>(getFrameLowering(MF));
+  const EpiphanyFrameLowering *TFI = static_cast<const EpiphanyFrameLowering *>(MF.getSubtarget().getFrameLowering());
 
   // In order to work out the base and offset for addressing, the FrameLowering
   // code needs to know (sometimes) whether the instruction is storing/loading a
@@ -150,7 +153,7 @@ EpiphanyRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MBBI,
 
 unsigned
 EpiphanyRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-  const TargetFrameLowering *TFI = getFrameLowering(MF);
+  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
 
   if (TFI->hasFP(MF))
     return Epiphany::R11;
@@ -160,7 +163,7 @@ EpiphanyRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
 
 bool
 EpiphanyRegisterInfo::useFPForScavengingIndex(const MachineFunction &MF) const {
-  const TargetFrameLowering *TFI = getFrameLowering(MF);
+  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
   const EpiphanyFrameLowering *AFI = static_cast<const EpiphanyFrameLowering*>(TFI);
   return AFI->useFPForAddressing(MF);
 }

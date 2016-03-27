@@ -23,6 +23,7 @@ EpiphanyELFMCAsmInfo::EpiphanyELFMCAsmInfo() {
 
   CommentString = "//";
   PrivateGlobalPrefix = ".L";
+  PrivateLabelPrefix = ".L";
   Code32Directive = ".code\t32";
 
   Data16bitsDirective = "\t.hword\t";
@@ -32,9 +33,6 @@ EpiphanyELFMCAsmInfo::EpiphanyELFMCAsmInfo() {
   UseDataRegionDirectives = true;
 
   WeakRefDirective = "\t.weak\t";
-
-  // TODO: did this transform into some other variable name?
-  //HasLEB128 = true;
 
   SupportsDebugInformation = true;
 

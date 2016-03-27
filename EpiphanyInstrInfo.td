@@ -91,21 +91,68 @@ def Epiphanycallseq_end : SDNode<"ISD::CALLSEQ_END",   SDT_EpiphanyCallSeqEnd,
 // pseudo-instructions which explicitly set the stack, and finally in the
 // RegisterInfo we convert them to a true stack adjustment.
 let Defs = [SP], Uses = [SP] in {
-  def ADJCALLSTACKDOWN : PseudoInst<(outs), (ins i32imm:$amt),
+  def ADJCALLSTACKDOWN : Pseudo<(outs), (ins i32imm:$amt),
                                     [(Epiphanycallseq_start timm:$amt)]>;
 
-  def ADJCALLSTACKUP : PseudoInst<(outs), (ins i32imm:$amt1, i32imm:$amt2),
+  def ADJCALLSTACKUP : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
                                  [(Epiphanycallseq_end timm:$amt1, timm:$amt2)]>;
 }
 
 //===----------------------------------------------------------------------===//
-// Logical (register) instructions
+// Integer arithmetic operations with registers
 //===----------------------------------------------------------------------===//
 let Defs = [NZCV] in {
-	def ANDrr : EP3INST<(outs GPR32:$Rd),(ins GPR32:$Rn, GPR32:$Rm),"and\t$Rd, $Rn, $Rm",[(set GPR32:$Rd, (and GPR32:$Rn, GPR32:$Rm))],NoItinerary>;
-	def ORRrr : EP3INST<(outs GPR32:$Rd),(ins GPR32:$Rn, GPR32:$Rm),"orr\t$Rd, $Rn, $Rm",[(set GPR32:$Rd, (or GPR32:$Rn, GPR32:$Rm))],NoItinerary>;
-	def EORrr : EP3INST<(outs GPR32:$Rd),(ins GPR32:$Rn, GPR32:$Rm),"eor\t$Rd, $Rn, $Rm",[(set GPR32:$Rd, (xor GPR32:$Rn, GPR32:$Rm))],NoItinerary>;
+  def ADDrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "add\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (addc GPR32:$Rn, GPR32:$Rm))], 0b0011111, NoItinerary>;
+  def SUBrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "sub\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (subc GPR32:$Rn, GPR32:$Rm))], 0b0111111, NoItinerary>;
+  def ANDrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "and\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (and GPR32:$Rn, GPR32:$Rm))], 0b1011111, NoItinerary>;
+  def ORRrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "orr\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (or GPR32:$Rn, GPR32:$Rm))],  0b1111111, NoItinerary>;
+  def EORrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "eor\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (xor GPR32:$Rn, GPR32:$Rm))], 0b0001111, NoItinerary>;
 }
+
+//===----------------------------------------------------------------------===//
+// Floating-point arithmetic operations with registers
+//===----------------------------------------------------------------------===//
+
+// All the instructions set NZCV flags
+let Defs = [NZCV] in {
+  def FMULrr : FpMath32<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), 
+                        "fmul\t$Rd, $Rn, $Rm", 
+                        [(set (f32 FPR32:$Rd), (fmul FPR32:$Rn, FPR32:$Rm))], 
+                        0b0101111, NoItinerary> {
+   let isCommutable = 1;
+  }
+
+  def FADDrr : FpMath32<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), 
+                        "fadd\t$Rd, $Rn, $Rm", 
+                        [(set (f32 FPR32:$Rd), (fadd FPR32:$Rn, FPR32:$Rm))], 
+                        0b0001111, NoItinerary> {
+   let isCommutable = 1;
+  }
+}
+
+
+//===----------------------------------------------------------------------===//
+// Move operations: Immediates
+//===----------------------------------------------------------------------===//
+let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1 in {
+  def MOVTri : Normal<(outs GPR32:$rd), (ins GPR32:$src, imm16:$imm), 
+                      "movt\t$rd, $imm", 
+                      [(set GPR32:$rd, (or (and GPR32:$src, 0xffff), i32:$imm))],
+                      NoItinerary> {
+    let Constraints = "$src = $rd";
+  }
+  
+  def MOVri  : Normal<(outs GPR32:$rd), (ins i32imm:$imm), 
+                      "mov\t$rd, $imm" , 
+                      [(set GPR32:$rd, i32:$imm)],
+                      NoItinerary> {
+  }
+}
+
+def : Pat<(or GPR32:$src, 0xffff0000), (MOVTri GPR32:$src, 0xffff)>;
+
+
+
 //===----------------------------------------------------------------------===//
 // Add-subtract (immediate) instructions
 //===----------------------------------------------------------------------===//
@@ -148,8 +195,6 @@ def : Pat<(A64setcc GPR32:$Rn, addsubimm_i32_normal:$Imm12, cond),(SUBri_cmp GPR
 //===----------------------------------------------------------------------===//
 
 let Defs = [NZCV] in {
-def ADDrr : EP3INST<(outs GPR32:$Rd),(ins GPR32:$Rn, GPR32:$Rm),"add\t$Rd, $Rn, $Rm",[(set GPR32:$Rd, (addc GPR32:$Rn, (i32 GPR32:$Rm)))],NoItinerary>;
-def SUBrr : EP3INST<(outs GPR32:$Rd),(ins GPR32:$Rn, GPR32:$Rm),"sub\t$Rd, $Rn, $Rm",[(set GPR32:$Rd, (subc GPR32:$Rn, (i32 GPR32:$Rm)))],NoItinerary>;
 	let isCompare = 1 in {
 		def CMPrr : EP3INST<(outs),(ins GPR32:$Rn, GPR32:$Rm),"cmp\tR63, $Rn, $Rm",[(set NZCV, (A64cmp GPR32:$Rn, (i32 GPR32:$Rm)))],NoItinerary>;
 	}
@@ -237,14 +282,14 @@ def fmov32_operand : Operand<f32>, PatLeaf<(f32 fpimm), [{ return EpiphanyImms::
 
 let isMoveImm = 1, isAsCheapAsAMove = 1, hasSideEffects  = 0 in {
 	let Constraints = "$src = $rt" in {
-			def MOVTri : EP2INST<(outs GPR32:$rt), (ins GPR32:$src, i32imm:$imm16),"movt\t$rt, $imm16",[(set GPR32:$rt, (or (and GPR32:$src, 0xffff), immLow16Zero:$imm16))],NoItinerary>;
+//			def MOVTri : EP2INST<(outs GPR32:$rt), (ins GPR32:$src, i32imm:$imm16),"movt\t$rt, $imm16",[(set GPR32:$rt, (or (and GPR32:$src, 0xffff), immLow16Zero:$imm16))],NoItinerary>;
 			def MOVTri_nopat : EP2INST<(outs GPR32:$rt), (ins GPR32:$src, i32imm:$imm16),"movt\t$rt, $imm16",[],NoItinerary>;
 			
 			def MOVTri_nopat_f : EP2INST<(outs FPR32:$rt), (ins FPR32:$src, fmov32_operand:$imm16),"movt\t$rt, $imm16",[],NoItinerary>;
 	}
 	def MOVTri_nopat_nodstsrc : EP2INST<(outs GPR32:$rt), (ins i32imm:$imm16),"movt\t$rt, $imm16",[],NoItinerary>;
 
-	def MOVri : EP2INST<(outs GPR32:$rt), (ins i32imm:$imm16), "mov\t$rt, $imm16", [(set GPR32:$rt, immZExt16:$imm16)], NoItinerary>;
+//	def MOVri : EP2INST<(outs GPR32:$rt), (ins i32imm:$imm16), "mov\t$rt, $imm16", [(set GPR32:$rt, immZExt16:$imm16)], NoItinerary>;
 	def MOVri_nopat  :  EP2INST<(outs GPR32:$rt),(ins i32imm:$imm16), "mov\t$rt, $imm16", [], NoItinerary>;
 	
 	def MOVri_nopat_f  :  EP2INST<(outs FPR32:$rt),(ins fmov32_operand:$imm16), "mov\t$rt, $imm16", [], NoItinerary>;
