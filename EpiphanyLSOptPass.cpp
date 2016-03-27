@@ -91,7 +91,7 @@ static bool isMemoryOp(const MachineInstr *MI) {
 }
 
 static int getMemoryOpOffset(const MachineInstr *MI) {
-  //int Opcode = MI->getOpcode();
+  int Opcode = MI->getOpcode();
   unsigned NumOperands = MI->getDesc().getNumOperands();
   return MI->getOperand(NumOperands-1).getImm() * 4;//only 32bit
 }
@@ -133,8 +133,8 @@ namespace {
 
 bool EpiphanyPreAllocLoadStoreOpt::runOnMachineFunction(MachineFunction &Fn) {
   TD  = Fn.getTarget().getDataLayout();
-  TII = MF->getSubtarget().getInstrInfo();
-  TRI = MF->getSubtarget().getRegisterInfo();
+  TII = Fn.getSubtarget().getInstrInfo();
+  TRI = Fn.getSubtarget().getRegisterInfo();
   MRI = &Fn.getRegInfo();
   MF  = &Fn;
 
@@ -216,7 +216,7 @@ EpiphanyPreAllocLoadStoreOpt::CanFormLdStDWord(MachineInstr *Op0, MachineInstr *
                                           unsigned &OddReg, unsigned &BaseReg,
                                           int &Offset) {
  
-  //unsigned Opcode = Op0->getOpcode();
+  unsigned Opcode = Op0->getOpcode();
   switch(Op0->getOpcode()){
 	case Epiphany::LS32_LDR:
 	case Epiphany::LSFP32_LDR: NewOpc = Epiphany::LSFP64_LDR;break;
@@ -230,7 +230,7 @@ EpiphanyPreAllocLoadStoreOpt::CanFormLdStDWord(MachineInstr *Op0, MachineInstr *
     return false;
 
   unsigned Align = (*Op0->memoperands_begin())->getAlignment();
-  //const Function *Func = MF->getFunction();
+  const Function *Func = MF->getFunction();
   if (Align < 8)
     return false;
 

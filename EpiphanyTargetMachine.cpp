@@ -17,8 +17,10 @@
 #include "EpiphanyTargetMachine.h"
 #include "EpiphanyTargetObjectFile.h"
 #include "MCTargetDesc/EpiphanyMCTargetDesc.h"
-#include "llvm/IR/PassManager.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/CodeGen/Passes.h"
+#include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -34,28 +36,19 @@ extern "C" void LLVMInitializeEpiphanyTarget() {
   RegisterTargetMachine<EpiphanyTargetMachine> X(TheEpiphanyTarget);
 }
 
-static std::string computeDataLayout()
-{
-    return "e-p:32:32-i8:8:8-i16:16:16-i32:32:32-f32:32:32-i64:64:64-f64:64:64-s64:64:64-S64:64:64-a0:32:32";
-}
-
 EpiphanyTargetMachine::EpiphanyTargetMachine(const Target &T, const Triple &TT,
                                            StringRef CPU, StringRef FS,
                                            const TargetOptions &Options,
                                            Reloc::Model RM, CodeModel::Model CM,
                                            CodeGenOpt::Level OL)
-  : LLVMTargetMachine(T, computeDataLayout(), TT, CPU, FS, Options, RM, CM, OL),
-    Subtarget(TT, CPU, FS, *this),
-    InstrInfo(Subtarget),
-    DL("e-p:32:32-i8:8:8-i16:16:16-i32:32:32-f32:32:32-i64:64:64-f64:64:64-s64:64:64-S64:64:64-a0:32:32"),
-    TLOF(make_unique<EpiphanyLinuxTargetObjectFile>()) {
-      initAsmInfo();
+      : LLVMTargetMachine(T, "e-p:32:32-i8:8:8-i16:16:16-i32:32:32-f32:32:32-i64:64:64-f64:64:64-s64:64:64-S64:64:64-a0:32:32", 
+                          TT, CPU, FS, Options, RM, CM, OL),
+        TLOF(make_unique<EpiphanyLinuxTargetObjectFile>()),
+        Subtarget(TT, CPU, FS, *this) {
+  initAsmInfo();
 }
 
-void EpiphanyTargetMachine::resetSubtarget(MachineFunction *MF)
-{
-    MF->setSubtarget(&Subtarget);
-}
+EpiphanyTargetMachine::~EpiphanyTargetMachine() {}
 
 namespace {
 /// Epiphany Code Generator Pass Configuration Options.
@@ -68,6 +61,9 @@ public:
     return getTM<EpiphanyTargetMachine>();
   }
 
+//  const EpiphanySubtarget &getEpiphanySubtarget() const {
+//    return *getEpiphanyTargetMachine().getSubtargetImpl();
+//  }
 
   bool addInstSelector() override;
   void addPreEmitPass() override;
@@ -86,12 +82,12 @@ void EpiphanyPassConfig::addPreEmitPass() {
 
 bool EpiphanyPassConfig::addInstSelector() {
   addPass(createEpiphanyISelDAG(getEpiphanyTargetMachine(), getOptLevel()));
-    return false;
+  return false;
 }
 
 void EpiphanyPassConfig::addPreRegAlloc() {
-	if (EnableLSD)
-		addPass(createEpiphanyLSOptPass());
+  if (EnableLSD)
+	addPass(createEpiphanyLSOptPass());
 }
 
 void EpiphanyPassConfig::addPostRegAlloc() {

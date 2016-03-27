@@ -34,7 +34,7 @@ public:
   /// such, whenever a client has an instance of instruction info, it should
   /// always be able to get register info as well (through this method).
   ///
-  const EpiphanyRegisterInfo &getRegisterInfo() const { return RI; }
+  const TargetRegisterInfo &getRegisterInfo() const { return RI; }
 
   const EpiphanySubtarget &getSubTarget() const { return Subtarget; }
 

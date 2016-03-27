@@ -103,13 +103,11 @@ bool
 EpiphanyInstrInfo::optimizeCompareInstr(MachineInstr *CmpInstr, unsigned SrcReg, unsigned SrcReg2, int CmpMask, int CmpValue, const MachineRegisterInfo *MRI) const {
 
   MachineRegisterInfo::def_iterator DI = MRI->def_begin(SrcReg);
-  if (++DI != MRI->def_end())
+  if (std::next(DI) != MRI->def_end())
     // Only support one definition.
     return false;
 
-  // TODO: fix this  - should not need to get iterator again?
-  MachineRegisterInfo::def_iterator DI2 = MRI->def_begin(SrcReg);
-  MachineInstr *MI = DI2->getParent();
+  MachineInstr *MI = DI->getParent();
 
   // Get ready to iterate backward from CmpInstr.
   MachineBasicBlock::iterator I = CmpInstr, E = MI, B = CmpInstr->getParent()->begin();
