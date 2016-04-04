@@ -45,6 +45,9 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const TargetMachine &TM,
 {
   RegInfo = STI.getRegisterInfo();
   Itins = STI.getInstrItineraryData();
+  
+  // Set program-fetch alignment to half-word boundary (2 bits)
+  setMinFunctionAlignment(2);
 
   // Scalar register <-> type mapping
   addRegisterClass(MVT::i32, &Epiphany::GPR32RegClass);
