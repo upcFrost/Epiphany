@@ -92,8 +92,8 @@ class IntMath32r<bits<7> opcode, string instr_asm, SDNode OpNode> :
 
 // Floating-point arithmetic ops
 class FPMath32r<bits<7> opcode, string instr_asm, SDNode OpNode> :
-  Math32r<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set GPR32:$Rd, (OpNode GPR32:$Rn, GPR32:$Rm))], opcode, NoItinerary> {
+  Math32r<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {
           
   let Inst{19-16} = 0b0111;
   

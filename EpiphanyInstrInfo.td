@@ -115,9 +115,9 @@ let Defs = [NZCV] in {
 
 // All the instructions set NZCV flags
 let Defs = [NZCV] in {
-  def FADDrr : FpMath32<0b0001111, "fadd", fadd>;
-  def FSUBrr : FpMath32<0b0011111, "fsub", fsub>;
-  def FMULrr : FpMath32<0b0101111, "fmul", fmul>;
+  def FADDrr : FPMath32r<0b0001111, "fadd", fadd>;
+  def FSUBrr : FPMath32r<0b0011111, "fsub", fsub>;
+  def FMULrr : FPMath32r<0b0101111, "fmul", fmul>;
 }
 
 
