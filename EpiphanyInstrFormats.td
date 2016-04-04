@@ -62,16 +62,41 @@ class Normal<dag outs, dag ins, string asm, list<dag> pattern, InstrItinClass it
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with registers: Integers
 //===----------------------------------------------------------------------===//
-class IntMath32<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
+
+// General arithmetic operations pattern, similar for both floating point and integer ops
+class Math32r<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
     : Normal<outs, ins, asm, pattern, itin> {
-//  let Inst{31-29} = Rd{5-3};
-//  let Inst{28-26} = Rn{5-3};
-//  let Inst{25-23} = Rm{5-3};
-//  let Inst{19-16} = 0b1010;
-//  let Inst{15-13} = Rd{2-0};
-//  let Inst{12-10} = Rn{2-0};
-//  let Inst{9-7}   = Rm{2-0};
-//  let Inst{6-0}   = opcode;
+  bits<6> Rd;
+  bits<6> Rn;
+  bits<6> Rm;
+
+  let Inst{31-29} = Rd{5-3};
+  let Inst{28-26} = Rn{5-3};
+  let Inst{25-23} = Rm{5-3};
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Rm{2-0};
+  let Inst{6-0}   = opcode;
+  
+  let isReMaterializable = 1;
+}
+
+// Integer arithmetic ops
+class IntMath32r<bits<7> opcode, string instr_asm, SDNode OpNode> :
+  Math32r<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set GPR32:$Rd, (OpNode GPR32:$Rn, GPR32:$Rm))], opcode, NoItinerary> {
+          
+  let Inst{19-16} = 0b1010;
+  
+}
+
+// Floating-point arithmetic ops
+class FPMath32r<bits<7> opcode, string instr_asm, SDNode OpNode> :
+  Math32r<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set GPR32:$Rd, (OpNode GPR32:$Rn, GPR32:$Rm))], opcode, NoItinerary> {
+          
+  let Inst{19-16} = 0b0111;
+  
 }
 
 class IntMath16<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
@@ -85,12 +110,6 @@ class IntMath16<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with registers: Floating point
 //===----------------------------------------------------------------------===//
-class FpMath32<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
-    : Normal<outs, ins, asm, pattern, itin> {
-//  let Inst{19-16} = 0b0111;
-//  let Inst{6-0}   = opcode;
-}
-
 class FpMath16<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
     : Normal<outs, ins, asm, pattern, itin> {
 //  let Inst{6-0}   = opcode;

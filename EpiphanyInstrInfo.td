@@ -102,11 +102,11 @@ let Defs = [SP], Uses = [SP] in {
 // Integer arithmetic operations with registers
 //===----------------------------------------------------------------------===//
 let Defs = [NZCV] in {
-  def ADDrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "add\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (addc GPR32:$Rn, GPR32:$Rm))], 0b0011111, NoItinerary>;
-  def SUBrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "sub\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (subc GPR32:$Rn, GPR32:$Rm))], 0b0111111, NoItinerary>;
-  def ANDrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "and\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (and GPR32:$Rn, GPR32:$Rm))], 0b1011111, NoItinerary>;
-  def ORRrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "orr\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (or GPR32:$Rn, GPR32:$Rm))],  0b1111111, NoItinerary>;
-  def EORrr : IntMath32<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "eor\t$Rd, $Rn, $Rm", [(set GPR32:$Rd, (xor GPR32:$Rn, GPR32:$Rm))], 0b0001111, NoItinerary>;
+  def ADDrr : IntMath32r<0b0011111, "add", addc>;
+  def SUBrr : IntMath32r<0b0111111, "sub", subc>;
+  def ANDrr : IntMath32r<0b1011111, "and", and>;
+  def ORRrr : IntMath32r<0b1111111, "orr", or>;
+  def EORrr : IntMath32r<0b0001111, "eor", xor>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -115,19 +115,9 @@ let Defs = [NZCV] in {
 
 // All the instructions set NZCV flags
 let Defs = [NZCV] in {
-  def FMULrr : FpMath32<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), 
-                        "fmul\t$Rd, $Rn, $Rm", 
-                        [(set (f32 FPR32:$Rd), (fmul FPR32:$Rn, FPR32:$Rm))], 
-                        0b0101111, NoItinerary> {
-   let isCommutable = 1;
-  }
-
-  def FADDrr : FpMath32<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), 
-                        "fadd\t$Rd, $Rn, $Rm", 
-                        [(set (f32 FPR32:$Rd), (fadd FPR32:$Rn, FPR32:$Rm))], 
-                        0b0001111, NoItinerary> {
-   let isCommutable = 1;
-  }
+  def FADDrr : FpMath32<0b0001111, "fadd", fadd>;
+  def FSUBrr : FpMath32<0b0011111, "fsub", fsub>;
+  def FMULrr : FpMath32<0b0101111, "fmul", fmul>;
 }
 
 
@@ -150,6 +140,9 @@ let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1 in {
 }
 
 def : Pat<(or GPR32:$src, 0xffff0000), (MOVTri GPR32:$src, 0xffff)>;
+
+
+
 
 
 
