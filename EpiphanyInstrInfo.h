@@ -60,22 +60,22 @@ public:
 
   bool analyzeCompare(const MachineInstr *MI, unsigned &SrcReg,
                               unsigned &SrcReg2,
-                              int &CmpMask, int &CmpValue) const;
+                              int &CmpMask, int &CmpValue) const override;
 
   bool optimizeCompareInstr(MachineInstr *CmpInstr, unsigned SrcReg,
                                     unsigned SrcReg2, int CmpMask, int CmpValue,
-                                    const MachineRegisterInfo *MRI) const;
+                                    const MachineRegisterInfo *MRI) const override;
 
 
   bool AnalyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
                      MachineBasicBlock *&FBB,
                      SmallVectorImpl<MachineOperand> &Cond,
-                     bool AllowModify = false) const;
+                     bool AllowModify = false) const override;
   unsigned InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
                         MachineBasicBlock *FBB,
-                        const SmallVectorImpl<MachineOperand> &Cond,
-                        DebugLoc DL) const;
-  unsigned RemoveBranch(MachineBasicBlock &MBB) const;
+                        ArrayRef<MachineOperand> Cond,
+                        DebugLoc DL) const override;
+  unsigned RemoveBranch(MachineBasicBlock &MBB) const override;
 
   bool expandPostRAPseudo(MachineBasicBlock::iterator MI) const;
 

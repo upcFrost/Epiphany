@@ -415,7 +415,7 @@ EpiphanyInstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,MachineBasicBlock *&TBB,
 unsigned
 EpiphanyInstrInfo::InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
                                MachineBasicBlock *FBB,
-                               const SmallVectorImpl<MachineOperand> &Cond,
+                               ArrayRef<MachineOperand> Cond,
                                DebugLoc DL) const {
   if (FBB == 0 && Cond.empty()) {
     BuildMI(&MBB, DL, get(Epiphany::Bimm)).addMBB(TBB);
@@ -679,12 +679,12 @@ void llvm::EPIPHemitRegUpdate(MachineBasicBlock &MBB,
     // and subtract it. There are a couple of ways this could be done, for now
     // we'll use a movz/movk or movn/movk sequence.
     uint64_t Bits = static_cast<uint64_t>(std::abs(NumBytes));
-	BuildMI(MBB, MBBI, dl, TII.get(Epiphany::MOVri), ScratchReg)
+	BuildMI(MBB, MBBI, dl, TII.get(Epiphany::MOV32ri), ScratchReg)
       .addImm(0xffff & Bits).setMIFlags(MIFlags);
 
     Bits >>= 16;
     if (Bits & 0xffff) {
-      BuildMI(MBB, MBBI, dl, TII.get(Epiphany::MOVTri), ScratchReg)
+      BuildMI(MBB, MBBI, dl, TII.get(Epiphany::MOVT32ri), ScratchReg)
         .addImm(0xffff & Bits).setMIFlags(MIFlags);
     }
 
