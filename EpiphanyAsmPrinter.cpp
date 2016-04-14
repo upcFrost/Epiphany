@@ -355,8 +355,8 @@ void EpiphanyAsmPrinter::EmitInstruction(const MachineInstr *MI) {
     }
     return;
     }
-  case Epiphany::MOVTri: {
-    EmitToStreamer(*OutStreamer, MCInstBuilder(Epiphany::MOVTri)
+  case Epiphany::MOVT32ri: {
+    EmitToStreamer(*OutStreamer, MCInstBuilder(Epiphany::MOVT32ri)
       .addReg(MI->getOperand(0).getReg())
       .addReg(MI->getOperand(0).getReg())
       .addImm(MI->getOperand(1).getImm()));

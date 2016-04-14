@@ -8,8 +8,7 @@
 //===----------------------------------------------------------------------===//
 // This file describes Epiphany instruction formats, down to the level of the
 // instruction's overall class.
-// ===----------------------------------------------------------------------===//
-
+//===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
 // Epiphany Instruction Format Definitions.
@@ -60,63 +59,11 @@ class Normal<dag outs, dag ins, string asm, list<dag> pattern, InstrItinClass it
 }
 
 //===----------------------------------------------------------------------===//
-// Arithmetic operations with registers: Integers
 //===----------------------------------------------------------------------===//
-
-// General arithmetic operations pattern, similar for both floating point and integer ops
-class Math32r<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
-    : Normal<outs, ins, asm, pattern, itin> {
-  bits<6> Rd;
-  bits<6> Rn;
-  bits<6> Rm;
-
-  let Inst{31-29} = Rd{5-3};
-  let Inst{28-26} = Rn{5-3};
-  let Inst{25-23} = Rm{5-3};
-  let Inst{15-13} = Rd{2-0};
-  let Inst{12-10} = Rn{2-0};
-  let Inst{9-7}   = Rm{2-0};
-  let Inst{6-0}   = opcode;
-  
-  let isReMaterializable = 1;
-}
-
-// Integer arithmetic ops
-class IntMath32r<bits<7> opcode, string instr_asm, SDNode OpNode> :
-  Math32r<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set GPR32:$Rd, (OpNode GPR32:$Rn, GPR32:$Rm))], opcode, NoItinerary> {
-          
-  let Inst{19-16} = 0b1010;
-  
-}
-
-// Floating-point arithmetic ops
-class FPMath32r<bits<7> opcode, string instr_asm, SDNode OpNode> :
-  Math32r<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {
-          
-  let Inst{19-16} = 0b0111;
-  
-}
-
-class IntMath16<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
-    : Normal<outs, ins, asm, pattern, itin> {
-//  let Inst{15-13} = Rd{2-0};
-//  let Inst{12-10} = Rn{2-0};
-//  let Inst{9-7}   = Rm{2-0};
-//  let Inst{6-0}   = opcode;
-}
-
-//===----------------------------------------------------------------------===//
-// Arithmetic operations with registers: Floating point
-//===----------------------------------------------------------------------===//
-class FpMath16<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
-    : Normal<outs, ins, asm, pattern, itin> {
-//  let Inst{6-0}   = opcode;
-}
-
 //===----------------------------------------------------------------------===//
 // Epiphany Operand Definitions.
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 class ImmAsmOperand : AsmOperandClass { let RenderMethod = "addImmOperands"; }
 
@@ -140,10 +87,219 @@ let OperandType = "OPERAND_IMMEDIATE" in {
   def simm11 : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -1024    && Imm < 1023);    }]> { let ParserMatchClass = Simm11_Operand; }
   def simm24 : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -8388608 && Imm < 8388607); }]> { let ParserMatchClass = Simm24_Operand; }
 }
+def immSExt3   : PatLeaf<(imm), [{ return isInt<3>(N->getSExtValue()); }]>;
+def immSExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getSExtValue()); }]>;
+def immSExt11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
+def immSExt16  : PatLeaf<(imm), [{ return isInt<16>(N->getSExtValue()); }]>;
 
 
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+// Arithmetic operations with registers
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
+class Math16rr<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
+    : Normal<outs, ins, asm, pattern, itin> {
+  bits<3> Rd;
+  bits<3> Rn;
+  bits<3> Rm;
 
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Rm{2-0};
+  let Inst{6-0}   = opcode;
+  
+  let isReMaterializable = 1;
+}
+
+class Math32rr<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
+    : Normal<outs, ins, asm, pattern, itin> {
+  bits<6> Rd;
+  bits<6> Rn;
+  bits<6> Rm;
+
+  let Inst{31-29} = Rd{5-3};
+  let Inst{28-26} = Rn{5-3};
+  let Inst{25-23} = Rm{5-3};
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Rm{2-0};
+  let Inst{6-0}   = opcode;
+  
+  let isReMaterializable = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Arithmetic operations with registers: Integer
+//===----------------------------------------------------------------------===//
+
+class IntMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
+  Math16rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set GPR32:$Rd, (OpNode GPR32:$Rn, GPR32:$Rm))], opcode, NoItinerary> {}
+
+class IntMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
+  Math32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set GPR32:$Rd, (OpNode GPR32:$Rn, GPR32:$Rm))], opcode, NoItinerary> {
+  let Inst{19-16} = 0b1010;
+}
+
+//===----------------------------------------------------------------------===//
+// Arithmetic operations with registers: Floating point
+//===----------------------------------------------------------------------===//
+
+class FPMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
+  Math16rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {}
+          
+class FPMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
+  Math32rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {
+  let Inst{19-16} = 0b0111;
+}
+
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+// Arithmetic operations with immediates
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+
+class Math16ri<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
+    : Normal<outs, ins, asm, pattern, itin> {
+  bits<3> Rd;
+  bits<3> Rn;
+  bits<3> Imm;
+
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Imm{2-0};
+  let Inst{6-0}   = opcode;
+  
+  let isReMaterializable = 1;
+}
+
+class Math32ri<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
+    : Normal<outs, ins, asm, pattern, itin> {
+  bits<6>  Rd;
+  bits<6>  Rn;
+  bits<11> Imm;
+
+  let Inst{31-29} = Rd{5-3};
+  let Inst{28-26} = Rn{5-3};
+  let Inst{23-16} = Imm{10-3};
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Imm{2-0};
+  let Inst{6-0}   = opcode;
+  
+  let isReMaterializable = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Arithmetic operations with immediates: Integer
+//===----------------------------------------------------------------------===//
+
+class IntMath16ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> :
+  Math16ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
+          [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], opcode, NoItinerary> {}
+
+class IntMath32ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> :
+  Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
+          [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], opcode, NoItinerary> {
+  let Inst{19-16} = 0b1010;
+}
+
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+// Memory-related operations
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+
+//===----------------------------------------------------------------------===//
+// Mov operations with immediates
+//===----------------------------------------------------------------------===//
+
+class Mov16ri<string instr_asm, list<dag> pattern, bits<5> opcode>
+    : Normal<(outs GPR32:$Rd), (ins GPR32:$src, imm8:$Imm), !strconcat(instr_asm, "\t$Rd, $Imm"), 
+             pattern, NoItinerary> {
+  bits<8> Imm;
+  bits<3> Rd;
+  
+  let Inst{15-13} = Rd;
+  let Inst{12-5} = Imm;
+  let Inst{4-0} = opcode;
+}
+
+class Mov32ri<string instr_asm, dag ins, list<dag> pattern, bits<5> opcode, bits<1> MOVT>
+    : Normal<(outs GPR32:$Rd), ins, !strconcat(instr_asm, "\t$Rd, $Imm"), 
+             pattern, NoItinerary> {
+  bits<16> Imm;
+  bits<6> Rd;
+  
+  let Inst{31-29} = Rd{5-3};
+  let Inst{28} = MOVT;
+  let Inst{27-20} = Imm{15-8};
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-5} = Imm{7-0};
+  let Inst{4-0} = opcode;
+}
+
+//===----------------------------------------------------------------------===//
+// Mov operations with registers
+//===----------------------------------------------------------------------===//
+class ConditionCode<bits<4> cond_code, string cond_asm> {
+  bits<4> Code = cond_code;
+  string Asm = cond_asm;
+}
+
+def COND_EQ   : ConditionCode<0x0, "eq">;
+def COND_NE   : ConditionCode<0x1, "ne">;
+def COND_GTU  : ConditionCode<0x2, "gtu">;
+def COND_GTEU : ConditionCode<0x3, "gteu">;
+def COND_LTEU : ConditionCode<0x4, "lteu">;
+def COND_LTU  : ConditionCode<0x5, "ltu">;
+def COND_GT   : ConditionCode<0x6, "gt">;
+def COND_GTE  : ConditionCode<0x7, "gte">;
+def COND_LT   : ConditionCode<0x8, "lt">;
+def COND_LTE  : ConditionCode<0x9, "lte">;
+def COND_BEQ  : ConditionCode<0xA, "beq">;
+def COND_BNE  : ConditionCode<0xB, "bne">;
+def COND_BLT  : ConditionCode<0xC, "blt">;
+def COND_BLTE : ConditionCode<0xD, "blte">;
+def COND_NONE : ConditionCode<0xE, "">;
+def COND_L    : ConditionCode<0xF, "l">;
+
+class Mov16rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterClass RegClass>
+    : Normal<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rd, $Rn"),
+             pattern, NoItinerary> {
+    bits<3> Rd;
+    bits<3> Rn;
+    
+    let Inst{15-13} = Rd;
+    let Inst{12-10} = Rn;
+    let Inst{9-8} = 0b00;
+    let Inst{7-4} = cond.Code;
+    let Inst{3-0} = 0b0010;
+}
+
+class Mov32rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterClass RegClass>
+    : Normal<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rd, $Rn"),
+             pattern, NoItinerary> {
+    bits<3> Rd;
+    bits<3> Rn;
+    
+    let Inst{15-13} = Rd;
+    let Inst{12-10} = Rn;
+    let Inst{9-8} = 0b00;
+    let Inst{7-4} = cond.Code;
+    let Inst{3-0} = 0b0010;
+}
 
 
 

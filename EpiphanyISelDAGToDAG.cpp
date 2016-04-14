@@ -85,11 +85,11 @@ SDNode *EpiphanyDAGToDAGISel::TrySelectToMoveImm(SDNode *Node) {
 		}
 
 	// 0 or 16 lower bits
-		ResNode = CurDAG->getMachineNode(Epiphany::MOVri, dl, DestType, CurDAG->getTargetConstant(BitPat, dl, MVT::i32));
+		ResNode = CurDAG->getMachineNode(Epiphany::MOV32ri, dl, DestType, CurDAG->getTargetConstant(BitPat, dl, MVT::i32));
 
 		if (BitPat & 0xffff0000ULL){// 16 upper bits
 			//this is LUi(LLi(val{15-0}), val{31-16})
-			ResNode = CurDAG->getMachineNode(Epiphany::MOVTri, dl, DestType, SDValue(ResNode, 0), CurDAG->getTargetConstant(BitPat, dl, MVT::i32));	 
+			ResNode = CurDAG->getMachineNode(Epiphany::MOVT32ri, dl, DestType, SDValue(ResNode, 0), CurDAG->getTargetConstant(BitPat, dl, MVT::i32));	 
 		}
 	} else if(DestType.isFloatingPoint()){
 		APFloat BitPat = cast<ConstantFPSDNode>(Node)->getValueAPF();
