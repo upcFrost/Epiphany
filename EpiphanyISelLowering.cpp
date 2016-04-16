@@ -184,7 +184,7 @@ CCAssignFn *EpiphanyTargetLowering::CCAssignFnForNode(CallingConv::ID CC) const 
   switch(CC) {
   default: llvm_unreachable("Unsupported calling convention");
   case CallingConv::C:
-    return CC_A64_APCS;
+    return CC_Epiphany_AssignStack;
   }
 }
 
@@ -246,7 +246,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
 
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, isVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
-  CCInfo.AnalyzeFormalArguments(Ins, CCAssignFnForNode(CallConv));
+  CCInfo.AnalyzeFormalArguments(Ins, CC_Epiphany_AssignStack);
 
   SmallVector<SDValue, 16> ArgValues;
 
@@ -325,7 +325,7 @@ EpiphanyTargetLowering::LowerReturn(SDValue Chain,
                  RVLocs, *DAG.getContext());
 
   // Analyze outgoing return values.
-  CCInfo.AnalyzeReturn(Outs, CCAssignFnForNode(CallConv));
+  CCInfo.AnalyzeReturn(Outs, RetCC_Epiphany);
 
   SDValue Flag;
   SmallVector<SDValue, 4> RetOps(1, Chain);
@@ -407,7 +407,7 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 
 	SmallVector<CCValAssign, 16> ArgLocs;
 	CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
-	CCInfo.AnalyzeCallOperands(Outs, CCAssignFnForNode(CallConv));
+	CCInfo.AnalyzeCallOperands(Outs, RetCC_Epiphany);
 
 	// On Epiphany (and all other architectures I'm aware of) the most this has to
 	// do is adjust the stack pointer.
@@ -558,7 +558,7 @@ EpiphanyTargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(),
                  RVLocs, *DAG.getContext());
-  CCInfo.AnalyzeCallResult(Ins, CCAssignFnForNode(CallConv));
+  CCInfo.AnalyzeCallResult(Ins, CC_Epiphany_AssignStack);
 
   for (unsigned i = 0; i != RVLocs.size(); ++i) {
     CCValAssign VA = RVLocs[i];
