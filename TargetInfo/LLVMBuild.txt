@@ -1,9 +1,6 @@
-;===- ./lib/Target/Epiphany/TargetInfo/LLVMBuild.txt ------------*- Conf -*--===;
+;===- ./lib/Target/Epiphany/TargetInfo/LLVMBuild.txt ---------------*- Conf -*--===;
 ;
 ;                     The LLVM Compiler Infrastructure
-;
-; This file is distributed under the University of Illinois Open Source
-; License. See LICENSE.TXT for details.
 ;
 ;===------------------------------------------------------------------------===;
 ;
@@ -19,6 +16,5 @@
 type = Library
 name = EpiphanyInfo
 parent = Epiphany
-required_libraries = MC Support Target
+required_libraries = Support
 add_to_library_groups = Epiphany
-

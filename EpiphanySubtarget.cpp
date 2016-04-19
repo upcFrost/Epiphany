@@ -1,3 +1,4 @@
+
 //===-- EpiphanySubtarget.cpp - Epiphany Subtarget Information --------------===//
 //
 //                     The LLVM Compiler Infrastructure
@@ -12,12 +13,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "EpiphanySubtarget.h"
+
+#include "EpiphanyMachineFunctionInfo.h"
+#include "Epiphany.h"
 #include "EpiphanyRegisterInfo.h"
-#include "MCTargetDesc/EpiphanyMCTargetDesc.h"
-#include "llvm/IR/GlobalValue.h"
-#include "llvm/Target/TargetSubtargetInfo.h"
+
+#include "EpiphanyTargetMachine.h"
+#include "llvm/IR/Attributes.h"
+#include "llvm/IR/Function.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -27,23 +33,40 @@ using namespace llvm;
 #define GET_SUBTARGETINFO_CTOR
 #include "EpiphanyGenSubtargetInfo.inc"
 
+/// Select the Epiphany CPU for the given triple and cpu name.
+static StringRef selectEpiphanyCPU(Triple TT, StringRef CPU) {
+  if (CPU.empty() || CPU == "generic") {
+    if (TT.getArch() == Triple::epiphany)
+      CPU = "epiphany";
+  }
+  return CPU;
+}
+
+void EpiphanySubtarget::anchor() {}
+
+EpiphanySubtarget::EpiphanySubtarget(const Triple &TT, const std::string &CPU, 
+                                     const std::string &FS, const TargetMachine &_TM)
+  :   EpiphanyGenSubtargetInfo(TT, CPU, FS), 
+      TM(_TM), TargetTriple(TT), TSInfo(), FrameLowering(),
+      InstrInfo(initializeSubtargetDependencies(CPU, FS, TM)), 
+      TLInfo(TM, *this) {}
+
 EpiphanySubtarget &
-EpiphanySubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS) {
-  ParseSubtargetFeatures("generic", FS);
+EpiphanySubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS,
+                                                   const TargetMachine &TM) {
+  // Get CPU name string
+  std::string CPUName = selectEpiphanyCPI(TargetTriple, CPU);
+  // E16 doesn't have built-in CMP function
+  if (isE16()) {
+    HasCmp = false;
+  }
+  
+  // Parse features string
+  ParseSubtargetFeatures(CPUName, FS);
+  // Initialize scheduling itinerary for the specified CPU.
+  InstrItins = getInstrItineraryForCPU(CPUName);
+  
   return *this;
 }
 
-
-EpiphanySubtarget::EpiphanySubtarget(const Triple &TT, const std::string &CPU, 
-				     const std::string &FS, const TargetMachine &TM)
-  : EpiphanyGenSubtargetInfo(TT, CPU, FS), FrameLowering(),
-      InstrInfo(initializeSubtargetDependencies(CPU, FS)), 
-      TSInfo(), TLInfo(TM, *this) {}
-
-bool EpiphanySubtarget::GVIsIndirectSymbol(const GlobalValue *GV,
-                                          Reloc::Model RelocM) const {
-  if (RelocM == Reloc::Static)
-    return false;
-
-  return !GV->hasLocalLinkage() && !GV->hasHiddenVisibility();
-}
+const EpiphanyABIInfo &EpiphanySubtarget::getABI() const { return TM.getABI(); }

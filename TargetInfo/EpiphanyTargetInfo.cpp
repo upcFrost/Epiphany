@@ -1,13 +1,6 @@
-//===-- EpiphanyTargetInfo.cpp - Epiphany Target Implementation -------------===//
+//===-- EpiphanyTargetInfo.cpp - Epiphany Target Implementation -----------===//
 //
 //                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file contains the key registration step for the architecture.
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,6 +12,6 @@ using namespace llvm;
 Target llvm::TheEpiphanyTarget;
 
 extern "C" void LLVMInitializeEpiphanyTargetInfo() {
-  RegisterTarget<Triple::epiphany>
-    X(TheEpiphanyTarget, "epiphany", "Epiphany");
+  RegisterTarget<Triple::epiphany,
+        /*HasJIT=*/true> X(TheEpiphanyTarget, "epiphany", "Epiphany");
 }

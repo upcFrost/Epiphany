@@ -14,21 +14,26 @@
 #ifndef LLVM_TARGET_EPIPHANYINSTRINFO_H
 #define LLVM_TARGET_EPIPHANYINSTRINFO_H
 
-#include "llvm/Target/TargetInstrInfo.h"
+#include "EpiphanyConfig.h"
+
+#include "Epiphany.h"
 #include "EpiphanyRegisterInfo.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/Target/TargetInstrInfo.h"
 
 #define GET_INSTRINFO_HEADER
 #include "EpiphanyGenInstrInfo.inc"
 
 namespace llvm {
 
-class EpiphanySubtarget;
-
 class EpiphanyInstrInfo : public EpiphanyGenInstrInfo {
-  const EpiphanyRegisterInfo RI;
+  virtual void anchor();
+protected:
   const EpiphanySubtarget &Subtarget;
 public:
-  explicit EpiphanyInstrInfo(const EpiphanySubtarget &TM);
+  explicit EpiphanyInstrInfo(const EpiphanySubtarget &STI);
+
+  static const EpiphanyInstrInfo *create(EpiphanySubtarget &STI);
 
   /// getRegisterInfo - TargetInstrInfo is a superset of MRegister info.  As
   /// such, whenever a client has an instance of instruction info, it should
@@ -36,85 +41,9 @@ public:
   ///
   const TargetRegisterInfo &getRegisterInfo() const { return RI; }
 
-  const EpiphanySubtarget &getSubTarget() const { return Subtarget; }
-
-  void copyPhysReg(MachineBasicBlock &MBB,
-                   MachineBasicBlock::iterator I, DebugLoc DL,
-                   unsigned DestReg, unsigned SrcReg,
-                   bool KillSrc) const;
-
-  MachineInstr *emitFrameIndexDebugValue(MachineFunction &MF, int FrameIx,
-                                         uint64_t Offset, const MDNode *MDPtr,
-                                         DebugLoc DL) const;
-
-  void storeRegToStackSlot(MachineBasicBlock &MBB,
-                           MachineBasicBlock::iterator MI,
-                           unsigned SrcReg, bool isKill, int FrameIndex,
-                           const TargetRegisterClass *RC,
-                           const TargetRegisterInfo *TRI) const;
-  void loadRegFromStackSlot(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MBBI,
-                            unsigned DestReg, int FrameIdx,
-                            const TargetRegisterClass *RC,
-                            const TargetRegisterInfo *TRI) const;
-
-  bool analyzeCompare(const MachineInstr *MI, unsigned &SrcReg,
-                              unsigned &SrcReg2,
-                              int &CmpMask, int &CmpValue) const override;
-
-  bool optimizeCompareInstr(MachineInstr *CmpInstr, unsigned SrcReg,
-                                    unsigned SrcReg2, int CmpMask, int CmpValue,
-                                    const MachineRegisterInfo *MRI) const override;
-
-
-  bool AnalyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
-                     MachineBasicBlock *&FBB,
-                     SmallVectorImpl<MachineOperand> &Cond,
-                     bool AllowModify = false) const override;
-  unsigned InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
-                        MachineBasicBlock *FBB,
-                        ArrayRef<MachineOperand> Cond,
-                        DebugLoc DL) const override;
-  unsigned RemoveBranch(MachineBasicBlock &MBB) const override;
-
-  bool expandPostRAPseudo(MachineBasicBlock::iterator MI) const;
-
-  /// Look through the instructions in this function and work out the largest
-  /// the stack frame can be while maintaining the ability to address local
-  /// slots with no complexities.
-  unsigned estimateRSStackLimit(MachineFunction &MF) const;
-
-  /// getAddressConstraints - For loads and stores (and PRFMs) taking an
-  /// immediate offset, this function determines the constraints required for
-  /// the immediate. It must satisfy:
-  ///    + MinOffset <= imm <= MaxOffset
-  ///    + imm % OffsetScale == 0
-  void getAddressConstraints(const MachineInstr &MI, int &AccessScale,
-                             int &MinOffset, int &MaxOffset) const;
-
-
+  /// Return the number of bytes of code the specified instruction may be.
   unsigned getInstSizeInBytes(const MachineInstr &MI) const;
 
-  unsigned getInstBundleLength(const MachineInstr &MI) const;
-
 };
-
-bool rewriteA64FrameIndex(MachineInstr &MI, unsigned FrameRegIdx,
-                          unsigned FrameReg, int &Offset,
-                          const EpiphanyInstrInfo &TII);
-
-
-void EPIPHemitRegUpdate(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-                   DebugLoc dl, const TargetInstrInfo &TII,
-                   unsigned DstReg, unsigned SrcReg, unsigned ScratchReg,
-                   int64_t NumBytes,
-                   MachineInstr::MIFlag MIFlags = MachineInstr::NoFlags);
-
-void EPIPHemitSPUpdate(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-                  DebugLoc dl, const TargetInstrInfo &TII,
-                  unsigned ScratchReg, int64_t NumBytes,
-                  MachineInstr::MIFlag MIFlags = MachineInstr::NoFlags);
-
-}
 
 #endif

@@ -14,15 +14,19 @@
 #ifndef LLVM_TARGET_EPIPHANY_TARGETOBJECTFILE_H
 #define LLVM_TARGET_EPIPHANY_TARGETOBJECTFILE_H
 
+#include "EpiphanyConfig.h"
+
+#include "EpiphanyTargetMachine.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/Target/TargetLoweringObjectFile.h"
 
 namespace llvm {
-
-  /// EpiphanyLinuxTargetObjectFile - This implementation is used for linux
-  /// Epiphany.
-  class EpiphanyLinuxTargetObjectFile : public TargetLoweringObjectFileELF {
+  
+  class EpiphanyTargetMachine;
+  
+  class EpiphanyTargetObjectFile : public TargetLoweringObjectFileELF {
+    const EpiphanyTargetMachine *TM;
+    
+   public:
     void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
   };
 

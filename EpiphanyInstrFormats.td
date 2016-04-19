@@ -76,6 +76,7 @@ def Simm3_Operand  : ImmAsmOperand { let Name = "simm3";  }
 def Simm8_Operand  : ImmAsmOperand { let Name = "simm8";  }
 def Simm11_Operand : ImmAsmOperand { let Name = "simm11"; }
 def Simm24_Operand : ImmAsmOperand { let Name = "simm24"; }
+
 // Immediates
 let OperandType = "OPERAND_IMMEDIATE" in {
   def imm3   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 8);     }]> { let ParserMatchClass = Imm3_Operand;   }
@@ -87,11 +88,88 @@ let OperandType = "OPERAND_IMMEDIATE" in {
   def simm11 : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -1024    && Imm < 1023);    }]> { let ParserMatchClass = Simm11_Operand; }
   def simm24 : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -8388608 && Imm < 8388607); }]> { let ParserMatchClass = Simm24_Operand; }
 }
+
+// Node immediate fits as N-bit sign extended on target immediate.
 def immSExt3   : PatLeaf<(imm), [{ return isInt<3>(N->getSExtValue()); }]>;
 def immSExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getSExtValue()); }]>;
 def immSExt11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 def immSExt16  : PatLeaf<(imm), [{ return isInt<16>(N->getSExtValue()); }]>;
 
+// Address operand
+def mem : Operand<iPTR> {
+  let PrintMethod = "printMemOperand";
+  let MIOperandInfo = (ops GPR32, imm16);
+  let EncoderMethod = "getMemEncoding";
+}
+
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+// Load/Store operations
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+class LS_bit<bits<1> LS, string asm> {
+  bits<1> Value = LS;
+  string Asm = asm;
+}
+
+def LoadBit   : LS_bit<0, "ldr">;
+def StoreBit  : LS_bit<1, "str">;
+
+class LS_size<bits<2> opcode, string asm> {
+  bits<2> Value = opcode;
+  string Asm = asm;
+}
+
+def LS_byte : LS_size<0b00, "b">;
+def LS_hword : LS_size<0b01, "h">;
+def LS_word : LS_size<0b10, "">;
+def LS_dword : LS_size<0b11, "d">;
+
+class LS_addsub<bits<1> opcode, string asm> {
+  bits<1> Value = opcode;
+  string Asm = asm;
+}
+
+def LS_add : LS_addsub<0, "+">;
+def LS_sub : LS_addsub<1, "-">;
+
+class LS32_general<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opcode, LS_bit LS, LS_size opsize, InstrItinClass itin>
+    : Normal<outs, ins, asm, pattern, itin> {
+  bits<6> Rd;
+  bits<6> Rn;
+  
+  let Inst{31-29} = Rd{5-3};
+  let Inst{28-26} = Rn{5-3};
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{6-5} = opsize.Value;
+  let Inst{4} = LS.Value;
+  let Inst{3-0} = opcode;
+}
+
+class LS32rr<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opcode,
+             LS_bit LS, LS_size opsize, LS_addsub addsub, InstrItinClass itin>
+    : LS32_general<outs, ins, asm, pattern, opcode, LS, opsize, itin> {
+  bits<6> Rm;
+  
+  let Inst{25-23} = Rm{5-3};
+  let Inst{22-21} = 0;
+  let Inst{20} = addsub.Value;
+  let Inst{9-7} = Rm{2-0};
+}
+
+class LS32ri<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opcode, 
+             LS_bit LS, LS_size opsize, bits<1> prepost, LS_addsub addsub, InstrItinClass itin>
+    : LS32_general<outs, ins, asm, pattern, opcode, LS, opsize, itin> {
+  bits<11> Imm;
+  
+  let Inst{25} = prepost;
+  let Inst{24} = addsub.Value;
+  let Inst{23-16} = Imm{10-3};
+  let Inst{9-7} = Imm{2-0};
+}
 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
@@ -150,15 +228,15 @@ class IntMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
 // Arithmetic operations with registers: Floating point
 //===----------------------------------------------------------------------===//
 
-class FPMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
-  Math16rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {}
+//class FPMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
+//  Math16rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+//          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {}
           
-class FPMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
-  Math32rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {
-  let Inst{19-16} = 0b0111;
-}
+//class FPMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
+//  Math32rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+//          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {
+//  let Inst{19-16} = 0b0111;
+//}
 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
@@ -299,79 +377,4 @@ class Mov32rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterC
     let Inst{9-8} = 0b00;
     let Inst{7-4} = cond.Code;
     let Inst{3-0} = 0b0010;
-}
-
-
-
-
-
-
-
-
-
-
-// As above, this will be a single A64 instruction, but we can actually give the
-// expansion in TableGen.
-class A64PseudoExpand<dag outs, dag ins, list<dag> patterns, dag Result>
-  : Pseudo<outs, ins, patterns>,
-    PseudoInstExpansion<Result>;
-
-
-class EP1INST<dag outs, dag ins, string asmstr, list<dag> patterns, InstrItinClass itin>  : Instruction {
-
-field bits<32> Inst =0 ;
-  // LLVM-level model of the Epiphany/A64 distinction.
-  let Namespace = "Epiphany";
-  let Size = 4;
-
-  // Set the templated fields
-  let OutOperandList = outs;
-  let InOperandList = ins;
-  let AsmString = asmstr;
-  let Pattern = patterns;
-  let Itinerary = itin;
-}
-
-class EP2INST<dag outs, dag ins, string asmstr, list<dag> patterns, InstrItinClass itin>  : Instruction {
-
-field bits<32> Inst =0 ;
-  // LLVM-level model of the Epiphany/A64 distinction.
-  let Namespace = "Epiphany";
-  let Size = 4;
-
-  // Set the templated fields
-  let OutOperandList = outs;
-  let InOperandList = ins;
-  let AsmString = asmstr;
-  let Pattern = patterns;
-  let Itinerary = itin;
-}
-class EP3INST<dag outs, dag ins, string asmstr, list<dag> patterns, InstrItinClass itin>  : Instruction {
-
-field bits<32> Inst =0 ;
-  // LLVM-level model of the Epiphany/A64 distinction.
-  let Namespace = "Epiphany";
-  let Size = 4;
-
-  // Set the templated fields
-  let OutOperandList = outs;
-  let InOperandList = ins;
-  let AsmString = asmstr;
-  let Pattern = patterns;
-  let Itinerary = itin;
-}
-
-class EP4INST<dag outs, dag ins, string asmstr, list<dag> patterns, InstrItinClass itin>  : Instruction {
-
-field bits<32> Inst =0 ;
-  // LLVM-level model of the Epiphany/A64 distinction.
-  let Namespace = "Epiphany";
-  let Size = 4;
-
-  // Set the templated fields
-  let OutOperandList = outs;
-  let InOperandList = ins;
-  let AsmString = asmstr;
-  let Pattern = patterns;
-  let Itinerary = itin;
 }

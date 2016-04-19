@@ -19,11 +19,11 @@ include "llvm/Target/Target.td"
 
 //===----------------------------------------------------------------------===//
 // Epiphany Processors
-//
+//===----------------------------------------------------------------------===//
 
 include "EpiphanySchedule.td"
 
-def : Processor<"generic", GenericItineraries, []>;
+def : Processor<"epiphany", EpiphanyGenericItineraries, []>;
 
 //===----------------------------------------------------------------------===//
 // Register File Description
@@ -42,19 +42,13 @@ include "EpiphanyInstrInfo.td"
 def EpiphanyInstrInfo : InstrInfo;
 
 //===----------------------------------------------------------------------===//
-// Assembly printer
-//===----------------------------------------------------------------------===//
-
-def GenericInstPrinter : AsmWriter {
-  string AsmWriterClassName = "InstPrinter";
-  int isMCAsmWriter = 1;
-}
-
-//===----------------------------------------------------------------------===//
 // Declare the target which we are implementing
 //===----------------------------------------------------------------------===//
 
+// Will generate EpiphanyGenAsmWrite.inc included by EpiphanyInstPrinter.cpp, contents
+//  as follows,
+// void EpiphanyInstPrinter::printInstruction(const MCInst *MI, raw_ostream &O) {...}
+// const char *EpiphanyInstPrinter::getRegisterName(unsigned RegNo) {...}
 def Epiphany : Target {
   let InstructionSet = EpiphanyInstrInfo;
-  let AssemblyWriters = [GenericInstPrinter];
 }

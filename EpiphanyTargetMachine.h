@@ -14,16 +14,23 @@
 #ifndef LLVM_EPIPHANYTARGETMACHINE_H
 #define LLVM_EPIPHANYTARGETMACHINE_H
 
+#include "EpiphanyConfig.h"
+
+#include "MCTargetDesc/EpiphanyABIInfo.h"
 #include "EpiphanySubtarget.h"
-#include "llvm/IR/DataLayout.h"
+#include "llvm/CodeGen/Passes.h"
+#include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/Target/TargetFrameLowering.h"
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
+class formatted_raw_ostream;
+class EpiphanyRegisterInfo;
 
 class EpiphanyTargetMachine : public LLVMTargetMachine {
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
-  EpiphanySubtarget          Subtarget;
+  EpiphanyABIInfo ABI;
+  EpiphanySubtarget Subtarget;
 
 public:
   EpiphanyTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
@@ -43,6 +50,8 @@ public:
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
+  
+  const EpiphanyABIInfo &getABI() const { return ABI; }
 };
 
 }

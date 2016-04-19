@@ -23,7 +23,7 @@ BUILT_SOURCES = EpiphanyGenAsmMatcher.inc \
    EpiphanyGenRegisterInfo.inc \
    EpiphanyGenSubtargetInfo.inc
 
-DIRS = InstPrinter AsmParser Disassembler TargetInfo MCTargetDesc Utils
+DIRS = TargetInfo MCTargetDesc
 
 include $(LEVEL)/Makefile.common
 

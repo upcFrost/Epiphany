@@ -11,28 +11,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "asm-printer"
 #include "EpiphanyInstPrinter.h"
-#include "MCTargetDesc/EpiphanyMCTargetDesc.h"
-#include "Utils/EpiphanyBaseInfo.h"
-#include "llvm/MC/MCInst.h"
-#include "llvm/MC/MCExpr.h"
-#include "llvm/MC/MCRegisterInfo.h"
-#include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/Format.h"
-#include "llvm/Support/raw_ostream.h"
 
+#include "EpiphanyInstrInfo.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCInstrInfo.h"
+#include "llvm/MC/MCSymbol.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
-#define GET_INSTRUCTION_NAME
+#define DEBUG_TYPE "asm-printer"
+
 #define PRINT_ALIAS_INSTR
 #include "EpiphanyGenAsmWriter.inc"
-
-EpiphanyInstPrinter::EpiphanyInstPrinter(const MCAsmInfo &MAI,
-                                       const MCInstrInfo &MII,
-                                       const MCRegisterInfo &MRI) :
-  MCInstPrinter(MAI, MII, MRI) {
-}
 
 void EpiphanyInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
   OS << getRegisterName(RegNo);
@@ -41,18 +35,30 @@ void EpiphanyInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
 void EpiphanyInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
                                    StringRef Annot,
                                    const MCSubtargetInfo &STI) {
+// Try to print any aliases first.
 if (!printAliasInstr(MI, O))
+    //- printInstruction(MI, O) defined in EpiphanyGenAsmWriter.inc which came from 
+    //   Epiphany.td indicate.
     printInstruction(MI, O);
-
   printAnnotation(O, Annot);
 }
 
-void EpiphanyInstPrinter::printAddSubImmOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
-		const MCOperand &Imm11Op = MI->getOperand(OpNum);
-		int64_t Imm11 = Imm11Op.getImm();
-		assert((Imm11 <= 1023 && Imm11 >= -1024) && "Invalid immediate for add/sub imm");
+EpiphanyInstPrinter::EpiphanyInstPrinter(const MCAsmInfo &MAI,
+                                       const MCInstrInfo &MII,
+                                       const MCRegisterInfo &MRI) :
+  MCInstPrinter(MAI, MII, MRI) {
+}
 
-		O << "#" << Imm11;
+
+
+
+
+void EpiphanyInstPrinter::printAddSubImmOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
+	const MCOperand &Imm11Op = MI->getOperand(OpNum);
+	int64_t Imm11 = Imm11Op.getImm();
+	assert((Imm11 <= 1023 && Imm11 >= -1024) && "Invalid immediate for add/sub imm");
+
+	O << "#" << Imm11;
 }
 
 void EpiphanyInstPrinter::printBareImmOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
@@ -118,5 +124,3 @@ void EpiphanyInstPrinter::printFPImmOperand(const MCInst *MI, unsigned OpNum,
   assert(MOImm.isFPImm() && "not float operand in printFPImmOperand");
   o << '#' << format("%.8f", MOImm.getFPImm());
 }
-
-

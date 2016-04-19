@@ -15,144 +15,112 @@
 #ifndef LLVM_TARGET_EPIPHANY_ISELLOWERING_H
 #define LLVM_TARGET_EPIPHANY_ISELLOWERING_H
 
-#include "Utils/EpiphanyBaseInfo.h"
+#include "EpiphanyConfig.h"
+
+#include "MCTargetDesc/EpiphanyABIInfo.h"
+#include "Epiphany.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/SelectionDAG.h"
+#include "llvm/IR/Function.h"
 #include "llvm/Target/TargetLowering.h"
-
+#include <deque>
 
 namespace llvm {
-namespace EpiphanyISD {
-  enum NodeType {
-    // Start the numbering from where ISD NodeType finishes.
-    FIRST_NUMBER = ISD::BUILTIN_OP_END,
+  namespace EpiphanyISD {
+    enum NodeType {
+      // Start the numbering from where ISD NodeType finishes.
+      FIRST_NUMBER = ISD::BUILTIN_OP_END,
+  
+      // This is a conditional branch which also notes the flag needed
+      // (eq/sgt/...). Epiphany puts this information on the branches rather than
+      // compares as LLVM does.
+      BR_CC,
+  
+      // A node to be selected to an actual call operation: either BL or BLR in
+      // the absence of tail calls.
+      Call,
+  
+      // Simply a convenient node inserted during ISelLowering to represent
+      // procedure return. Will almost certainly be selected to "RET".
+      Ret,
+  
+      /// This is an A64-ification of the standard LLVM SELECT_CC operation. The
+      /// main difference is that it only has the values and an A64 condition,
+      /// which will be produced by a setcc instruction.
+      SELECT_CC,
+  
+      /// This serves most of the functions of the LLVM SETCC instruction, for two
+      /// purposes. First, it prevents optimisations from fiddling with the
+      /// compare after we've moved the CondCode information onto the SELECT_CC or
+      /// BR_CC instructions. Second, it gives a legal instruction for the actual
+      /// comparison.
+      ///
+      /// It keeps a record of the condition flags asked for because certain
+      /// instructions are only valid for a subset of condition codes.
+      SETCC,
+  
+      // Wraps an address which the ISelLowering phase has decided should be
+      // created using the small absolute memory model: i.e. adrp/add or
+      // adrp/mem-op. This exists to prevent bare TargetAddresses which may never
+      // get selected.
+      WrapperSmall,
+  
+      // Node for FMA and FMS
+      FM_A_S
+    };
+  }
 
-    // This is a conditional branch which also notes the flag needed
-    // (eq/sgt/...). A64 puts this information on the branches rather than
-    // compares as LLVM does.
-    BR_CC,
+  //===--------------------------------------------------------------------===//
+  // TargetLowering Implementation
+  //===--------------------------------------------------------------------===//
+  class EpiphanyFunctionInfo;
+  class EpiphanySubtarget;
+  
+  class EpiphanyTargetLowering : public TargetLowering {
+  public:
+    explicit EpiphanyTargetLowering(const EpiphanyTargetMachine &TM, 
+                                    const EpiphanySubtarget &STI);
 
-    // A node to be selected to an actual call operation: either BL or BLR in
-    // the absence of tail calls.
-    Call,
+    /// getTargetNodeName - This method returns the name of a target specific
+    //  DAG node.
+    const char *getTargetNodeName(unsigned Opcode) const override;
+    
+    SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 
-    // Simply a convenient node inserted during ISelLowering to represent
-    // procedure return. Will almost certainly be selected to "RET".
-    Ret,
+  protected:
+    /// ByValArgInfo - Byval argument information.
+    struct ByValArgInfo {
+      unsigned FirstIdx; // Index of the first register used.
+      unsigned NumRegs;  // Number of registers used for this argument.
+      unsigned Address;  // Offset of the stack area used to pass this argument.
 
-    /// This is an A64-ification of the standard LLVM SELECT_CC operation. The
-    /// main difference is that it only has the values and an A64 condition,
-    /// which will be produced by a setcc instruction.
-    SELECT_CC,
+      ByValArgInfo() : FirstIdx(0), NumRegs(0), Address(0) {}
+    };
 
-    /// This serves most of the functions of the LLVM SETCC instruction, for two
-    /// purposes. First, it prevents optimisations from fiddling with the
-    /// compare after we've moved the CondCode information onto the SELECT_CC or
-    /// BR_CC instructions. Second, it gives a legal instruction for the actual
-    /// comparison.
-    ///
-    /// It keeps a record of the condition flags asked for because certain
-    /// instructions are only valid for a subset of condition codes.
-    SETCC,
+    // Subtarget Info
+    const EpiphanySubtarget &Subtarget;
+    // Cache the ABI from the TargetMachine, we use it everywhere.
+    const EpiphanyABIInfo &ABI;
+    
+  private:
+  
+    // Lower Operand specifics
+    SDValue lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+    
+    //- must be exist even without function all
+    SDValue LowerFormalArguments(SDValue Chain,
+                                 CallingConv::ID CallConv, bool isVarArg,
+                                 const SmallVectorImpl<ISD::InputArg> &Ins,
+                                 SDLoc dl, SelectionDAG &DAG,
+                                 SmallVectorImpl<SDValue> &InVals) const override;
 
-    // Wraps an address which the ISelLowering phase has decided should be
-    // created using the small absolute memory model: i.e. adrp/add or
-    // adrp/mem-op. This exists to prevent bare TargetAddresses which may never
-    // get selected.
-	WrapperSmall,
+    SDValue LowerReturn(SDValue Chain,
+                        CallingConv::ID CallConv, bool isVarArg,
+                        const SmallVectorImpl<ISD::OutputArg> &Outs,
+                        const SmallVectorImpl<SDValue> &OutVals,
+                        SDLoc dl, SelectionDAG &DAG) const override;
 
-	// Node for FMA and FMS
-	FM_A_S
   };
-}
-
-
-class EpiphanySubtarget;
-class EpiphanyTargetMachine;
-
-class EpiphanyTargetLowering : public TargetLowering {
-public:
-  explicit EpiphanyTargetLowering(const TargetMachine &TM, 
-                                  const EpiphanySubtarget &STI);
-
-  const char *getTargetNodeName(unsigned Opcode) const override;
-
-  CCAssignFn *CCAssignFnForNode(CallingConv::ID CC) const;
-
-  SDValue LowerFormalArguments(SDValue Chain,
-                               CallingConv::ID CallConv, bool isVarArg,
-                               const SmallVectorImpl<ISD::InputArg> &Ins,
-                               SDLoc dl, SelectionDAG &DAG,
-                               SmallVectorImpl<SDValue> &InVals) const;
-
-  SDValue LowerReturn(SDValue Chain,
-                      CallingConv::ID CallConv, bool isVarArg,
-                      const SmallVectorImpl<ISD::OutputArg> &Outs,
-                      const SmallVectorImpl<SDValue> &OutVals,
-                      SDLoc dl, SelectionDAG &DAG) const;
-
-  SDValue LowerCall(CallLoweringInfo &CLI,
-                    SmallVectorImpl<SDValue> &InVals) const;
-
-  SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
-                          CallingConv::ID CallConv, bool IsVarArg,
-                          const SmallVectorImpl<ISD::InputArg> &Ins,
-                          SDLoc dl, SelectionDAG &DAG,
-                          SmallVectorImpl<SDValue> &InVals) const;
-
-  void SaveVarArgRegisters(CCState &CCInfo, SelectionDAG &DAG,
-                           SDLoc DL, SDValue &Chain) const;
-
-
-  /// Finds the incoming stack arguments which overlap the given fixed stack
-  /// object and incorporates their load into the current chain. This prevents
-  /// an upcoming store from clobbering the stack argument before it's used.
-  SDValue addTokenForArgument(SDValue Chain, SelectionDAG &DAG,
-                              MachineFrameInfo *MFI, int ClobberedFI) const;
-
-  EVT getSetCCResultType(const DataLayout &, LLVMContext &, 
-                         EVT VT) const override;
-
-  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
-
-  bool isLegalICmpImmediate(int64_t Val) const override;
-  SDValue getSelectableIntSetCC(SDValue LHS, SDValue RHS, ISD::CondCode CC,
-                         SDValue &A64cc, SelectionDAG &DAG, SDLoc &dl) const;
-
-  MachineBasicBlock *
-  EmitInstrWithCustomInserter(MachineInstr *MI, 
-                              MachineBasicBlock *MBB) const override;
-
-  SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerFNEG(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerGlobalAddressELF(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerJumpTable(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
-
-  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
-
-  //nope.
-  bool IsEligibleForTailCallOptimization(SDValue Callee,
-                                    CallingConv::ID CalleeCC,
-                                    bool IsVarArg,
-                                    bool IsCalleeStructRet,
-                                    bool IsCallerStructRet,
-                                    const SmallVectorImpl<ISD::OutputArg> &Outs,
-                                    const SmallVectorImpl<SDValue> &OutVals,
-                                    const SmallVectorImpl<ISD::InputArg> &Ins,
-									SelectionDAG& DAG) const { return false;}
-// custom fma due to fneg, so we say no
-  bool isFMAFasterThanFMulAndFAdd(EVT) const override { return false; }
-
-private:
-  const EpiphanySubtarget *Subtarget;
-  const TargetRegisterInfo *RegInfo;
-  const InstrItineraryData *Itins;
-};
 } // namespace llvm
 
 #endif // LLVM_TARGET_EPIPHANY_ISELLOWERING_H

@@ -16,21 +16,22 @@
 ;===------------------------------------------------------------------------===;
 
 [common]
-subdirectories = InstPrinter MCTargetDesc TargetInfo Utils
+subdirectories = MCTargetDesc TargetInfo
 
 [component_0]
 type = TargetGroup
 name = Epiphany
 parent = Target
-has_asmparser = 0
-has_asmprinter = 1
-has_disassembler = 0
-;has_jit = 1
 
 [component_1]
 type = Library
 name = EpiphanyCodeGen
 parent = Epiphany
-required_libraries = EpiphanyAsmPrinter EpiphanyDesc EpiphanyInfo AsmPrinter CodeGen Core MC SelectionDAG Support Target
-add_to_library_groups = Epiphany
+required_libraries = CodeGen Core MC
+                     EpiphanyDesc
+                     EpiphanyInfo
+                     SelectionDAG
+                     Support
+                     Target
 
+add_to_library_groups = Epiphany
