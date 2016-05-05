@@ -43,84 +43,62 @@ if (!printAliasInstr(MI, O))
   printAnnotation(O, Annot);
 }
 
-EpiphanyInstPrinter::EpiphanyInstPrinter(const MCAsmInfo &MAI,
-                                       const MCInstrInfo &MII,
-                                       const MCRegisterInfo &MRI) :
-  MCInstPrinter(MAI, MII, MRI) {
-}
+//@printExpr {
+static void printExpr(const MCExpr *Expr, const MCAsmInfo *MAI,
+                      raw_ostream &OS) {
+//@printExpr body {
+  int Offset = 0;
+  const MCSymbolRefExpr *SRE;
 
-
-
-
-
-void EpiphanyInstPrinter::printAddSubImmOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
-	const MCOperand &Imm11Op = MI->getOperand(OpNum);
-	int64_t Imm11 = Imm11Op.getImm();
-	assert((Imm11 <= 1023 && Imm11 >= -1024) && "Invalid immediate for add/sub imm");
-
-	O << "#" << Imm11;
-}
-
-void EpiphanyInstPrinter::printBareImmOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
-  const MCOperand &MO = MI->getOperand(OpNum);
-  O << MO.getImm();
-}
-
-
-void EpiphanyInstPrinter::printCondCodeOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
-  const MCOperand &MO = MI->getOperand(OpNum);
-
-  O << A64CondCodeToString(static_cast<EpiphanyCC::CondCodes>(MO.getImm()));
-}
-
-template <unsigned field_width, unsigned scale> void
-EpiphanyInstPrinter::printLabelOperand(const MCInst *MI, unsigned OpNum, raw_ostream &O) {
-  const MCOperand &MO = MI->getOperand(OpNum);
-
-  if (!MO.isImm()) {
-    printOperand(MI, OpNum, O);
-    return;
+  if (const MCBinaryExpr *BE = dyn_cast<MCBinaryExpr>(Expr)) {
+    SRE = dyn_cast<MCSymbolRefExpr>(BE->getLHS());
+    const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(BE->getRHS());
+    assert(SRE && CE && "Binary expression must be sym+const.");
+    Offset = CE->getValue();
+  } else {
+    SRE = cast<MCSymbolRefExpr>(Expr);
+    assert(SRE && "Unexpected MCExpr type");
   }
 
-//we do currently not support branches to immediates that are not labels
-assert(MO.isImm() && "unknown operand kind in printLabelOperand (imm?)");
-}
+  MCSymbolRefExpr::VariantKind Kind = SRE->getKind();
 
-void EpiphanyInstPrinter::printOffsetUImm11Operand(const MCInst *MI, unsigned OpNum, raw_ostream &O, int MemSize) {
-  const MCOperand &MOImm = MI->getOperand(OpNum);
-    int32_t Imm = MOImm.getImm();// * MemSize;
+  switch (Kind) {
+  default:                                 llvm_unreachable("Invalid kind!");
+  case MCSymbolRefExpr::VK_None:           break;
+  }
 
-    O << "#" << Imm;
+  SRE->getSymbol().print(OS, MAI);
+
+  if (Offset) {
+    if (Offset > 0)
+      OS << '+';
+    OS << Offset;
+  }
+//}
 }
 
 void EpiphanyInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
                                       raw_ostream &O) {
   const MCOperand &Op = MI->getOperand(OpNo);
   if (Op.isReg()) {
-    unsigned Reg = Op.getReg();
-    O << getRegisterName(Reg);
-  } else if (Op.isImm()) {
-    O << '#' << Op.getImm();
-  } else {
-    assert(Op.isExpr() && "unknown operand kind in printOperand");
-    // If a symbolic branch target was added as a constant expression then print
-    // that address in hex.
-    const MCConstantExpr *BranchTarget = dyn_cast<MCConstantExpr>(Op.getExpr());
-    int64_t Address;
-    if (BranchTarget && BranchTarget->evaluateAsAbsolute(Address)) {
-      O << "0x";
-      O.write_hex(Address);
-    }
-    else {
-      // Otherwise, just print the expression.
-      O << *Op.getExpr();
-    }
+    printRegName(O, Op.getReg());
+    return;
   }
+  
+  if (Op.isImm()) {
+    O << '#' << Op.getImm();
+    return;
+  }
+  
+  assert(Op.isExpr() && "unknown operand kind in printOperand");
+  printExpr(Op.getExpr(), &MAI, O);
 }
 
-void EpiphanyInstPrinter::printFPImmOperand(const MCInst *MI, unsigned OpNum,
-                                           raw_ostream &o) {
-  const MCOperand &MOImm = MI->getOperand(OpNum);
-  assert(MOImm.isFPImm() && "not float operand in printFPImmOperand");
-  o << '#' << format("%.8f", MOImm.getFPImm());
+void EpiphanyInstPrinter::printUnsignedImm(const MCInst *MI, unsigned OpNum,
+                                           raw_ostream &O) {
+  const MCOperand &MO = MI->getOperand(OpNum);
+  if (MO.isImm())
+    O << '#' << (unsigned short int)MO.getImm();
+  else
+    printOperand(MI, OpNum, O);
 }

@@ -30,5 +30,5 @@ def RetCC_Epiphany : CallingConv<[
   CCIfType<[i32,f32], CCAssignToReg<[R0, R1, R2, R3]>>
 ]>;
 
-def CSR32 : CalleeSavedRegs<(add V1, V2, V3, V4, V5, SB, SL, FP, LR, R15,
+def CSR32 : CalleeSavedRegs<(add R4, R5, R6, R7, R8, SB, SL, FP, LR, R15,
                             (sequence "R%u", 32, 43))>;

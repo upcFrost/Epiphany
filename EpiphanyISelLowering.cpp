@@ -14,7 +14,7 @@
 
 #include "EpiphanyISelLowering.h"
 
-#include "EpiphanyMachineFunction.h"
+#include "EpiphanyMachineFunctionInfo.h"
 #include "EpiphanyTargetMachine.h"
 #include "EpiphanyTargetObjectFile.h"
 #include "EpiphanySubtarget.h"
@@ -55,16 +55,20 @@ const char *EpiphanyTargetLowering::getTargetNodeName(unsigned Opcode) const {
 }
 
 //@EpiphanyTargetLowering {
-EpiphanyTargetLowering::EpiphanyTargetLowering(const TargetMachine &TM,
+EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
                                                const EpiphanySubtarget &STI)
-    : TargetLowering(TM), Subtarget(&STI), ABI(TM.getABI()) {
+    : TargetLowering(TM), Subtarget(STI), ABI(TM.getABI()) {
 
   // Set up the register classes
-  addRegisterClass(MVT::i32, &Epiphany::GPR32);
+  addRegisterClass(MVT::i32, &Epiphany::GPR32RegClass);
+  
+  //- Set .align 4
+  // It will emit .align 4 later
+  setMinFunctionAlignment(4);
   
   // must, computeRegisterProperties - Once all of the register classes are 
   //  added, this allows us to compute derived properties we expose.
-  computeRegisterProperties(Subtarget.getRegisterInfo());
+  computeRegisterProperties(STI.getRegisterInfo());
 }
 
 SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
@@ -109,7 +113,7 @@ EpiphanyTargetLowering::LowerReturn(SDValue Chain,
                                 const SmallVectorImpl<ISD::OutputArg> &Outs,
                                 const SmallVectorImpl<SDValue> &OutVals,
                                 SDLoc DL, SelectionDAG &DAG) const {
-  return DAG.getNode(Epiphany::Ret, DL, MVT::Other,
+  return DAG.getNode(EpiphanyISD::Ret, DL, MVT::Other,
                      Chain, DAG.getRegister(Epiphany::LR, MVT::i32));
 }
 

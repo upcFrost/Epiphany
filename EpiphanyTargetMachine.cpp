@@ -37,7 +37,7 @@ EpiphanyTargetMachine::EpiphanyTargetMachine(const Target &T, const Triple &TT,
                                            CodeGenOpt::Level OL)
       : LLVMTargetMachine(T, "e-p:32:32-i8:8:8-i16:16:16-i32:32:32-f32:32:32-i64:64:64-f64:64:64-s64:64:64-S64:64:64-a0:32:32", 
                           TT, CPU, FS, Options, RM, CM, OL),
-        TLOF(make_unique<EpiphanyLinuxTargetObjectFile>()),
+        TLOF(make_unique<EpiphanyTargetObjectFile>()),
         ABI(EpiphanyABIInfo::computeTargetABI()),
         Subtarget(TT, CPU, FS, *this) {
   initAsmInfo();

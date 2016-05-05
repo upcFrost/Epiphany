@@ -60,6 +60,6 @@ void EpiphanyCallEntry::printCustom(raw_ostream &O) const {
 #endif
 }
 
-EpiphanyFunctionInfo::~EpiphanyFunctionInfo() {}
+EpiphanyMachineFunctionInfo::~EpiphanyMachineFunctionInfo() {}
 
 void EpiphanyMachineFunctionInfo::anchor() { }

@@ -33,13 +33,13 @@ using namespace llvm;
 #define DEBUG_TYPE "frame-info"
 
 //@emitPrologue {
-void Cpu0SEFrameLowering::emitPrologue(MachineFunction &MF,
+void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
                                        MachineBasicBlock &MBB) const {
 }
 //}
 
 //@emitEpilogue {
-void Cpu0SEFrameLowering::emitEpilogue(MachineFunction &MF,
+void EpiphanyFrameLowering::emitEpilogue(MachineFunction &MF,
                                  MachineBasicBlock &MBB) const {
 }
 //}

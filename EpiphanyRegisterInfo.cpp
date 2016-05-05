@@ -32,7 +32,7 @@ using namespace llvm;
 #include "EpiphanyGenRegisterInfo.inc"
 
 EpiphanyRegisterInfo::EpiphanyRegisterInfo(const EpiphanySubtarget &ST)
-  : EpiphanyGenRegisterInfo(Epiphany::LR), TII(ST) {}
+  : EpiphanyGenRegisterInfo(Epiphany::LR), Subtarget(ST) {}
   
 //===----------------------------------------------------------------------===//
 // Callee Saved Registers methods
@@ -105,6 +105,6 @@ EpiphanyRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
 }
 
 const TargetRegisterClass *
-EpiphanyRegisterInfo::intRegClass(unsigned Size) const {
-  return &Epiphany::GPR32;
+EpiphanyRegisterInfo::GPR32(unsigned Size) const {
+  return &Epiphany::GPR32RegClass;
 }

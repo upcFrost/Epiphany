@@ -9,6 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "EpiphanyMCTargetDesc.h"
+
+#include "InstPrinter/EpiphanyInstPrinter.h"
+#include "EpiphanyMCAsmInfo.h"
 #include "llvm/MC/MachineLocation.h"
 #include "llvm/MC/MCCodeGenInfo.h"
 #include "llvm/MC/MCELFStreamer.h"
@@ -33,8 +36,100 @@ using namespace llvm;
 #define GET_REGINFO_MC_DESC
 #include "EpiphanyGenRegisterInfo.inc"
 
-//@2 {
-extern "C" void LLVMInitializeEpiphanyTargetMC() {
 
+/// Select the Epiphany Architecture Feature for the given triple and cpu name.
+/// The function will be called at command 'llvm-objdump -d' for Epiphany elf input.
+static StringRef selectEpiphanyArchFeature(const Triple &TT, StringRef CPU) {
+  std::string EpiphanyArchFeature;
+  if (CPU.empty() || CPU == "generic") {
+    if (TT.getArch() == Triple::epiphany) {
+      if (CPU.empty() || CPU == "E16") {
+        EpiphanyArchFeature = "+E16";
+      }
+    }
+  }
+  return EpiphanyArchFeature;
 }
-//@2 }
+
+static MCInstrInfo *createEpiphanyMCInstrInfo() {
+  MCInstrInfo *X = new MCInstrInfo();
+  InitEpiphanyMCInstrInfo(X); // defined in EpiphanyGenInstrInfo.inc
+  return X;
+}
+
+static MCRegisterInfo *createEpiphanyMCRegisterInfo(const Triple &Triple) {
+  MCRegisterInfo *X = new MCRegisterInfo();
+  InitEpiphanyMCRegisterInfo(X, Epiphany::STATUS); // defined in EpiphanyGenRegisterInfo.inc
+  return X;
+}
+
+static MCSubtargetInfo *createEpiphanyMCSubtargetInfo(const Triple &TT,
+                                                          StringRef CPU,
+                                                          StringRef FS) {
+  std::string ArchFS = selectEpiphanyArchFeature(TT,CPU);
+  if (!FS.empty()) {
+    if (!ArchFS.empty())
+      ArchFS = ArchFS + "," + FS.str();
+    else
+      ArchFS = FS;
+  }
+  return createEpiphanyMCSubtargetInfoImpl(TT,CPU,FS);
+  // createEpiphanyMCSubtargetInfoImpl defined in EpiphanyGenSubtargetInfo.inc
+}
+
+static MCAsmInfo *createEpiphanyMCAsmInfo(const MCRegisterInfo &MRI,
+                                          const Triple &TT) {
+  MCAsmInfo *MAI = new EpiphanyELFMCAsmInfo(TT);
+  
+  unsigned SP = MRI.getDwarfRegNum(Epiphany::SP, true);
+  MCCFIInstruction Inst = MCCFIInstruction::createDefCfa(nullptr, SP, 0);
+  MAI->addInitialFrameState(Inst);
+
+  return MAI;
+}
+
+static MCCodeGenInfo *createEpiphanyMCCodeGenInfo(const Triple &TT, 
+                                                 Reloc::Model RM,
+                                                 CodeModel::Model CM,
+                                                 CodeGenOpt::Level OL) {
+  MCCodeGenInfo *X = new MCCodeGenInfo();
+  if (CM == CodeModel::JITDefault || CM == CodeModel::Small)
+    RM = Reloc::Static;
+  else if (RM == Reloc::Default)
+    RM = Reloc::PIC_;
+  X->initMCCodeGenInfo(RM, CM, OL); // defined in lib/MC/MCCodeGenInfo.cpp
+  return X;
+}
+
+static MCInstPrinter *createEpiphanyMCInstPrinter(const Triple &T,
+                                                  unsigned SyntaxVariant,
+                                                  const MCAsmInfo &MAI,
+                                                  const MCInstrInfo &MII,
+                                                  const MCRegisterInfo &MRI) {
+  return new EpiphanyInstPrinter(MAI, MII, MRI);
+}
+
+extern "C" void LLVMInitializeEpiphanyTargetMC() {
+  // Register the MC asm info.
+  RegisterMCAsmInfoFn X(TheEpiphanyTarget, createEpiphanyMCAsmInfo);
+
+  // Register the MC codegen info.
+  TargetRegistry::RegisterMCCodeGenInfo(TheEpiphanyTarget,
+                                        createEpiphanyMCCodeGenInfo);
+
+  // Register the MC instruction info.
+  TargetRegistry::RegisterMCInstrInfo(TheEpiphanyTarget,
+                                      createEpiphanyMCInstrInfo);
+
+  // Register the MC register info.
+  TargetRegistry::RegisterMCRegInfo(TheEpiphanyTarget,
+                                    createEpiphanyMCRegisterInfo);
+
+  // Register the MC subtarget info.
+  TargetRegistry::RegisterMCSubtargetInfo(TheEpiphanyTarget,
+                                          createEpiphanyMCSubtargetInfo);
+
+  // Register the MCInstPrinter.
+  TargetRegistry::RegisterMCInstPrinter(TheEpiphanyTarget,
+                                        createEpiphanyMCInstPrinter);
+}

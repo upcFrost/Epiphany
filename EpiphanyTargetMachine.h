@@ -39,6 +39,10 @@ public:
                        CodeGenOpt::Level OL);
   ~EpiphanyTargetMachine() override;
 
+  const EpiphanySubtarget *getSubtargetImpl() const { 
+    return &Subtarget; 
+  }
+
   const EpiphanySubtarget *getSubtargetImpl(const Function &F) const override { 
     return &Subtarget; 
   }
@@ -54,6 +58,6 @@ public:
   const EpiphanyABIInfo &getABI() const { return ABI; }
 };
 
-}
+} // namespace llvm
 
 #endif

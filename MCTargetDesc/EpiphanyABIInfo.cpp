@@ -43,7 +43,8 @@ unsigned EpiphanyABIInfo::GetCalleeAllocdArgSizeInBytes(CallingConv::ID CC) cons
 EpiphanyABIInfo EpiphanyABIInfo::computeTargetABI() {
   EpiphanyABIInfo abi(ABI::Unknown);
 
-  if (EnableEpiphanyE16Calls)
+  // TODO: Probably generations should be used, but i don't have any other Epiphany chips atm
+  if (true)
     abi = ABI::E16;
   // Assert exactly one ABI was chosen.
   assert(abi.ThisABI != ABI::Unknown);
@@ -61,7 +62,7 @@ unsigned EpiphanyABIInfo::GetFramePtr() const {
 
 unsigned EpiphanyABIInfo::GetEhDataReg(unsigned I) const {
   static const unsigned EhDataReg[] = {
-    Epiphany::A0, Epiphany::A1, Epiphany::A2, Epiphany::A3
+    Epiphany::A1, Epiphany::A2, Epiphany::A3, Epiphany::A4
   };
 
   return EhDataReg[I];

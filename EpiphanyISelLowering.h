@@ -73,7 +73,7 @@ namespace llvm {
   //===--------------------------------------------------------------------===//
   // TargetLowering Implementation
   //===--------------------------------------------------------------------===//
-  class EpiphanyFunctionInfo;
+  class EpiphanyMachineFunctionInfo;
   class EpiphanySubtarget;
   
   class EpiphanyTargetLowering : public TargetLowering {

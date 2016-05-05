@@ -29,6 +29,7 @@ namespace llvm {
 class EpiphanyInstrInfo : public EpiphanyGenInstrInfo {
   virtual void anchor();
 protected:
+  const EpiphanyRegisterInfo RI;
   const EpiphanySubtarget &Subtarget;
 public:
   explicit EpiphanyInstrInfo(const EpiphanySubtarget &STI);
@@ -46,4 +47,5 @@ public:
 
 };
 
+} // End of namespace llvm
 #endif

@@ -53,13 +53,13 @@ private:
 /// target-specific information for each MachineFunction.
 class EpiphanyMachineFunctionInfo : public MachineFunctionInfo {
 public:
-  EpiphanyFunctionInfo(MachineFunction& MF)
+  EpiphanyMachineFunctionInfo(MachineFunction& MF)
   : MF(MF), 
     VarArgsFrameIndex(0), 
     MaxCallFrameSize(0)
     {}
 
-  ~EpiphanyFunctionInfo();
+  ~EpiphanyMachineFunctionInfo();
 
 private:
   virtual void anchor();

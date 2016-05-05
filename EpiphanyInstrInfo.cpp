@@ -28,7 +28,7 @@ using namespace llvm;
 // Pin the vtable to this file.
 void EpiphanyInstrInfo::anchor() {}
 
-//@Cpu0InstrInfo {
+//@EpiphanyInstrInfo {
 EpiphanyInstrInfo::EpiphanyInstrInfo(const EpiphanySubtarget &STI)
-  : Subtarget(STI) {}
+  : RI(STI), Subtarget(STI) {}
 // }

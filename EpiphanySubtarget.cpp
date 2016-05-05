@@ -45,17 +45,18 @@ static StringRef selectEpiphanyCPU(Triple TT, StringRef CPU) {
 void EpiphanySubtarget::anchor() {}
 
 EpiphanySubtarget::EpiphanySubtarget(const Triple &TT, const std::string &CPU, 
-                                     const std::string &FS, const TargetMachine &_TM)
+                                     const std::string &FS, const EpiphanyTargetMachine &_TM)
   :   EpiphanyGenSubtargetInfo(TT, CPU, FS), 
-      TM(_TM), TargetTriple(TT), TSInfo(), FrameLowering(),
-      InstrInfo(initializeSubtargetDependencies(CPU, FS, TM)), 
-      TLInfo(TM, *this) {}
+      TM(_TM), TargetTriple(TT), TSInfo(), 
+      InstrInfo(new EpiphanyInstrInfo(initializeSubtargetDependencies(CPU, FS, TM))),
+      FrameLowering(new EpiphanyFrameLowering(*this)),
+      TLInfo(new EpiphanyTargetLowering(TM, *this)) {}
 
 EpiphanySubtarget &
 EpiphanySubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS,
                                                    const TargetMachine &TM) {
   // Get CPU name string
-  std::string CPUName = selectEpiphanyCPI(TargetTriple, CPU);
+  std::string CPUName = selectEpiphanyCPU(TargetTriple, CPU);
   // E16 doesn't have built-in CMP function
   if (isE16()) {
     HasCmp = false;

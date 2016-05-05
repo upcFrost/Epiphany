@@ -17,6 +17,7 @@ type = Library
 name = EpiphanyDesc
 parent = Epiphany
 required_libraries = MC 
+                     EpiphanyAsmPrinter 
                      EpiphanyInfo 
                      Support
 add_to_library_groups = Epiphany

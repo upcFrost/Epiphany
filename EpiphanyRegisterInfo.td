@@ -28,24 +28,25 @@ class Bank3Reg<bits<16> enc, string n> : EpiphanyReg<enc, n>;
 
 // Bank 0 GPRs
 let Namespace = "Epiphany" in {
-  def R0    : Bank0Reg<0,  "A1">,  DwarfRegNum<[0]>;
-  def R1    : Bank0Reg<1,  "A2">,  DwarfRegNum<[1]>;
-  def R2    : Bank0Reg<2,  "A3">,  DwarfRegNum<[2]>;
-  def R3    : Bank0Reg<3,  "A4">,  DwarfRegNum<[3]>;
-  def R4    : Bank0Reg<4,  "V1">,  DwarfRegNum<[4]>;
-  def R5    : Bank0Reg<5,  "V2">,  DwarfRegNum<[5]>;
-  def R6    : Bank0Reg<6,  "V3">,  DwarfRegNum<[6]>;
-  def R7    : Bank0Reg<7,  "V4">,  DwarfRegNum<[7]>;
-  def R8    : Bank0Reg<8,  "V5">,  DwarfRegNum<[8]>;
-  def SB    : Bank0Reg<9,  "SB">,  DwarfRegNum<[9]>;
-  def SL    : Bank0Reg<10, "SL">,  DwarfRegNum<[10]>;
-  def FP    : Bank0Reg<11, "FP">,  DwarfRegNum<[11]>;
-  def R12   : Bank0Reg<12, "R12">, DwarfRegNum<[12]>;
-  def SP    : Bank0Reg<13, "SP">,  DwarfRegNum<[13]>;
-  def LR    : Bank0Reg<14, "LR">,  DwarfRegNum<[14]>;
-  foreach i = 15-63 in {
+  foreach i = 0-63 in {
     def R#i : Bank0Reg<#i, "R#i">,  DwarfRegNum<[#i]>;
   }
+  
+// Aliases
+  def A1    : Bank0Reg<0,  "A1">,  DwarfRegAlias<R0>;
+  def A2    : Bank0Reg<1,  "A2">,  DwarfRegAlias<R1>;
+  def A3    : Bank0Reg<2,  "A3">,  DwarfRegAlias<R2>;
+  def A4    : Bank0Reg<3,  "A4">,  DwarfRegAlias<R3>;
+  def V1    : Bank0Reg<4,  "V1">,  DwarfRegAlias<R4>;
+  def V2    : Bank0Reg<5,  "V2">,  DwarfRegAlias<R5>;
+  def V3    : Bank0Reg<6,  "V3">,  DwarfRegAlias<R6>;
+  def V4    : Bank0Reg<7,  "V4">,  DwarfRegAlias<R7>;
+  def V5    : Bank0Reg<8,  "V5">,  DwarfRegAlias<R8>;
+  def SB    : Bank0Reg<9,  "SB">,  DwarfRegAlias<R9>;
+  def SL    : Bank0Reg<10, "SL">,  DwarfRegAlias<R10>;
+  def FP    : Bank0Reg<11, "FP">,  DwarfRegAlias<R11>;
+  def SP    : Bank0Reg<13, "SP">,  DwarfRegAlias<R13>;
+  def LR    : Bank0Reg<14, "LR">,  DwarfRegAlias<R14>;
 }
 
 // Bank1 registers

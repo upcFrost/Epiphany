@@ -63,6 +63,7 @@ public:
   unsigned GetEhDataReg(unsigned I) const;
   int EhDataRegSize() const;
 };
-}
+
+} // namespace llvm
 
 #endif

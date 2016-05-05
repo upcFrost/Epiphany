@@ -52,7 +52,7 @@ public:
 
   unsigned getFrameRegister(const MachineFunction &MF) const override;
 
-  const TargetRegisterClass *intRegClass(unsigned Size) const override;
+  const TargetRegisterClass *GPR32(unsigned Size) const;
 };
 
 } // end namespace llvm
