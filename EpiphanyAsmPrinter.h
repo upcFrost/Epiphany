@@ -17,7 +17,7 @@
 
 #include "EpiphanyConfig.h"
 
-#include "EpiphanyMachineFunctionInfo.h"
+#include "EpiphanyMachineFunction.h"
 #include "EpiphanyMCInstLower.h"
 #include "EpiphanySubtarget.h"
 #include "EpiphanyTargetMachine.h"
@@ -34,6 +34,8 @@ class Module;
 class raw_ostream;
 
 class LLVM_LIBRARY_VISIBILITY EpiphanyAsmPrinter : public AsmPrinter {
+
+  void EmitInstrWithMacroNoAT(const MachineInstr *MI);
 
 private:
   bool lowerOperand(const MachineOperand &MO, MCOperand &MCOp);

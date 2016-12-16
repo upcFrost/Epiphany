@@ -21,25 +21,29 @@
 #include "llvm/Target/TargetFrameLowering.h"
 
 namespace llvm {
-class EpiphanySubtarget;
+	class EpiphanySubtarget;
 
-class EpiphanyFrameLowering : public TargetFrameLowering {
-protected:
-  const EpiphanySubtarget &STI;
+	class EpiphanyFrameLowering : public TargetFrameLowering {
+		protected:
+			const EpiphanySubtarget &STI;
 
-public:
-  explicit EpiphanyFrameLowering(const EpiphanySubtarget &sti)
-    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 8, 0, 4),
-      STI(sti) {}
-  
-  /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
-  /// the function.
-  void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
-  void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
-  
-  bool hasFP(const MachineFunction &MF) const override;
+		public:
+			explicit EpiphanyFrameLowering(const EpiphanySubtarget &sti)
+				: TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 8, 0, 8),
+				STI(sti) {}
 
-};
+			/// emitProlog/emitEpilog - These methods insert prolog and epilog code into
+			/// the function.
+			void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+			void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+
+			void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs, RegScavenger *RS) const override;
+
+			bool hasFP(const MachineFunction &MF) const override;
+
+			bool hasReservedCallFrame(const MachineFunction &MF) const override;
+
+	};
 
 } // End llvm namespace
 

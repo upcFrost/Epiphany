@@ -16,7 +16,7 @@
 
 #include "Epiphany.h"
 #include "EpiphanySubtarget.h"
-#include "EpiphanyMachineFunctionInfo.h"
+#include "EpiphanyMachineFunction.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/CommandLine.h"
@@ -32,48 +32,48 @@ using namespace llvm;
 #include "EpiphanyGenRegisterInfo.inc"
 
 EpiphanyRegisterInfo::EpiphanyRegisterInfo(const EpiphanySubtarget &ST)
-  : EpiphanyGenRegisterInfo(Epiphany::LR), Subtarget(ST) {}
-  
-//===----------------------------------------------------------------------===//
-// Callee Saved Registers methods
-//===----------------------------------------------------------------------===//
-/// Epiphany Callee Saved Registers
-// In EpiphanyCallConv.td,
-// def CSR32 : CalleeSavedRegs<(add V1, V2, V3, V4, V5, SB, SL, FP, LR, R15,
-//                             (sequence "R%u", 32, 43))>;
-// llc create CSR32_SaveList and CSR32_RegMask from above defined.
-const MCPhysReg *
-EpiphanyRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-  return CSR32_SaveList;
-}
+	: EpiphanyGenRegisterInfo(Epiphany::LR), Subtarget(ST) {}
+
+	//===----------------------------------------------------------------------===//
+	// Callee Saved Registers methods
+	//===----------------------------------------------------------------------===//
+	/// Epiphany Callee Saved Registers
+	// In EpiphanyCallConv.td,
+	// def CSR32 : CalleeSavedRegs<(add V1, V2, V3, V4, V5, SB, SL, FP, LR, R15,
+	//                             (sequence "R%u", 32, 43))>;
+	// llc create CSR32_SaveList and CSR32_RegMask from above defined.
+	const MCPhysReg *
+	EpiphanyRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
+		return CSR32_SaveList;
+	}
 
 const uint32_t*
 EpiphanyRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
-                                           CallingConv::ID) const {
-  return CSR32_RegMask;
+		CallingConv::ID) const {
+	return CSR32_RegMask;
 }
 
 // pure virtual method
 BitVector EpiphanyRegisterInfo::
 getReservedRegs(const MachineFunction &MF) const {
-  BitVector Reserved(getNumRegs());
-  // Stack base, limit and pointer
-  Reserved.set(Epiphany::SB);
-  Reserved.set(Epiphany::SL);
-  Reserved.set(Epiphany::SP);
-  // Frame pointer
-  Reserved.set(Epiphany::FP);
-  // Link register
-  Reserved.set(Epiphany::LR);
-  // Constants
-  Reserved.set(Epiphany::R28);
-  Reserved.set(Epiphany::R29);
-  Reserved.set(Epiphany::R30);
-  Reserved.set(Epiphany::R31);
+	BitVector Reserved(getNumRegs());
+	// Stack base, limit and pointer
+	Reserved.set(Epiphany::SB);
+	Reserved.set(Epiphany::SL);
+	Reserved.set(Epiphany::SP);
+	// Frame pointer
+	Reserved.set(Epiphany::FP);
+	// Link register
+	Reserved.set(Epiphany::LR);
+	// Constants
+	Reserved.set(Epiphany::R28);
+	Reserved.set(Epiphany::R29);
+	Reserved.set(Epiphany::R30);
+	Reserved.set(Epiphany::ZERO);
 
-  Reserved.set(Epiphany::STATUS);
+	Reserved.set(Epiphany::STATUS);
 
-  return Reserved;
+	return Reserved;
 }
 
 
@@ -84,27 +84,91 @@ getReservedRegs(const MachineFunction &MF) const {
 // direct reference.
 void EpiphanyRegisterInfo::
 eliminateFrameIndex(MachineBasicBlock::iterator MBBI, int SPAdj,
-                    unsigned FIOperandNum, RegScavenger *RS) const {
+		unsigned FIOperandNum, RegScavenger *RS) const {
+	MachineInstr &MI = *MBBI;
+	MachineFunction &MF = *MI.getParent()->getParent();
+	MachineFrameInfo *MFI = MF.getFrameInfo();
+	EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
+
+	unsigned i = 0;
+	while (!MI.getOperand(i).isFI()) {
+		++i;
+		assert(i < MI.getNumOperands() &&
+				"Instr doesn't have FrameIndex operand!");
+	}
+
+	DEBUG(errs() << "\nFunction : " << MF.getFunction()->getName() << "\n";
+			errs() << "<--------->\n" << MI);
+
+	int FrameIndex = MI.getOperand(i).getIndex();
+	uint64_t stackSize = MF.getFrameInfo()->getStackSize();
+	int64_t spOffset = MF.getFrameInfo()->getObjectOffset(FrameIndex);
+
+	DEBUG(errs() << "FrameIndex : " << FrameIndex << "\n"
+			<< "spOffset   : " << spOffset << "\n"
+			<< "stackSize  : " << stackSize << "\n");
+
+	const std::vector<CalleeSavedInfo> &CSI = MFI->getCalleeSavedInfo();
+	int MinCSFI = 0;
+	int MaxCSFI = -1;
+
+	if (CSI.size()) {
+		MinCSFI = CSI[0].getFrameIdx();
+		MaxCSFI = CSI[CSI.size() - 1].getFrameIdx();
+	}
+
+	// The following stack frame objects are always referenced relative to $sp:
+	//  1. Outgoing arguments.
+	//  2. Pointer to dynamically allocated stack space.
+	//  3. Locations for callee-saved registers.
+	// Everything else is referenced relative to whatever register
+	// getFrameRegister() returns.
+	unsigned FrameReg;
+
+	FrameReg = Epiphany::SP;
+
+	// Calculate final offset.
+	// - There is no need to change the offset if the frame object is one of the
+	//   following: an outgoing argument, pointer to a dynamically allocated
+	//   stack space or a $gp restore location,
+	// - If the frame object is any of the following, its offset must be adjusted
+	//   by adding the size of the stack:
+	//   incoming argument, callee-saved register location or local variable.
+	int64_t Offset;
+	Offset = spOffset + (int64_t)stackSize;
+
+	Offset    += MI.getOperand(i+1).getImm();
+
+	DEBUG(errs() << "Offset     : " << Offset << "\n" << "<--------->\n");
+
+	// If MI is not a debug value, make sure Offset fits in the 16-bit immediate
+	// field.
+	if (!MI.isDebugValue() && !isInt<16>(Offset)) {
+		assert("(!MI.isDebugValue() && !isInt<16>(Offset))");
+	}
+
+	MI.getOperand(i).ChangeToRegister(FrameReg, false);
+	MI.getOperand(i+1).ChangeToImmediate(Offset);
 }
 
 bool
 EpiphanyRegisterInfo::requiresRegisterScavenging(const MachineFunction &MF) const {
-  return true;
+	return true;
 }
 
 bool
 EpiphanyRegisterInfo::trackLivenessAfterRegAlloc(const MachineFunction &MF) const {
-  return true;
+	return true;
 }
 
 unsigned
 EpiphanyRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
-  return TFI->hasFP(MF) ? (Epiphany::FP) :
-                          (Epiphany::SP);
+	const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
+	return TFI->hasFP(MF) ? (Epiphany::FP) :
+		(Epiphany::SP);
 }
 
 const TargetRegisterClass *
 EpiphanyRegisterInfo::GPR32(unsigned Size) const {
-  return &Epiphany::GPR32RegClass;
+	return &Epiphany::GPR32RegClass;
 }

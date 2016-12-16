@@ -19,14 +19,34 @@ include "EpiphanyInstrFormats.td"
 
 def SDT_EpiphanyRet : SDTypeProfile<0, 1, [SDTCisInt<0>]>;
 
-// Return
-def EpiphanyRet : SDNode<"EpiphanyIDS::Ret", SDTNone, 
+// Return instruction
+def EpiphanyRet : SDNode<"EpiphanyISD::RTI", SDTNone, 
                          [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+
+let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
+  def RTI : Normal<(outs), (ins), "rti", [(EpiphanyRet)], NoItinerary>;
+}
+
+let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
+  def RetLR : Pseudo<(outs), (ins), [(EpiphanyRet)]>;
+}
+
+//===----------------------------------------------------------------------===//
+// Transformation functions
+//===----------------------------------------------------------------------===//
+def LO16 : SDNodeXForm<imm, [{
+  return getImm(N, N->getZExtValue() & 0xffff);
+}]>;
+
+def HI16 : SDNodeXForm<imm, [{
+  return getImm(N, (N->getZExtValue() >> 16) & 0xffff);
+}]>;
 
 //===----------------------------------------------------------------------===//
 // Load/store instructions
 //===----------------------------------------------------------------------===//
-
+def LDR32 : LoadM32<LS_add, 0>;
+def STR32 : StoreM32<LS_add, 0>;
 
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with registers
@@ -37,6 +57,8 @@ let Defs = [STATUS] in {
   def ANDrr : IntMath32rr<0b1011111, "and", and>;
   def ORRrr : IntMath32rr<0b1111111, "orr", or>;
   def EORrr : IntMath32rr<0b0001111, "eor", xor>;
+  def LSLrr : IntMath32rr<0b0101111, "lsl", shl>;
+  def LSRrr : IntMath32rr<0b1001111, "lsr", srl>;
 }
 
 let Defs = [STATUS] in {
@@ -68,7 +90,7 @@ let Defs = [STATUS] in {
 // Move operations: Immediates
 //===----------------------------------------------------------------------===//
 let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1 in {
-  def MOVT32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set GPR32:$Rd, (or (and GPR32:$src, 0xffff), immSExt16:$Imm))], 0b01011, /* MOVT = */ 1> {
+  def MOVT32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set GPR32:$Rd, (or (and GPR32:$src, 0xffff), (shl immSExt16:$Imm, 16)))], 0b01011, /* MOVT = */ 1> {
     let Constraints = "$src = $Rd";
   }
   def MOV32ri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, immSExt16:$Imm)], 0b01011, /* MOVT = */ 0>;
@@ -90,10 +112,6 @@ def MOVGT32rr   : Mov32rr<"movgt",   [(set GPR32:$Rd, (select (i32 (setgt GPR32:
 def MOVGTE32rr  : Mov32rr<"movgte",  [(set GPR32:$Rd, (select (i32 (setge GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_GTE,   GPR32>;
 def MOVLT32rr   : Mov32rr<"movlt",   [(set GPR32:$Rd, (select (i32 (setlt GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_LT,    GPR32>;
 def MOVLTE32rr  : Mov32rr<"movlte",  [(set GPR32:$Rd, (select (i32 (setle GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_LTE,   GPR32>;
-//def MOVBEQ32rr  : Mov32rr<"movbeq",  [(set FPR32:$Rd, (select (i32 (seteq FPR32:$Rn, FPR32:$src)), FPR32:$Rn, FPR32:$src))], COND_BEQ,   FPR32>;
-//def MOVBNE32rr  : Mov32rr<"movbne",  [(set FPR32:$Rd, (select (i32 (setne FPR32:$Rn, FPR32:$src)), FPR32:$Rn, FPR32:$src))], COND_BNE,   FPR32>;
-//def MOVBLT32rr  : Mov32rr<"movblt",  [(set FPR32:$Rd, (select (i32 (setlt FPR32:$Rn, FPR32:$src)), FPR32:$Rn, FPR32:$src))], COND_BLT,   FPR32>;
-//def MOVBLTE32rr : Mov32rr<"movblte", [(set FPR32:$Rd, (select (i32 (setle FPR32:$Rn, FPR32:$src)), FPR32:$Rn, FPR32:$src))], COND_BLTE,  FPR32>;
 
 
 

@@ -29,7 +29,7 @@ using namespace llvm;
 #include "EpiphanyGenAsmWriter.inc"
 
 void EpiphanyInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
-  OS << getRegisterName(RegNo);
+  OS << StringRef(getRegisterName(RegNo)).lower();
 }
 
 void EpiphanyInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
@@ -41,40 +41,6 @@ if (!printAliasInstr(MI, O))
     //   Epiphany.td indicate.
     printInstruction(MI, O);
   printAnnotation(O, Annot);
-}
-
-//@printExpr {
-static void printExpr(const MCExpr *Expr, const MCAsmInfo *MAI,
-                      raw_ostream &OS) {
-//@printExpr body {
-  int Offset = 0;
-  const MCSymbolRefExpr *SRE;
-
-  if (const MCBinaryExpr *BE = dyn_cast<MCBinaryExpr>(Expr)) {
-    SRE = dyn_cast<MCSymbolRefExpr>(BE->getLHS());
-    const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(BE->getRHS());
-    assert(SRE && CE && "Binary expression must be sym+const.");
-    Offset = CE->getValue();
-  } else {
-    SRE = cast<MCSymbolRefExpr>(Expr);
-    assert(SRE && "Unexpected MCExpr type");
-  }
-
-  MCSymbolRefExpr::VariantKind Kind = SRE->getKind();
-
-  switch (Kind) {
-  default:                                 llvm_unreachable("Invalid kind!");
-  case MCSymbolRefExpr::VK_None:           break;
-  }
-
-  SRE->getSymbol().print(OS, MAI);
-
-  if (Offset) {
-    if (Offset > 0)
-      OS << '+';
-    OS << Offset;
-  }
-//}
 }
 
 void EpiphanyInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
@@ -91,7 +57,7 @@ void EpiphanyInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
   }
   
   assert(Op.isExpr() && "unknown operand kind in printOperand");
-  printExpr(Op.getExpr(), &MAI, O);
+  Op.getExpr() -> print(O, &MAI, true);
 }
 
 void EpiphanyInstPrinter::printUnsignedImm(const MCInst *MI, unsigned OpNum,
@@ -101,4 +67,12 @@ void EpiphanyInstPrinter::printUnsignedImm(const MCInst *MI, unsigned OpNum,
     O << '#' << (unsigned short int)MO.getImm();
   else
     printOperand(MI, OpNum, O);
+}
+
+void EpiphanyInstPrinter::printMemOperand(const MCInst *MI, unsigned opNum, raw_ostream &O) {
+  O << "[";
+  printOperand(MI, opNum, O);
+  O << ",";
+  printOperand(MI, opNum+1, O);
+  O << "]";
 }

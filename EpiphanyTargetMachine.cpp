@@ -16,10 +16,12 @@
 #include "EpiphanyTargetMachine.h"
 #include "Epiphany.h"
 
+#include "EpiphanyISelDAGToDAG.h"
 #include "EpiphanySubtarget.h"
 #include "EpiphanyTargetObjectFile.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/CodeGen/Passes.h"
+#include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
@@ -30,16 +32,53 @@ extern "C" void LLVMInitializeEpiphanyTarget() {
   RegisterTargetMachine<EpiphanyTargetMachine> X(TheEpiphanyTarget);
 }
 
+static Reloc::Model getEffectiveRelocModel(CodeModel::Model CM,
+                                           Optional<Reloc::Model> RM) {
+  if (!RM.hasValue() || CM == CodeModel::JITDefault)
+    return Reloc::Static;
+  return *RM;
+}
+
+static std::string computeDataLayout(const Triple &TT, StringRef CPU,
+                                     const TargetOptions &Options) {
+  std::string Ret = "";
+
+  // Always little-endian
+  Ret += "e";
+
+  // Pointers are 32 bit 
+  Ret += "-p:32:32";
+
+  // 8 and 16 bit integers only need to have natural alignment, but try to
+  // align them to 32 bits. 64 bit integers have natural alignment.
+  Ret += "-i8:8:32-i16:16:32-i64:64";
+  
+  // 32 and 64 bit floats should have natural alignment
+  Ret += "-f32:32-f64:64";
+
+  // Native integer is 32 bits
+  Ret += "-n32";
+
+  // Stack is 64 bit aligned
+  Ret += "-S64";
+
+  return Ret;
+}
+
 EpiphanyTargetMachine::EpiphanyTargetMachine(const Target &T, const Triple &TT,
                                            StringRef CPU, StringRef FS,
                                            const TargetOptions &Options,
-                                           Reloc::Model RM, CodeModel::Model CM,
+                                           Optional<Reloc::Model> RM, 
+                                           CodeModel::Model CM,
                                            CodeGenOpt::Level OL)
-      : LLVMTargetMachine(T, "e-p:32:32-i8:8:8-i16:16:16-i32:32:32-f32:32:32-i64:64:64-f64:64:64-s64:64:64-S64:64:64-a0:32:32", 
-                          TT, CPU, FS, Options, RM, CM, OL),
+      : LLVMTargetMachine(T, computeDataLayout(TT, CPU, Options), 
+                          TT, CPU, FS, Options, getEffectiveRelocModel(CM, RM), CM, OL),
         TLOF(make_unique<EpiphanyTargetObjectFile>()),
         ABI(EpiphanyABIInfo::computeTargetABI()),
         Subtarget(TT, CPU, FS, *this) {
+
+  // initAsmInfo will display features by llc -march=cpu0 -mcpu=help on 3.7 but
+  // not on 3.6
   initAsmInfo();
 }
 
@@ -56,9 +95,21 @@ public:
   EpiphanyTargetMachine &getEpiphanyTargetMachine() const {
     return getTM<EpiphanyTargetMachine>();
   }
+
+  bool addInstSelector() override;
+
+  const EpiphanySubtarget &getEpiphanySubtarget() const {
+    return *getEpiphanyTargetMachine().getSubtargetImpl();
+  }
 };
 } // namespace
 
 TargetPassConfig *EpiphanyTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new EpiphanyPassConfig(this, PM);
 }
+
+bool EpiphanyPassConfig::addInstSelector() {
+  addPass(new EpiphanyDAGToDAGISel(getEpiphanyTargetMachine(), getOptLevel()));
+  return false;
+}
+

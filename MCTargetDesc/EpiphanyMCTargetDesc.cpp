@@ -13,8 +13,8 @@
 #include "InstPrinter/EpiphanyInstPrinter.h"
 #include "EpiphanyMCAsmInfo.h"
 #include "llvm/MC/MachineLocation.h"
-#include "llvm/MC/MCCodeGenInfo.h"
 #include "llvm/MC/MCELFStreamer.h"
+#include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
@@ -73,8 +73,8 @@ static MCSubtargetInfo *createEpiphanyMCSubtargetInfo(const Triple &TT,
     else
       ArchFS = FS;
   }
-  return createEpiphanyMCSubtargetInfoImpl(TT,CPU,FS);
   // createEpiphanyMCSubtargetInfoImpl defined in EpiphanyGenSubtargetInfo.inc
+  return createEpiphanyMCSubtargetInfoImpl(TT,CPU,FS);
 }
 
 static MCAsmInfo *createEpiphanyMCAsmInfo(const MCRegisterInfo &MRI,
@@ -88,17 +88,16 @@ static MCAsmInfo *createEpiphanyMCAsmInfo(const MCRegisterInfo &MRI,
   return MAI;
 }
 
-static MCCodeGenInfo *createEpiphanyMCCodeGenInfo(const Triple &TT, 
-                                                 Reloc::Model RM,
-                                                 CodeModel::Model CM,
-                                                 CodeGenOpt::Level OL) {
-  MCCodeGenInfo *X = new MCCodeGenInfo();
-  if (CM == CodeModel::JITDefault || CM == CodeModel::Small)
-    RM = Reloc::Static;
-  else if (RM == Reloc::Default)
-    RM = Reloc::PIC_;
-  X->initMCCodeGenInfo(RM, CM, OL); // defined in lib/MC/MCCodeGenInfo.cpp
-  return X;
+namespace {
+
+class EpiphanyMCInstrAnalysis : public MCInstrAnalysis {
+  public:
+  EpiphanyMCInstrAnalysis(const MCInstrInfo *Info) : MCInstrAnalysis(Info) {}
+};
+}
+
+static MCInstrAnalysis *createCpu0MCInstrAnalysis(const MCInstrInfo *Info) {
+  return new EpiphanyMCInstrAnalysis(Info);
 }
 
 static MCInstPrinter *createEpiphanyMCInstPrinter(const Triple &T,
@@ -113,10 +112,6 @@ extern "C" void LLVMInitializeEpiphanyTargetMC() {
   // Register the MC asm info.
   RegisterMCAsmInfoFn X(TheEpiphanyTarget, createEpiphanyMCAsmInfo);
 
-  // Register the MC codegen info.
-  TargetRegistry::RegisterMCCodeGenInfo(TheEpiphanyTarget,
-                                        createEpiphanyMCCodeGenInfo);
-
   // Register the MC instruction info.
   TargetRegistry::RegisterMCInstrInfo(TheEpiphanyTarget,
                                       createEpiphanyMCInstrInfo);
@@ -128,6 +123,9 @@ extern "C" void LLVMInitializeEpiphanyTargetMC() {
   // Register the MC subtarget info.
   TargetRegistry::RegisterMCSubtargetInfo(TheEpiphanyTarget,
                                           createEpiphanyMCSubtargetInfo);
+
+  // Register the MC instruction analyzer.
+  TargetRegistry::RegisterMCInstrAnalysis(TheEpiphanyTarget, createCpu0MCInstrAnalysis);
 
   // Register the MCInstPrinter.
   TargetRegistry::RegisterMCInstPrinter(TheEpiphanyTarget,

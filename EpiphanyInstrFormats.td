@@ -95,10 +95,10 @@ def immSExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getSExtValue()); }]>;
 def immSExt11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 def immSExt16  : PatLeaf<(imm), [{ return isInt<16>(N->getSExtValue()); }]>;
 
-// Address operand
-def mem : Operand<iPTR> {
+// Memory address operand
+def mem11 : Operand<iPTR> {
   let PrintMethod = "printMemOperand";
-  let MIOperandInfo = (ops GPR32, imm16);
+  let MIOperandInfo = (ops GPR32, imm11);
   let EncoderMethod = "getMemEncoding";
 }
 
@@ -109,6 +109,24 @@ def mem : Operand<iPTR> {
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
+def addr : ComplexPattern<iPTR, 2, "SelectAddr", [frameindex], [SDNPWantParent]>;
+
+class AlignedLoad<PatFrag Node> :
+  PatFrag<(ops node:$ptr), (Node node:$ptr), [{
+  LoadSDNode *LD = cast<LoadSDNode>(N);
+  return LD->getMemoryVT().getSizeInBits()/8 <= LD->getAlignment();
+}]>;
+
+class AlignedStore<PatFrag Node> :
+  PatFrag<(ops node:$val, node:$ptr), (Node node:$val, node:$ptr), [{
+  StoreSDNode *SD = cast<StoreSDNode>(N);
+  return SD->getMemoryVT().getSizeInBits()/8 <= SD->getAlignment();
+}]>;
+
+// Load/Store PatFrags.
+def load_a          : AlignedLoad<load>;
+def store_a         : AlignedStore<store>;
+
 class LS_bit<bits<1> LS, string asm> {
   bits<1> Value = LS;
   string Asm = asm;
@@ -149,28 +167,69 @@ class LS32_general<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opc
   let Inst{3-0} = opcode;
 }
 
-class LS32rr<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opcode,
-             LS_bit LS, LS_size opsize, LS_addsub addsub, InstrItinClass itin>
-    : LS32_general<outs, ins, asm, pattern, opcode, LS, opsize, itin> {
+// Memory Load/Store
+let canFoldAsLoad = 1 in
+class LoadM32<LS_addsub addsub, bit Pseudo>
+    : LS32_general<(outs GPR32:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, "\t$Rd, $addr"), [(set GPR32:$Rd, (load_a addr:$addr))], 0b1100, LoadBit, LS_word, NoItinerary> {
+  let Inst{16-23} = 0b00000000;
+  let Inst{7-9}   = 0b000;
+  let Inst{25}    = 0b0;
+  let Inst{24}    = addsub.Value;
+  let isPseudo = Pseudo;
+}
+
+class StoreM32<LS_addsub addsub, bit Pseudo>
+    : LS32_general<(outs), (ins GPR32:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, "\t$Rd, $addr"), [(store_a GPR32:$Rd, addr:$addr)], 0b1100, StoreBit, LS_word, NoItinerary> {
+  let Inst{16-23} = 0b00000000;
+  let Inst{7-9}   = 0b000;
+  let Inst{25}    = 0b0;
+  let Inst{24}    = addsub.Value;
+  let isPseudo = Pseudo;
+}
+
+class LS32_DISP<list<dag> pattern, LS_addsub addsub, LS_size opsize, LS_bit LS, PatLeaf imm_type>
+    : LS32_general<(outs GPR32:$Rd), (ins GPR32:$Rn, imm_type:$Imm), !strconcat(LS.Asm, "\t$Rd", opsize.Asm," [$Rn,#$Imm]"),
+                   pattern, 0b1100, LS, opsize, NoItinerary> {
+  bits<11> Imm;
+
+  let Inst{16-23} = Imm{3-10};
+  let Inst{7-9}   = Imm{0-2};
+  let Inst{25}    = 0b0;
+  let Inst{24}    = addsub.Value;
+}
+
+class LS32_PMDISP<list<dag> pattern, LS_addsub addsub, LS_size opsize, LS_bit LS, PatLeaf imm_type>
+    : LS32_general<(outs GPR32:$Rd), (ins GPR32:$Rn, imm_type:$Imm), !strconcat(LS.Asm, "\t$Rd", opsize.Asm," [$Rn,#$Imm]"),
+                   pattern, 0b1100, LS, opsize, NoItinerary> {
+  bits<11> Imm;
+
+  let Inst{16-23} = Imm{3-10};
+  let Inst{7-9}   = Imm{0-2};
+  let Inst{25}    = 0b1;
+  let Inst{24}    = addsub.Value;
+}
+
+class LS32_INDEX<list<dag> pattern, LS_addsub addsub, LS_size opsize, LS_bit LS>
+    : LS32_general<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), !strconcat(LS.Asm, "\t$Rd", opsize.Asm," [$Rn, $Rm]"), 
+                   pattern, 0b1001, LS, opsize, NoItinerary> {
   bits<6> Rm;
-  
+ 
   let Inst{25-23} = Rm{5-3};
-  let Inst{22-21} = 0;
+  let Inst{22-21} = 0b00;
   let Inst{20} = addsub.Value;
   let Inst{9-7} = Rm{2-0};
 }
 
-class LS32ri<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opcode, 
-             LS_bit LS, LS_size opsize, bits<1> prepost, LS_addsub addsub, InstrItinClass itin>
-    : LS32_general<outs, ins, asm, pattern, opcode, LS, opsize, itin> {
-  bits<11> Imm;
-  
-  let Inst{25} = prepost;
-  let Inst{24} = addsub.Value;
-  let Inst{23-16} = Imm{10-3};
-  let Inst{9-7} = Imm{2-0};
+class LS32_PM<string instr_asm, list<dag> pattern, LS_addsub addsub, LS_size opsize, LS_bit LS>
+    : LS32_general<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), !strconcat(LS.Asm, "\t$Rd", opsize.Asm," [$Rn, $Rm]"), 
+                   pattern, 0b1101, LS, opsize, NoItinerary> {
+  bits<6> Rm;
+ 
+  let Inst{25-23} = Rm{5-3};
+  let Inst{22-21} = 0b00;
+  let Inst{20} = addsub.Value;
+  let Inst{9-7} = Rm{2-0};
 }
-
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
@@ -378,3 +437,17 @@ class Mov32rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterC
     let Inst{7-4} = cond.Code;
     let Inst{3-0} = 0b0010;
 }
+
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+// Flow-related operations
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+
+//===----------------------------------------------------------------------===//
+// Branching/Jumps
+//===----------------------------------------------------------------------===//
+
+

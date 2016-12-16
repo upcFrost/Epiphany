@@ -16,8 +16,9 @@ add_llvm_target(EpiphanyCodeGen
   EpiphanyAsmPrinter.cpp
   EpiphanyFrameLowering.cpp
   EpiphanyISelLowering.cpp
+  EpiphanyISelDAGToDAG.cpp
   EpiphanyInstrInfo.cpp
-  EpiphanyMachineFunctionInfo.cpp
+  EpiphanyMachineFunction.cpp
   EpiphanyMCInstLower.cpp
   EpiphanyRegisterInfo.cpp
   EpiphanySubtarget.cpp

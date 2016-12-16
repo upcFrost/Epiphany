@@ -14,7 +14,7 @@
 
 #include "EpiphanySubtarget.h"
 
-#include "EpiphanyMachineFunctionInfo.h"
+#include "EpiphanyMachineFunction.h"
 #include "Epiphany.h"
 #include "EpiphanyRegisterInfo.h"
 
@@ -68,6 +68,11 @@ EpiphanySubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS,
   InstrItins = getInstrItineraryForCPU(CPUName);
   
   return *this;
+}
+
+bool EpiphanySubtarget::abiUsesSoftFloat() const {
+//  return TM->Options.UseSoftFloat;
+  return true;
 }
 
 const EpiphanyABIInfo &EpiphanySubtarget::getABI() const { return TM.getABI(); }

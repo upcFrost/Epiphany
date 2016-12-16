@@ -60,6 +60,10 @@ unsigned EpiphanyABIInfo::GetFramePtr() const {
   return Epiphany::FP;
 }
 
+unsigned EpiphanyABIInfo::GetNullPtr() const {
+  return Epiphany::ZERO;
+}
+
 unsigned EpiphanyABIInfo::GetEhDataReg(unsigned I) const {
   static const unsigned EhDataReg[] = {
     Epiphany::A1, Epiphany::A2, Epiphany::A3, Epiphany::A4

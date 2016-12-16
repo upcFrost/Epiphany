@@ -47,6 +47,7 @@ let Namespace = "Epiphany" in {
   def FP    : Bank0Reg<11, "FP">,  DwarfRegAlias<R11>;
   def SP    : Bank0Reg<13, "SP">,  DwarfRegAlias<R13>;
   def LR    : Bank0Reg<14, "LR">,  DwarfRegAlias<R14>;
+  def ZERO  : Bank0Reg<31, "ZERO">, DwarfRegAlias<R31>;
 }
 
 // Bank1 registers
@@ -108,7 +109,7 @@ def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
   // Caller-saved GPR
   (sequence "R%u", 16, 27),
   // Reserved
-  R28, R29, R30,
+  R28, R29, R30, ZERO,
   // Callee-saved GPR
   (sequence "R%u", 32, 43),
   // Caller-saved GPR

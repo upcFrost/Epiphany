@@ -24,6 +24,8 @@ namespace llvm {
   class EpiphanyTargetMachine;
   
   class EpiphanyTargetObjectFile : public TargetLoweringObjectFileELF {
+    MCSection *SmallDataSection;
+    MCSection *SmallBSSSection;
     const EpiphanyTargetMachine *TM;
     
    public:

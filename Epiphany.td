@@ -23,7 +23,7 @@ include "llvm/Target/Target.td"
 
 include "EpiphanySchedule.td"
 
-def : Processor<"epiphany", EpiphanyGenericItineraries, []>;
+def : Processor<"E16", EpiphanyGenericItineraries, []>;
 
 //===----------------------------------------------------------------------===//
 // Register File Description
@@ -47,8 +47,6 @@ def EpiphanyInstrInfo : InstrInfo;
 
 // Will generate EpiphanyGenAsmWrite.inc included by EpiphanyInstPrinter.cpp, contents
 //  as follows,
-// void EpiphanyInstPrinter::printInstruction(const MCInst *MI, raw_ostream &O) {...}
-// const char *EpiphanyInstPrinter::getRegisterName(unsigned RegNo) {...}
 def Epiphany : Target {
   let InstructionSet = EpiphanyInstrInfo;
 }

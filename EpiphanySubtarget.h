@@ -19,7 +19,7 @@
 #include "EpiphanyInstrInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/MC/MCInstrItineraries.h"
-#include "llvm/Target/TargetSelectionDAGInfo.h"
+#include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/Target/TargetSubtargetInfo.h"
 #include <string>
 
@@ -48,7 +48,7 @@ protected:
   // Target Triple
   Triple TargetTriple;
   
-  const TargetSelectionDAGInfo TSInfo;
+  const SelectionDAGTargetInfo TSInfo;
 
   std::unique_ptr<const EpiphanyInstrInfo> InstrInfo;
   std::unique_ptr<const EpiphanyFrameLowering> FrameLowering;
@@ -67,11 +67,17 @@ public:
   void ParseSubtargetFeatures(StringRef CPU, StringRef FS);
   
   bool isE16() const { return EpiphanyArchVersion == E16; }
+
+  bool abiUsesSoftFloat() const;
   
+  bool hasCmp() const { return HasCmp; }
+
+  unsigned stackAlignment() const { return 8; }
+
   EpiphanySubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS,
                                                      const TargetMachine &TM);
   
-  const TargetSelectionDAGInfo *getSelectionDAGInfo() const override {
+  const SelectionDAGTargetInfo *getSelectionDAGInfo() const override {
     return &TSInfo;
   }
 
@@ -81,11 +87,12 @@ public:
 
   const EpiphanyTargetLowering *getTargetLowering() const override { return TLInfo.get(); }
 
-  const TargetRegisterInfo *getRegisterInfo() const override { return &InstrInfo->getRegisterInfo(); }
+  const EpiphanyRegisterInfo *getRegisterInfo() const override { return &InstrInfo->getRegisterInfo(); }
   
   const InstrItineraryData *getInstrItineraryData() const override {
     return &InstrItins;
   }
+
 };
 } // End llvm namespace
 

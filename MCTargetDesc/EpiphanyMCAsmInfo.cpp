@@ -17,7 +17,7 @@ using namespace llvm;
 
 void EpiphanyELFMCAsmInfo::anchor() { }
 
-EpiphanyELFMCAsmInfo::EpiphanyELFMCAsmInfo(const Triple &TheTriple) : MCAsmInfoELF() {
+EpiphanyELFMCAsmInfo::EpiphanyELFMCAsmInfo(const Triple &TheTriple) {
   PointerSize = 8;
 
   // ".comm align is in bytes but .align is pow-2."

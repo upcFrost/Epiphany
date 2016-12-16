@@ -61,7 +61,7 @@ void EpiphanyAsmPrinter::EmitInstruction(const MachineInstr *MI) {
   
   //@print out instruction:
   //  Print out both ordinary instruction and boudle instruction
-  MachineBasicBlock::const_instr_iterator I = MI;
+  MachineBasicBlock::const_instr_iterator I = MI->getIterator();
   MachineBasicBlock::const_instr_iterator E = MI->getParent()->instr_end();
   do {
   
@@ -69,7 +69,7 @@ void EpiphanyAsmPrinter::EmitInstruction(const MachineInstr *MI) {
       llvm_unreachable("Pseudo opcode found in EmitInstruction()");
   
     MCInst TmpInst;
-    MCInstLowering.Lower(I, TmpInst);
+    MCInstLowering.Lower(&*I, TmpInst);
     OutStreamer->EmitInstruction(TmpInst, getSubtargetInfo());
   } while ((++I != E) && I->isInsideBundle());
 }
@@ -95,13 +95,13 @@ void EpiphanyAsmPrinter::EmitInstruction(const MachineInstr *MI) {
 //    .frame  FP,48,R1
 //    .mask   0xc0000000,-8
 //       addiu SP, SP, -48
-//       st R1, 40(SP)
-//       st FP, 36(SP)
+//       str A1, [SP,#40]
+//       str FP, [SP,#36]
 //
-//    With a 0xc0000000 mask, the assembler knows the register 31 (RA) and
-//    30 (FP) are saved at prologue. As the save order on prologue is from
-//    left to right, RA is saved first. A -8 offset means that after the
-//    stack pointer subtration, the first register in the mask (RA) will be
+//    With a 0xc0000000 mask, the assembler knows the register 0 (A1) and
+//    11 (FP) are saved at prologue. As the save order on prologue is from
+//    left to right, A1 is saved first. A -8 offset means that after the
+//    stack pointer subtration, the first register in the mask (A1) will be
 //    saved at address 48-8=40.
 //
 //===----------------------------------------------------------------------===//

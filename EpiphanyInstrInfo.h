@@ -26,26 +26,34 @@
 
 namespace llvm {
 
-class EpiphanyInstrInfo : public EpiphanyGenInstrInfo {
-  virtual void anchor();
-protected:
-  const EpiphanyRegisterInfo RI;
-  const EpiphanySubtarget &Subtarget;
-public:
-  explicit EpiphanyInstrInfo(const EpiphanySubtarget &STI);
+  class EpiphanyInstrInfo : public EpiphanyGenInstrInfo {
+    virtual void anchor();
+    protected:
+    const EpiphanySubtarget &Subtarget;
+    const EpiphanyRegisterInfo RI;
+    public:
+    explicit EpiphanyInstrInfo(const EpiphanySubtarget &STI);
 
-  static const EpiphanyInstrInfo *create(EpiphanySubtarget &STI);
+    static const EpiphanyInstrInfo *create(EpiphanySubtarget &STI);
 
-  /// getRegisterInfo - TargetInstrInfo is a superset of MRegister info.  As
-  /// such, whenever a client has an instance of instruction info, it should
-  /// always be able to get register info as well (through this method).
-  ///
-  const TargetRegisterInfo &getRegisterInfo() const { return RI; }
+    /// getRegisterInfo - TargetInstrInfo is a superset of MRegister info.  As
+    /// such, whenever a client has an instance of instruction info, it should
+    /// always be able to get register info as well (through this method).
+    ///
+    const EpiphanyRegisterInfo &getRegisterInfo() const;
 
-  /// Return the number of bytes of code the specified instruction may be.
-  unsigned getInstSizeInBytes(const MachineInstr &MI) const;
+    /// Return the number of bytes of code the specified instruction may be.
+    unsigned GetInstSizeInBytes(const MachineInstr &MI) const;
 
-};
+    bool expandPostRAPseudo(MachineInstr &MI) const override;
+
+    void adjustStackPtr(unsigned SP, int64_t Amount, MachineBasicBlock &MBB,
+        MachineBasicBlock::iterator I) const;
+
+    private:
+    void expandRetLR(MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const;
+
+  };
 
 } // End of namespace llvm
 #endif

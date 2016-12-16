@@ -35,7 +35,7 @@ class EpiphanyTargetMachine : public LLVMTargetMachine {
 public:
   EpiphanyTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                        StringRef FS, const TargetOptions &Options,
-                       Reloc::Model RM, CodeModel::Model CM,
+                       Optional<Reloc::Model> RM, CodeModel::Model CM,
                        CodeGenOpt::Level OL);
   ~EpiphanyTargetMachine() override;
 
@@ -43,11 +43,9 @@ public:
     return &Subtarget; 
   }
 
-  const EpiphanySubtarget *getSubtargetImpl(const Function &F) const override { 
-    return &Subtarget; 
-  }
-
-  const DataLayout *getDataLayout() const { return &DL; }
+  const EpiphanySubtarget *getSubtargetImpl(const Function &F) const override {
+    return &Subtarget;
+  };
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
   
@@ -56,6 +54,7 @@ public:
   }
   
   const EpiphanyABIInfo &getABI() const { return ABI; }
+  //const DataLayout *getDataLayout() const { return &DL; }
 };
 
 } // namespace llvm

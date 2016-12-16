@@ -59,6 +59,7 @@ public:
 
   unsigned GetStackPtr() const;
   unsigned GetFramePtr() const;
+  unsigned GetNullPtr() const;
 
   unsigned GetEhDataReg(unsigned I) const;
   int EhDataRegSize() const;
