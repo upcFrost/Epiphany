@@ -71,11 +71,13 @@ void EpiphanyInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
     // add sp, sp, amount
     BuildMI(MBB, I, DL, get(ADDri), SP).addReg(SP).addImm(Amount);
   }
-  else { // Expand immediate that doesn't fit in 16-bit.
+  else { // Expand immediate that doesn't fit in 11-bit.
     // Set lower 16 bits
     BuildMI(MBB, I, DL, get(MOV32ri), A1).addImm(Amount & 0xffff);
-    // Set upper 16 bits
-    BuildMI(MBB, I, DL, get(MOVT32ri), A1).addImm(Amount >> 16);
+    if (!isInt<16>(Amount)) {
+      // Set upper 16 bits if we're still out
+      BuildMI(MBB, I, DL, get(MOVT32ri), A1).addReg(A1).addImm(Amount >> 16);
+    }
     // iadd sp, sp, amount
     BuildMI(MBB, I, DL, get(IADDrr), SP).addReg(SP).addReg(A1, RegState::Kill);
   }
