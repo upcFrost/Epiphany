@@ -45,20 +45,24 @@ def HI16 : SDNodeXForm<imm, [{
 //===----------------------------------------------------------------------===//
 // Load/store instructions
 //===----------------------------------------------------------------------===//
-def LDR32 : LoadM32<LS_add, 0>;
-def STR32 : StoreM32<LS_add, 0>;
+def LDRi32 : LoadM32<LS_add,  0, GPR32>;
+def STRi32 : StoreM32<LS_add, 0, GPR32>;
+def LDRf32 : LoadM32<LS_add,  0, FPR32>;
+def STRf32 : StoreM32<LS_add, 0, FPR32>;
 
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with registers
 //===----------------------------------------------------------------------===//
 let Defs = [STATUS] in {
-  def ADDrr : IntMath32rr<0b0011111, "add", addc>;
-  def SUBrr : IntMath32rr<0b0111111, "sub", subc>;
-  def ANDrr : IntMath32rr<0b1011111, "and", and>;
-  def ORRrr : IntMath32rr<0b1111111, "orr", or>;
-  def EORrr : IntMath32rr<0b0001111, "eor", xor>;
-  def LSLrr : IntMath32rr<0b0101111, "lsl", shl>;
-  def LSRrr : IntMath32rr<0b1001111, "lsr", srl>;
+  // Integer
+  def ADDi32rr : AnyMath32rr<0b0011111, "add", addc, GPR32>;
+  def SUBi32rr : AnyMath32rr<0b0111111, "sub", subc, GPR32>;
+  def ANDi32rr : AnyMath32rr<0b1011111, "and", and,  GPR32>;
+  def ORRi32rr : AnyMath32rr<0b1111111, "orr", or,   GPR32>;
+  def EORi32rr : AnyMath32rr<0b0001111, "eor", xor,  GPR32>;
+  def LSLi32rr : AnyMath32rr<0b0101111, "lsl", shl,  GPR32>;
+  def LSRi32rr : AnyMath32rr<0b1001111, "lsr", srl,  GPR32>;
+  def ASRi32rr : AnyMath32rr<0b1101111, "asr", sra,  GPR32>;
 }
 
 let Defs = [STATUS] in {
@@ -71,47 +75,70 @@ let Defs = [STATUS] in {
 // Integer arithmetic operations with immediates
 //===----------------------------------------------------------------------===//
 let Defs = [STATUS] in {
+  // Addsub
   def ADDri : IntMath32ri<0b0011011, "add", addc, simm11, immSExt11>;
   def SUBri : IntMath32ri<0b0111011, "sub", subc, simm11, immSExt11>;
+
+  // Shifts
+  def LSRri : ShiftMath32ri<0b0110, 0b01111, "lsr", srl, imm5, immUExt5>;
+  def LSLri : ShiftMath32ri<0b0110, 0b01111, "lsl", shl, imm5, immUExt5>;
+  def ASRri : ShiftMath32ri<0b0110, 0b01111, "asr", sra, imm5, immUExt5>;
 }
+
+//===----------------------------------------------------------------------===//
+// Additional integer arithmetic patterns
+//===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
 // Floating-point arithmetic operations with registers
 //===----------------------------------------------------------------------===//
 
 // All the instructions set STATUS flags
-//let Defs = [STATUS] in {
-//  def FADDrr : FPMath32rr<0b0001111, "fadd", fadd>;
-//  def FSUBrr : FPMath32rr<0b0011111, "fsub", fsub>;
-//  def FMULrr : FPMath32rr<0b0101111, "fmul", fmul>;
-//}
+let Defs = [STATUS] in {
+  def FADDrr : FPMath32rr<0b0001111, "fadd", fadd>;
+  def FSUBrr : FPMath32rr<0b0011111, "fsub", fsub>;
+  def FMULrr : FPMath32rr<0b0101111, "fmul", fmul>;
+}
+
+//===----------------------------------------------------------------------===//
+// IntToFloat and Abs
+//===----------------------------------------------------------------------===//
+let Defs = [STATUS] in {
+  def FLOAT32rr : IntToFloat32<(outs FPR32:$Rd), (ins GPR32:$Rn), "float\t$Rd, $Rn", [(set FPR32:$Rd, (sint_to_fp GPR32:$Rn))], 0b1011111, NoItinerary>;
+  def FIX32rr   : IntToFloat32<(outs GPR32:$Rd), (ins FPR32:$Rn), "fix\t$Rd, $Rn",   [(set GPR32:$Rd, (fp_to_sint FPR32:$Rn))], 0b1101111, NoItinerary>;
+}
 
 //===----------------------------------------------------------------------===//
 // Move operations: Immediates
 //===----------------------------------------------------------------------===//
+// TODO: 32-bit loading
 let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1 in {
-  def MOVT32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set GPR32:$Rd, (or (and GPR32:$src, 0xffff), (shl immSExt16:$Imm, 16)))], 0b01011, /* MOVT = */ 1> {
-    let Constraints = "$src = $Rd";
+  let Constraints = "$src = $Rd" in {
+    def MOVTi32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set GPR32:$Rd, (or (and GPR32:$src, 0xffff), (shl immSExt16:$Imm, 16)))], 0b01011, /* MOVT = */ 1, GPR32>;
   }
-  def MOV32ri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, immSExt16:$Imm)], 0b01011, /* MOVT = */ 0>;
+  def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, immSExt16:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
+  def MOVf32ri : Mov32ri<"mov", (ins fpimm16:$Imm), [(set FPR32:$Rd, fpimm16:$Imm)], 0b01011, /* MOVT = */ 0, FPR32>;
 }
-def : Pat<(or GPR32:$src, 0xffff0000), (MOVT32ri GPR32:$src, 0xffff)>;
+def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
 
 //===----------------------------------------------------------------------===//
 // Move operations: Registers
 //===----------------------------------------------------------------------===//
 
 // TODO: Unsigned comparison
-def MOVEQ32rr   : Mov32rr<"moveq",   [(set GPR32:$Rd, (select (i32 (seteq GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_EQ,    GPR32>;
-def MOVNE32rr   : Mov32rr<"movne",   [(set GPR32:$Rd, (select (i32 (setne GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_NE,    GPR32>;
-def MOVGTU32rr  : Mov32rr<"movgtu",  [(set GPR32:$Rd, (select (i32 (setgt GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_GTU,   GPR32>;
-def MOVGTEU32rr : Mov32rr<"movgteu", [(set GPR32:$Rd, (select (i32 (setge GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_GTEU,  GPR32>;
-def MOVLTEU32rr : Mov32rr<"movlteu", [(set GPR32:$Rd, (select (i32 (setle GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_LTEU,  GPR32>;
-def MOVLTU32rr  : Mov32rr<"movltu",  [(set GPR32:$Rd, (select (i32 (setlt GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_LTU,   GPR32>;
-def MOVGT32rr   : Mov32rr<"movgt",   [(set GPR32:$Rd, (select (i32 (setgt GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_GT,    GPR32>;
-def MOVGTE32rr  : Mov32rr<"movgte",  [(set GPR32:$Rd, (select (i32 (setge GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_GTE,   GPR32>;
-def MOVLT32rr   : Mov32rr<"movlt",   [(set GPR32:$Rd, (select (i32 (setlt GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_LT,    GPR32>;
-def MOVLTE32rr  : Mov32rr<"movlte",  [(set GPR32:$Rd, (select (i32 (setle GPR32:$Rn, GPR32:$src)), GPR32:$Rn, GPR32:$src))], COND_LTE,   GPR32>;
+def MOVi32rr     : Mov32rr<"mov", [], GPR32>;
+def MOVf32rr     : Mov32rr<"mov", [], FPR32>;
 
-
+let Constraints = "$src = $Rd" in {
+  def MOVEQ32rr   : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETEQ))],  COND_EQ,    GPR32>;
+  def MOVNE32rr   : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETNE))],  COND_NE,    GPR32>;
+  def MOVGTU32rr  : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETUGT))], COND_GTU,   GPR32>;
+  def MOVGTEU32rr : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETUGE))], COND_GTEU,  GPR32>;
+  def MOVLTEU32rr : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETULE))], COND_LTEU,  GPR32>;
+  def MOVLTU32rr  : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETULT))], COND_LTU,   GPR32>;
+  def MOVGT32rr   : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETGT))],  COND_GT,    GPR32>;
+  def MOVGTE32rr  : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETGE))], COND_GTE,   GPR32>;
+  def MOVLT32rr   : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETLT))],  COND_LT,    GPR32>;
+  def MOVLTE32rr  : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETLE))], COND_LTE,   GPR32>;
+}
 

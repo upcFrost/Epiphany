@@ -16,6 +16,7 @@
 
 #include "EpiphanyConfig.h"
 
+#include "MCTargetDesc/EpiphanyAddressingModes.h"
 #include "Epiphany.h"
 #include "EpiphanySubtarget.h"
 #include "EpiphanyTargetMachine.h"

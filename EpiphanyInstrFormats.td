@@ -69,6 +69,7 @@ class ImmAsmOperand : AsmOperandClass { let RenderMethod = "addImmOperands"; }
 
 // Immediate classes
 def Imm3_Operand   : ImmAsmOperand { let Name = "imm3";   }
+def Imm5_Operand   : ImmAsmOperand { let Name = "imm5";   }
 def Imm8_Operand   : ImmAsmOperand { let Name = "imm8";   }
 def Imm11_Operand  : ImmAsmOperand { let Name = "imm11";  }
 def Imm16_Operand  : ImmAsmOperand { let Name = "imm16";  }
@@ -76,10 +77,12 @@ def Simm3_Operand  : ImmAsmOperand { let Name = "simm3";  }
 def Simm8_Operand  : ImmAsmOperand { let Name = "simm8";  }
 def Simm11_Operand : ImmAsmOperand { let Name = "simm11"; }
 def Simm24_Operand : ImmAsmOperand { let Name = "simm24"; }
+def Fimm16_Operand : ImmAsmOperand { let Name = "fimm16"; }
 
 // Immediates
 let OperandType = "OPERAND_IMMEDIATE" in {
   def imm3   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 8);     }]> { let ParserMatchClass = Imm3_Operand;   }
+  def imm5   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 32);   }]> { let ParserMatchClass = Imm8_Operand;   }
   def imm8   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 255);   }]> { let ParserMatchClass = Imm8_Operand;   }
   def imm11  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 2047);  }]> { let ParserMatchClass = Imm11_Operand;  }
   def imm16  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 65535); }]> { let ParserMatchClass = Imm16_Operand;  }
@@ -89,7 +92,18 @@ let OperandType = "OPERAND_IMMEDIATE" in {
   def simm24 : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -8388608 && Imm < 8388607); }]> { let ParserMatchClass = Simm24_Operand; }
 }
 
+// Floating-point immediate.
+def fpimm16 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP16Imm(N->getValueAPF()) != -1; }], 
+    SDNodeXForm<fpimm, [{
+      APFloat InVal = N->getValueAPF();
+      uint32_t enc = Epiphany_AM::getFP16Imm(InVal);
+      return CurDAG->getTargetConstant(enc, SDLoc(N), MVT::i32);
+    }]>> {
+  let ParserMatchClass = Fimm16_Operand;
+}
+
 // Node immediate fits as N-bit sign extended on target immediate.
+def immUExt5   : PatLeaf<(imm), [{ return isInt<5>(N->getZExtValue()); }]>;
 def immSExt3   : PatLeaf<(imm), [{ return isInt<3>(N->getSExtValue()); }]>;
 def immSExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getSExtValue()); }]>;
 def immSExt11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
@@ -169,8 +183,8 @@ class LS32_general<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opc
 
 // Memory Load/Store
 let canFoldAsLoad = 1 in
-class LoadM32<LS_addsub addsub, bit Pseudo>
-    : LS32_general<(outs GPR32:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, "\t$Rd, $addr"), [(set GPR32:$Rd, (load_a addr:$addr))], 0b1100, LoadBit, LS_word, NoItinerary> {
+class LoadM32<LS_addsub addsub, bit Pseudo, RegisterClass RegClass>
+    : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (load_a addr:$addr))], 0b1100, LoadBit, LS_word, NoItinerary> {
   let Inst{16-23} = 0b00000000;
   let Inst{7-9}   = 0b000;
   let Inst{25}    = 0b0;
@@ -178,8 +192,8 @@ class LoadM32<LS_addsub addsub, bit Pseudo>
   let isPseudo = Pseudo;
 }
 
-class StoreM32<LS_addsub addsub, bit Pseudo>
-    : LS32_general<(outs), (ins GPR32:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, "\t$Rd, $addr"), [(store_a GPR32:$Rd, addr:$addr)], 0b1100, StoreBit, LS_word, NoItinerary> {
+class StoreM32<LS_addsub addsub, bit Pseudo, RegisterClass RegClass>
+    : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, "\t$Rd, $addr"), [(store_a RegClass:$Rd, addr:$addr)], 0b1100, StoreBit, LS_word, NoItinerary> {
   let Inst{16-23} = 0b00000000;
   let Inst{7-9}   = 0b000;
   let Inst{25}    = 0b0;
@@ -270,6 +284,20 @@ class Math32rr<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode,
 }
 
 //===----------------------------------------------------------------------===//
+// Arithmetic operations with registers: Floating/Integer
+//===----------------------------------------------------------------------===//
+
+class AnyMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+  Math16rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, NoItinerary> {}
+
+class AnyMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+  Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, NoItinerary> {
+  let Inst{19-16} = 0b1010;
+}
+
+//===----------------------------------------------------------------------===//
 // Arithmetic operations with registers: Integer
 //===----------------------------------------------------------------------===//
 
@@ -287,15 +315,36 @@ class IntMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
 // Arithmetic operations with registers: Floating point
 //===----------------------------------------------------------------------===//
 
-//class FPMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
-//  Math16rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-//          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {}
+class FPMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
+  Math16rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {}
           
-//class FPMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
-//  Math32rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-//          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {
-//  let Inst{19-16} = 0b0111;
-//}
+class FPMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
+  Math32rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {
+ let Inst{19-16} = 0b0111;
+}
+
+//===----------------------------------------------------------------------===//
+// Arithmetic operations with registers: IntToFloat and Abs
+//===----------------------------------------------------------------------===//
+
+class IntToFloat32<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
+    : Normal<outs, ins, asm, pattern, itin> {
+  bits<6> Rd;
+  bits<6> Rn;
+ 
+  let Inst{31-29} = Rd{5-3};
+  let Inst{28-26} = Rn{5-3};
+  let Inst{25-23} = 0b000;
+  let Inst{19-16} = 0b0111;
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = 0b000;
+  let Inst{6-0}   = opcode;
+  
+  let isReMaterializable = 1;
+}
 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
@@ -340,14 +389,30 @@ class Math32ri<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode,
 // Arithmetic operations with immediates: Integer
 //===----------------------------------------------------------------------===//
 
-class IntMath16ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> :
-  Math16ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
+class IntMath16ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
+    : Math16ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
           [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], opcode, NoItinerary> {}
 
-class IntMath32ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> :
-  Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
+class IntMath32ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> 
+    : Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
           [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], opcode, NoItinerary> {
   let Inst{19-16} = 0b1010;
+}
+
+class ShiftMath32ri<bits<4> leftcode, bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
+    : Normal<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"), 
+            [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], NoItinerary> {
+  bits<6> Rd;
+  bits<6> Rn;
+  bits<5> Imm;
+
+  let Inst{31-29} = Rd{5-3};
+  let Inst{28-26} = Rn{5-3};
+  let Inst{19-16} = leftcode;
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-5}   = Imm;
+  let Inst{4-0}   = opcode;
 }
 
 //===----------------------------------------------------------------------===//
@@ -373,8 +438,8 @@ class Mov16ri<string instr_asm, list<dag> pattern, bits<5> opcode>
   let Inst{4-0} = opcode;
 }
 
-class Mov32ri<string instr_asm, dag ins, list<dag> pattern, bits<5> opcode, bits<1> MOVT>
-    : Normal<(outs GPR32:$Rd), ins, !strconcat(instr_asm, "\t$Rd, $Imm"), 
+class Mov32ri<string instr_asm, dag ins, list<dag> pattern, bits<5> opcode, bits<1> MOVT, RegisterClass RegClass>
+    : Normal<(outs RegClass:$Rd), ins, !strconcat(instr_asm, "\t$Rd, $Imm"), 
              pattern, NoItinerary> {
   bits<16> Imm;
   bits<6> Rd;
@@ -425,14 +490,33 @@ class Mov16rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterC
     let Inst{3-0} = 0b0010;
 }
 
-class Mov32rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterClass RegClass>
+class Mov32rr<string instr_asm, list<dag> pattern, RegisterClass RegClass>
+    : Normal<(outs RegClass:$Rd), (ins RegClass:$Rn), !strconcat(instr_asm, "\t$Rd, $Rn"),
+             pattern, NoItinerary> {
+    bits<6> Rd;
+    bits<6> Rn;
+    
+    let Inst{31-29} = Rd{5-3};
+    let Inst{28-26} = Rn{5-3};
+    let Inst{19-16} = 0b0010;
+    let Inst{15-13} = Rd{2-0};
+    let Inst{12-10} = Rn{2-0};
+    let Inst{9-8} = 0b00;
+    let Inst{7-4} = COND_NONE.Code;
+    let Inst{3-0} = 0b0010;
+}
+
+class MovCond32rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterClass RegClass>
     : Normal<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rd, $Rn"),
              pattern, NoItinerary> {
-    bits<3> Rd;
-    bits<3> Rn;
+    bits<6> Rd;
+    bits<6> Rn;
     
-    let Inst{15-13} = Rd;
-    let Inst{12-10} = Rn;
+    let Inst{31-29} = Rd{5-3};
+    let Inst{28-26} = Rn{5-3};
+    let Inst{19-16} = 0b0010;
+    let Inst{15-13} = Rd{2-0};
+    let Inst{12-10} = Rn{2-0};
     let Inst{9-8} = 0b00;
     let Inst{7-4} = cond.Code;
     let Inst{3-0} = 0b0010;

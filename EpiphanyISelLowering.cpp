@@ -14,6 +14,7 @@
 
 #include "EpiphanyISelLowering.h"
 
+#include "MCTargetDesc/EpiphanyAddressingModes.h"
 #include "EpiphanyMachineFunction.h"
 #include "EpiphanyTargetMachine.h"
 #include "EpiphanyTargetObjectFile.h"
@@ -61,6 +62,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
 
     // Set up the register classes
     addRegisterClass(MVT::i32, &Epiphany::GPR32RegClass);
+    addRegisterClass(MVT::f32, &Epiphany::FPR32RegClass);
 
     //- Set .align 4
     // It will emit .align 4 later
@@ -69,6 +71,21 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     // must, computeRegisterProperties - Once all of the register classes are 
     //  added, this allows us to compute derived properties we expose.
     computeRegisterProperties(STI.getRegisterInfo());
+
+    // Provide all sorts of operation actions
+    setStackPointerRegisterToSaveRestore(Epiphany::SP);
+
+    // Provide ops that we don't have
+    setOperationAction(ISD::SDIV,      MVT::i32, Expand);
+    setOperationAction(ISD::SREM,      MVT::i32, Expand);
+    setOperationAction(ISD::UDIV,      MVT::i32, Expand);
+    setOperationAction(ISD::UREM,      MVT::i32, Expand);
+    setOperationAction(ISD::SDIVREM,   MVT::i32, Expand);
+    setOperationAction(ISD::UDIVREM,   MVT::i32, Expand);
+    setOperationAction(ISD::MULHS,     MVT::i32, Expand);
+    setOperationAction(ISD::MULHU,     MVT::i32, Expand);
+    setOperationAction(ISD::UMUL_LOHI, MVT::i32, Expand);
+    setOperationAction(ISD::SMUL_LOHI, MVT::i32, Expand);
   }
 
 SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,

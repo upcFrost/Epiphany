@@ -14,6 +14,7 @@
 #include "EpiphanyISelDAGToDAG.h"
 #include "Epiphany.h"
 
+#include "MCTargetDesc/EpiphanyAddressingModes.h"
 #include "MCTargetDesc/EpiphanyBaseInfo.h"
 #include "EpiphanyMachineFunction.h"
 #include "EpiphanyRegisterInfo.h"

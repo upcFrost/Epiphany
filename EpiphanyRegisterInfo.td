@@ -29,7 +29,7 @@ class Bank3Reg<bits<16> enc, string n> : EpiphanyReg<enc, n>;
 // Bank 0 GPRs
 let Namespace = "Epiphany" in {
   foreach i = 0-63 in {
-    def R#i : Bank0Reg<#i, "R#i">,  DwarfRegNum<[#i]>;
+    def R#i : Bank0Reg<#i, "R"#i>,  DwarfRegNum<[#i]>;
   }
   
 // Aliases
@@ -114,6 +114,8 @@ def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
   (sequence "R%u", 32, 43),
   // Caller-saved GPR
   (sequence "R%u", 44, 63))>;
+
+def FPR32 : RegisterClass<"Epiphany", [f32], 32, (add GPR32)>;
 
 // Status register
 def SR : RegisterClass<"Epiphany", [i32], 32, (add STATUS)>;

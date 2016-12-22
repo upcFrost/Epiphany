@@ -50,6 +50,10 @@ namespace llvm {
     void adjustStackPtr(unsigned SP, int64_t Amount, MachineBasicBlock &MBB,
         MachineBasicBlock::iterator I) const;
 
+    void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+        const DebugLoc &DL, unsigned DestReg, unsigned SrcReg,
+        bool KillSrc) const override;
+
     private:
     void expandRetLR(MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const;
 

@@ -14,6 +14,7 @@
 
 #include "EpiphanyRegisterInfo.h"
 
+#include "MCTargetDesc/EpiphanyAddressingModes.h"
 #include "Epiphany.h"
 #include "EpiphanySubtarget.h"
 #include "EpiphanyMachineFunction.h"

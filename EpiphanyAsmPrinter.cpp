@@ -15,6 +15,7 @@
 #include "EpiphanyAsmPrinter.h"
 
 #include "InstPrinter/EpiphanyInstPrinter.h"
+#include "MCTargetDesc/EpiphanyAddressingModes.h"
 #include "MCTargetDesc/EpiphanyBaseInfo.h"
 #include "Epiphany.h"
 #include "EpiphanyInstrInfo.h"
