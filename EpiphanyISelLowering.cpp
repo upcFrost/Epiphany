@@ -46,6 +46,7 @@ const char *EpiphanyTargetLowering::getTargetNodeName(unsigned Opcode) const {
     case EpiphanyISD::BR_CC:          return "EpiphanyISD::BR_CC";
     case EpiphanyISD::Call:           return "EpiphanyISD::Call";
     case EpiphanyISD::RTI:            return "EpiphanyISD::RTI";
+    case EpiphanyISD::RTS:            return "EpiphanyISD::RTS";
     case EpiphanyISD::SELECT_CC:      return "EpiphanyISD::SELECT_CC";
     case EpiphanyISD::SETCC:          return "EpiphanyISD::SETCC";
     case EpiphanyISD::WrapperSmall:   return "EpiphanyISD::WrapperSmall";
@@ -192,8 +193,7 @@ EpiphanyTargetLowering::LowerReturn(SDValue Chain,
   if (Flag.getNode())
     RetOps.push_back(Flag);
 
-  return DAG.getNode(EpiphanyISD::RTI, DL, MVT::Other,
-      Chain, DAG.getRegister(Epiphany::LR, MVT::i32));
+  return DAG.getNode(EpiphanyISD::RTS, DL, MVT::Other, RetOps);
 }
 
 EpiphanyTargetLowering::EpiphanyCC::EpiphanyCC(

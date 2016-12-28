@@ -2,4 +2,9 @@ add_llvm_library(LLVMEpiphanyDesc
   EpiphanyABIInfo.cpp
   EpiphanyMCTargetDesc.cpp
   EpiphanyMCAsmInfo.cpp
+  EpiphanyAsmBackend.cpp
+  EpiphanyMCCodeEmitter.cpp
+  EpiphanyMCExpr.cpp
+  EpiphanyELFObjectWriter.cpp
+  EpiphanyTargetStreamer.cpp
   )

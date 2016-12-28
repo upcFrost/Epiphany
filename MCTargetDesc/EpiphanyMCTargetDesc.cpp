@@ -12,6 +12,7 @@
 
 #include "InstPrinter/EpiphanyInstPrinter.h"
 #include "EpiphanyMCAsmInfo.h"
+#include "EpiphanyTargetStreamer.h"
 #include "llvm/MC/MachineLocation.h"
 #include "llvm/MC/MCELFStreamer.h"
 #include "llvm/MC/MCInstrAnalysis.h"
@@ -64,8 +65,8 @@ static MCRegisterInfo *createEpiphanyMCRegisterInfo(const Triple &Triple) {
 }
 
 static MCSubtargetInfo *createEpiphanyMCSubtargetInfo(const Triple &TT,
-                                                          StringRef CPU,
-                                                          StringRef FS) {
+    StringRef CPU,
+    StringRef FS) {
   std::string ArchFS = selectEpiphanyArchFeature(TT,CPU);
   if (!FS.empty()) {
     if (!ArchFS.empty())
@@ -78,9 +79,9 @@ static MCSubtargetInfo *createEpiphanyMCSubtargetInfo(const Triple &TT,
 }
 
 static MCAsmInfo *createEpiphanyMCAsmInfo(const MCRegisterInfo &MRI,
-                                          const Triple &TT) {
+    const Triple &TT) {
   MCAsmInfo *MAI = new EpiphanyELFMCAsmInfo(TT);
-  
+
   unsigned SP = MRI.getDwarfRegNum(Epiphany::SP, true);
   MCCFIInstruction Inst = MCCFIInstruction::createDefCfa(nullptr, SP, 0);
   MAI->addInitialFrameState(Inst);
@@ -90,22 +91,35 @@ static MCAsmInfo *createEpiphanyMCAsmInfo(const MCRegisterInfo &MRI,
 
 namespace {
 
-class EpiphanyMCInstrAnalysis : public MCInstrAnalysis {
-  public:
-  EpiphanyMCInstrAnalysis(const MCInstrInfo *Info) : MCInstrAnalysis(Info) {}
-};
+  class EpiphanyMCInstrAnalysis : public MCInstrAnalysis {
+    public:
+      EpiphanyMCInstrAnalysis(const MCInstrInfo *Info) : MCInstrAnalysis(Info) {}
+  };
 }
 
-static MCInstrAnalysis *createCpu0MCInstrAnalysis(const MCInstrInfo *Info) {
+static MCInstrAnalysis *createEpiphanyMCInstrAnalysis(const MCInstrInfo *Info) {
   return new EpiphanyMCInstrAnalysis(Info);
 }
 
 static MCInstPrinter *createEpiphanyMCInstPrinter(const Triple &T,
-                                                  unsigned SyntaxVariant,
-                                                  const MCAsmInfo &MAI,
-                                                  const MCInstrInfo &MII,
-                                                  const MCRegisterInfo &MRI) {
+    unsigned SyntaxVariant,
+    const MCAsmInfo &MAI,
+    const MCInstrInfo &MII,
+    const MCRegisterInfo &MRI) {
   return new EpiphanyInstPrinter(MAI, MII, MRI);
+}
+
+static MCStreamer *createMCStreamer(const Triple &TT, MCContext &Context, 
+    MCAsmBackend &MAB, raw_pwrite_stream &OS, 
+    MCCodeEmitter *Emitter, bool RelaxAll) {
+  return createELFStreamer(Context, MAB, OS, Emitter, RelaxAll);
+}
+
+static MCTargetStreamer *createEpiphanyAsmTargetStreamer(MCStreamer &S,
+    formatted_raw_ostream &OS,
+    MCInstPrinter *InstPrint,
+    bool isVerboseAsm) {
+  return new EpiphanyTargetAsmStreamer(S, OS);
 }
 
 extern "C" void LLVMInitializeEpiphanyTargetMC() {
@@ -114,20 +128,36 @@ extern "C" void LLVMInitializeEpiphanyTargetMC() {
 
   // Register the MC instruction info.
   TargetRegistry::RegisterMCInstrInfo(TheEpiphanyTarget,
-                                      createEpiphanyMCInstrInfo);
+      createEpiphanyMCInstrInfo);
 
   // Register the MC register info.
   TargetRegistry::RegisterMCRegInfo(TheEpiphanyTarget,
-                                    createEpiphanyMCRegisterInfo);
+      createEpiphanyMCRegisterInfo);
 
   // Register the MC subtarget info.
   TargetRegistry::RegisterMCSubtargetInfo(TheEpiphanyTarget,
-                                          createEpiphanyMCSubtargetInfo);
+      createEpiphanyMCSubtargetInfo);
 
   // Register the MC instruction analyzer.
-  TargetRegistry::RegisterMCInstrAnalysis(TheEpiphanyTarget, createCpu0MCInstrAnalysis);
+  TargetRegistry::RegisterMCInstrAnalysis(TheEpiphanyTarget, createEpiphanyMCInstrAnalysis);
 
   // Register the MCInstPrinter.
   TargetRegistry::RegisterMCInstPrinter(TheEpiphanyTarget,
-                                        createEpiphanyMCInstPrinter);
+      createEpiphanyMCInstPrinter);
+
+  // Register the elf streamer.
+  TargetRegistry::RegisterELFStreamer(TheEpiphanyTarget, createMCStreamer);
+
+  // Register the asm target streamer.
+  TargetRegistry::RegisterAsmTargetStreamer(TheEpiphanyTarget, createEpiphanyAsmTargetStreamer);
+
+  // Register the MC Code Emitter
+  TargetRegistry::RegisterMCCodeEmitter(TheEpiphanyTarget,
+      createEpiphanyMCCodeEmitterEL);
+
+  // Register the asm backend.
+  TargetRegistry::RegisterMCAsmBackend(TheEpiphanyTarget,
+      createEpiphanyAsmBackendEL32);
+
+
 }

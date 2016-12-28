@@ -15,19 +15,33 @@
 #include "llvm/Support/DataTypes.h"
 
 namespace llvm {
-class MCAsmBackend;
-class MCCodeEmitter;
-class MCContext;
-class MCInstrInfo;
-class MCObjectWriter;
-class MCRegisterInfo;
-class MCSubtargetInfo;
-class StringRef;
-class Target;
-class Triple;
-class raw_ostream;
+  class MCAsmBackend;
+  class MCCodeEmitter;
+  class MCContext;
+  class MCInstrInfo;
+  class MCObjectWriter;
+  class MCRegisterInfo;
+  class MCSubtargetInfo;
+  class StringRef;
+  class Target;
+  class Triple;
+  class raw_ostream;
+  class raw_pwrite_stream;
 
-extern Target TheEpiphanyTarget;
+  extern Target TheEpiphanyTarget;
+
+  MCCodeEmitter *createEpiphanyMCCodeEmitterEL(const MCInstrInfo &MCII,
+      const MCRegisterInfo &MRI,
+      MCContext &Ctx);
+
+  MCAsmBackend *createEpiphanyAsmBackendEL32(const Target &T,
+      const MCRegisterInfo &MRI,
+      const Triple &TT, StringRef CPU);
+
+  MCObjectWriter *createEpiphanyELFObjectWriter(raw_pwrite_stream &OS,
+      uint8_t OSABI,
+      bool IsLittleEndian);
+
 
 } // End llvm namespace
 

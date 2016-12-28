@@ -17,6 +17,7 @@
 #include "EpiphanyConfig.h"
 
 #include "EpiphanyMCTargetDesc.h"
+#include "EpiphanyFixupKinds.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -26,7 +27,7 @@ namespace llvm {
 /// Epiphany - This namespace holds all of the target specific flags that
 /// instruction info tracks.
 //@Epiphany
-namespace Epiphany {
+namespace EpiphanyII {
   /// Target Operand Flag enum.
   enum TOF {
     //===------------------------------------------------------------------===//
@@ -71,8 +72,9 @@ namespace Epiphany {
     // Pseudo - This represents an instruction that is a pseudo instruction
     // or one that has not been implemented yet.  It is illegal to code generate
     // it, but tolerated for intermediate implementation stages.
-    Pseudo   = 0,
-    Normal   = 1
+    Normal   = 0,
+    Pseudo   = 1,
+    FormMask = 15
   };
 }
 

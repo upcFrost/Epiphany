@@ -13,6 +13,7 @@
 
 #include "EpiphanyInstPrinter.h"
 
+#include "MCTargetDesc/EpiphanyMCExpr.h"
 #include "EpiphanyInstrInfo.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/MC/MCExpr.h"

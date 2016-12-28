@@ -18,8 +18,8 @@ class Format<bits<2> val> {
   bits<2> Value = val;
 }
 
-def PseudoFrm  : Format<0>;
-def NormalFrm  : Format<1>;
+def NormalFrm  : Format<0>;
+def PseudoFrm  : Format<1>;
 
 // Epiphany instruction format (general)
 class EpiphanyInst<Format f, string cstr> : Instruction {
@@ -29,7 +29,6 @@ class EpiphanyInst<Format f, string cstr> : Instruction {
   bits<2> Form      = F.Value;
   let Pattern       = [];
   let Constraints   = cstr;
-  let isCodeGenOnly = !eq(!cast<string>(f), "PseudoFrm");
 }
 
 // Pseudo instructions (without encoding info)
@@ -56,6 +55,18 @@ class Normal<dag outs, dag ins, string asm, list<dag> pattern, InstrItinClass it
   dag InOperandList  = ins;
   let AsmString      = asm;
   let Itinerary      = itin;
+}
+
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+// Interrupts control
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+class Interrupt<bits<10> opcode, list<dag> pattern, string asm>
+    : Normal<(outs), (ins), asm, pattern, NoItinerary> {
+  let Inst{9-0} = opcode;
 }
 
 //===----------------------------------------------------------------------===//
@@ -104,6 +115,8 @@ def fpimm16 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP16I
 
 // Node immediate fits as N-bit sign extended on target immediate.
 def immUExt5   : PatLeaf<(imm), [{ return isInt<5>(N->getZExtValue()); }]>;
+def immUExt24  : PatLeaf<(imm), [{ return isInt<24>(N->getZExtValue()); }]>;
+
 def immSExt3   : PatLeaf<(imm), [{ return isInt<3>(N->getSExtValue()); }]>;
 def immSExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getSExtValue()); }]>;
 def immSExt11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
@@ -533,5 +546,28 @@ class MovCond32rr<string instr_asm, list<dag> pattern, ConditionCode cond, Regis
 //===----------------------------------------------------------------------===//
 // Branching/Jumps
 //===----------------------------------------------------------------------===//
+class JumpReg<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionCode cond>
+    : Normal<(outs), (ins GPR32:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rn"),
+             pattern, NoItinerary> {
+  bits<6> Rn;
 
+  let Inst{28-26} = Rn{5-3};
+  let Inst{19-16} = 0b0010;
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-0}   = opcode;
+
+  let isBranch    = 1;
+}
+
+class JumpImm<string instr_asm, list<dag> pattern, ConditionCode cond>
+    : Normal<(outs), (ins immUExt24:$imm), !strconcat(instr_asm, cond.Asm, "\t$Rn"),
+             pattern, NoItinerary> {
+  bits<24> imm;
+
+  let Inst{31-8}  = imm;
+  let Inst{7-4}   = cond.Code;
+  let Inst{3-0}   = 0b1000;
+
+  let isBranch    = 1;
+}
 

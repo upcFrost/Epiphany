@@ -55,7 +55,7 @@ namespace llvm {
         bool KillSrc) const override;
 
     private:
-    void expandRetLR(MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const;
+    void expandRTS(MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const;
 
   };
 

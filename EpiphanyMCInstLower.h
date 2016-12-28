@@ -12,6 +12,7 @@
 
 #include "EpiphanyConfig.h"
 
+#include "MCTargetDesc/EpiphanyMCExpr.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/Support/Compiler.h"

@@ -41,7 +41,8 @@ namespace llvm {
 			Call,
 
 			// Simply a convenient node inserted during ISelLowering to represent
-			// procedure return. Will almost certainly be selected to "RET".
+			// procedure return. Will almost certainly be selected to "RTS" or "RTI".
+      RTS,
 			RTI,
 
 			/// This is an A64-ification of the standard LLVM SELECT_CC operation. The

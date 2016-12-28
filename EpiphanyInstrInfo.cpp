@@ -44,8 +44,8 @@ bool EpiphanyInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   MachineBasicBlock &MBB = *MI.getParent();
 
   switch (MI.getDesc().getOpcode()) {
-    case Epiphany::RetLR:
-      expandRetLR(MBB, MI);
+    case Epiphany::RTS:
+      expandRTS(MBB, MI);
       break;
     default:
       return false;
@@ -99,9 +99,9 @@ void EpiphanyInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
   }
 }
 
-void EpiphanyInstrInfo::expandRetLR(MachineBasicBlock &MBB,
+void EpiphanyInstrInfo::expandRTS(MachineBasicBlock &MBB,
     MachineBasicBlock::iterator I) const {
-  BuildMI(MBB, I, I->getDebugLoc(), get(Epiphany::RTI)).addReg(Epiphany::LR);
+  BuildMI(MBB, I, I->getDebugLoc(), get(Epiphany::JR32)).addReg(Epiphany::LR);
 }
 // }
 

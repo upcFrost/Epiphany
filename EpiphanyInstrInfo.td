@@ -20,15 +20,25 @@ include "EpiphanyInstrFormats.td"
 def SDT_EpiphanyRet : SDTypeProfile<0, 1, [SDTCisInt<0>]>;
 
 // Return instruction
-def EpiphanyRet : SDNode<"EpiphanyISD::RTI", SDTNone, 
+def EpiphanyRet : SDNode<"EpiphanyISD::RTS", SDTNone, 
                          [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
-let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
-  def RTI : Normal<(outs), (ins), "rti", [(EpiphanyRet)], NoItinerary>;
+def NOP : Interrupt<0b0110100010, [], "nop">;
+
+//let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
+//  def RTI : Interrupt<0b0111010010, [(EpiphanyRet)], "rti">;
+//}
+
+
+//===----------------------------------------------------------------------===//
+// Branching
+//===----------------------------------------------------------------------===//
+let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
+  def RTS : Pseudo<(outs), (ins), [(EpiphanyRet)]>;
 }
 
-let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
-  def RetLR : Pseudo<(outs), (ins), [(EpiphanyRet)]>;
+let isBranch=1, isTerminator=1, isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
+  def JR32 : JumpReg<"jr", 0b0101011111, [(brind GPR32:$Rn)], COND_NONE>;
 }
 
 //===----------------------------------------------------------------------===//
