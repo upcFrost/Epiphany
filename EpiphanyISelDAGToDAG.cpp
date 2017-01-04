@@ -61,17 +61,14 @@ void EpiphanyDAGToDAGISel::processFunctionAfterISel(MachineFunction &MF) {
 /// ComplexPattern used on EpiphanyInstrInfo
 /// Used on Epiphany Load/Store instructions
 bool EpiphanyDAGToDAGISel::SelectAddr(SDNode *Parent, SDValue Addr, SDValue &Base, SDValue &Offset) {
-//@SelectAddr }
   EVT ValTy = Addr.getValueType();
   SDLoc DL(Addr);
 
   // If Parent is an unaligned f32 load or store, select a (base + index)
   // floating point load/store instruction (luxc1 or suxc1).
   const LSBaseSDNode* LS = 0;
-
   if (Parent && (LS = dyn_cast<LSBaseSDNode>(Parent))) {
     EVT VT = LS->getMemoryVT();
-
     if (VT.getSizeInBits() / 8 > LS->getAlignment()) {
       assert("Unaligned loads/stores not supported for this type.");
       if (VT == MVT::f32)
@@ -86,6 +83,22 @@ bool EpiphanyDAGToDAGISel::SelectAddr(SDNode *Parent, SDValue Addr, SDValue &Bas
     return true;
   }
 
+  // Addresses of the form FI+const or FI|const
+  if (CurDAG->isBaseWithConstantOffset(Addr)) {
+    ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Addr.getOperand(1));
+    if (isInt<16>(CN->getSExtValue())) {
+      // If the first operand is a FI, get the TargetFI Node
+      if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(Addr.getOperand(0))) {
+        Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), ValTy);
+      } else {
+        Base = Addr.getOperand(0);
+      }
+      Offset = CurDAG->getTargetConstant(CN->getZExtValue(), DL, ValTy);
+      return true;
+    }
+  }
+
+  // If just a normal address
   Base   = Addr;
   Offset = CurDAG->getTargetConstant(0, DL, ValTy);
   return true;
@@ -109,7 +122,7 @@ bool EpiphanyDAGToDAGISel::trySelect(SDNode *Node) {
   unsigned MultOpc;
 
   switch(Opcode) {
-  default: break;
+    default: break;
 
   }
 
@@ -120,7 +133,6 @@ bool EpiphanyDAGToDAGISel::trySelect(SDNode *Node) {
 /// Select instructions not customized! Used for
 /// expanded, promoted and normal instructions
 void EpiphanyDAGToDAGISel::Select(SDNode *Node) {
-//@Select }
   unsigned Opcode = Node->getOpcode();
 
   // Dump information about the Node being selected
@@ -138,7 +150,7 @@ void EpiphanyDAGToDAGISel::Select(SDNode *Node) {
     return;
 
   switch(Opcode) {
-  default: break;
+    default: break;
 
   }
 

@@ -37,7 +37,7 @@ namespace {
 }
 
 EpiphanyELFObjectWriter::EpiphanyELFObjectWriter(uint8_t OSABI)
-  : MCELFObjectTargetWriter(/*_is64Bit=false*/ false, OSABI, ELF::EM_EPIPHANY,
+  : MCELFObjectTargetWriter(/*_is64Bit=false*/ false, OSABI, ELF::EM_ADAPTEVA_EPIPHANY,
                             /*HasRelocationAddend*/ false) {}
 
 EpiphanyELFObjectWriter::~EpiphanyELFObjectWriter() {}

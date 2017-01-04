@@ -55,10 +55,17 @@ def HI16 : SDNodeXForm<imm, [{
 //===----------------------------------------------------------------------===//
 // Load/store instructions
 //===----------------------------------------------------------------------===//
-def LDRi32 : LoadM32<LS_add,  0, GPR32>;
-def STRi32 : StoreM32<LS_add, 0, GPR32>;
-def LDRf32 : LoadM32<LS_add,  0, FPR32>;
-def STRf32 : StoreM32<LS_add, 0, FPR32>;
+def LDRi8   : LoadM32<LS_add,  0, GPR32, AlignedLoad<sextloadi8>>;
+def LDRi8u  : LoadM32<LS_add,  0, GPR32, AlignedLoad<zextloadi8>>;
+def STRi8   : StoreM32<LS_add, 0, GPR32, AlignedStore<truncstorei8>>;
+def LDRi16  : LoadM32<LS_add,  0, GPR32, AlignedLoad<sextloadi16>>;
+def LDRi16u : LoadM32<LS_add,  0, GPR32, AlignedLoad<zextloadi16>>;
+def STRi16  : StoreM32<LS_add, 0, GPR32, AlignedStore<truncstorei16>>;
+def LDRi32  : LoadM32<LS_add,  0, GPR32, AlignedLoad<load>>;
+def STRi32  : StoreM32<LS_add, 0, GPR32, AlignedStore<store>>;
+
+def LDRf32 : LoadM32<LS_add,  0, FPR32, AlignedLoad<load>>;
+def STRf32 : StoreM32<LS_add, 0, FPR32, AlignedStore<store>>;
 
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with registers
@@ -128,6 +135,9 @@ let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1 in {
   }
   def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, immSExt16:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
   def MOVf32ri : Mov32ri<"mov", (ins fpimm16:$Imm), [(set FPR32:$Rd, fpimm16:$Imm)], 0b01011, /* MOVT = */ 0, FPR32>;
+
+  // One more for memory
+  def MOViPTR : Mov32ri<"mov", (ins mem11:$Imm), [(set GPR32:$Rd, addr:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
 }
 def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
 

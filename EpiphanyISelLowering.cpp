@@ -69,6 +69,10 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     // It will emit .align 4 later
     setMinFunctionAlignment(4);
 
+    // Set boolean to i32 for now (as we don't have i1)
+    setBooleanContents(ZeroOrOneBooleanContent);
+    setBooleanVectorContents(ZeroOrNegativeOneBooleanContent);
+
     // must, computeRegisterProperties - Once all of the register classes are 
     //  added, this allows us to compute derived properties we expose.
     computeRegisterProperties(STI.getRegisterInfo());
@@ -97,6 +101,9 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
 //===----------------------------------------------------------------------===//
 //  Lower helper functions
 //===----------------------------------------------------------------------===//
+bool EpiphanyTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
+   return false;
+}
 
 //===----------------------------------------------------------------------===//
 //  Misc Lower Operation implementation
