@@ -34,7 +34,7 @@ def NOP : Interrupt<0b0110100010, [], "nop">;
 // Branching
 //===----------------------------------------------------------------------===//
 let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
-  def RTS : Pseudo<(outs), (ins), [(EpiphanyRet)]>;
+  def RTS : Pseudo32<(outs), (ins), [(EpiphanyRet)]>;
 }
 
 let isBranch=1, isTerminator=1, isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
@@ -55,17 +55,17 @@ def HI16 : SDNodeXForm<imm, [{
 //===----------------------------------------------------------------------===//
 // Load/store instructions
 //===----------------------------------------------------------------------===//
-def LDRi8   : LoadM32<LS_add,  0, GPR32, AlignedLoad<sextloadi8>>;
-def LDRi8u  : LoadM32<LS_add,  0, GPR32, AlignedLoad<zextloadi8>>;
-def STRi8   : StoreM32<LS_add, 0, GPR32, AlignedStore<truncstorei8>>;
-def LDRi16  : LoadM32<LS_add,  0, GPR32, AlignedLoad<sextloadi16>>;
-def LDRi16u : LoadM32<LS_add,  0, GPR32, AlignedLoad<zextloadi16>>;
-def STRi16  : StoreM32<LS_add, 0, GPR32, AlignedStore<truncstorei16>>;
-def LDRi32  : LoadM32<LS_add,  0, GPR32, AlignedLoad<load>>;
-def STRi32  : StoreM32<LS_add, 0, GPR32, AlignedStore<store>>;
+def LDRi8   : LoadM16<LS_add,  0, GPR32, AlignedLoad<sextloadi8>>;
+def LDRi8u  : LoadM16<LS_add,  0, GPR32, AlignedLoad<zextloadi8>>;
+def STRi8   : StoreM16<LS_add, 0, GPR32, AlignedStore<truncstorei8>>;
+def LDRi16  : LoadM16<LS_add,  0, GPR32, AlignedLoad<sextloadi16>>;
+def LDRi16u : LoadM16<LS_add,  0, GPR32, AlignedLoad<zextloadi16>>;
+def STRi16  : StoreM16<LS_add, 0, GPR32, AlignedStore<truncstorei16>>;
+def LDRi32  : LoadM16<LS_add,  0, GPR32, AlignedLoad<load>>;
+def STRi32  : StoreM16<LS_add, 0, GPR32, AlignedStore<store>>;
 
-def LDRf32 : LoadM32<LS_add,  0, FPR32, AlignedLoad<load>>;
-def STRf32 : StoreM32<LS_add, 0, FPR32, AlignedStore<store>>;
+def LDRf32 : LoadM16<LS_add,  0, FPR32, AlignedLoad<load>>;
+def STRf32 : StoreM16<LS_add, 0, FPR32, AlignedStore<store>>;
 
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with registers
@@ -92,14 +92,23 @@ let Defs = [STATUS] in {
 // Integer arithmetic operations with immediates
 //===----------------------------------------------------------------------===//
 let Defs = [STATUS] in {
-  // Addsub
-  def ADDri : IntMath32ri<0b0011011, "add", addc, simm11, immSExt11>;
-  def SUBri : IntMath32ri<0b0111011, "sub", subc, simm11, immSExt11>;
+  // Addsub i16
+  def ADD16ri : IntMath16ri<0b0010011, "add", addc, simm3, immSExt3>;
+  def SUB16ri : IntMath16ri<0b0110011, "sub", subc, simm3, immSExt3>;
 
-  // Shifts
-  def LSRri : ShiftMath32ri<0b0110, 0b01111, "lsr", srl, imm5, immUExt5>;
-  def LSLri : ShiftMath32ri<0b0110, 0b01111, "lsl", shl, imm5, immUExt5>;
-  def ASRri : ShiftMath32ri<0b0110, 0b01111, "asr", sra, imm5, immUExt5>;
+  // Shifts i16
+  def LSR16ri : ShiftMath16ri<0b00110, "lsr", srl, imm5, immUExt5>;
+  def LSL16ri : ShiftMath16ri<0b10110, "lsl", shl, imm5, immUExt5>;
+  def ASR16ri : ShiftMath16ri<0b01110, "asr", sra, imm5, immUExt5>;
+
+  // Addsub i32
+  def ADD32ri : IntMath32ri<0b0011011, "add", addc, simm11, immSExt11>;
+  def SUB32ri : IntMath32ri<0b0111011, "sub", subc, simm11, immSExt11>;
+
+  // Shifts i32
+  def LSR32ri : ShiftMath32ri<0b0110, 0b01111, "lsr", srl, imm5, immUExt5>;
+  def LSL32ri : ShiftMath32ri<0b0110, 0b11111, "lsl", shl, imm5, immUExt5>;
+  def ASR32ri : ShiftMath32ri<0b1110, 0b01111, "asr", sra, imm5, immUExt5>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -133,6 +142,7 @@ let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1 in {
   let Constraints = "$src = $Rd" in {
     def MOVTi32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set GPR32:$Rd, (or (and GPR32:$src, 0xffff), (shl immSExt16:$Imm, 16)))], 0b01011, /* MOVT = */ 1, GPR32>;
   }
+  def MOVi16ri : Mov16ri<"mov", (ins imm8:$Imm), [(set GPR32:$Rd, immSExt8:$Imm)], 0b00011, GPR32>;
   def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, immSExt16:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
   def MOVf32ri : Mov32ri<"mov", (ins fpimm16:$Imm), [(set FPR32:$Rd, fpimm16:$Imm)], 0b01011, /* MOVT = */ 0, FPR32>;
 

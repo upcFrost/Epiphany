@@ -65,7 +65,7 @@ void EpiphanyInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   // TODO: Should make it work for all 4 ways (i32 <-> f32)
   if (Epiphany::GPR32RegClass.contains(DestReg, SrcReg)) { // Copy between regs
     Opc = Epiphany::MOVi32rr;
-  } else if (Epiphany::GPR32RegClass.contains(DestReg, SrcReg)) {
+  } else if (Epiphany::FPR32RegClass.contains(DestReg, SrcReg)) {
     Opc = Epiphany::MOVf32rr;
   }
   assert(Opc && "Cannot copy registers");
@@ -80,16 +80,18 @@ void EpiphanyInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
     MachineBasicBlock::iterator I) const {
   DebugLoc DL = I != MBB.end() ? I->getDebugLoc() : DebugLoc();
   unsigned A1 = Epiphany::A1;
-  unsigned ADDri = Epiphany::ADDri;
+  unsigned ADD16ri = Epiphany::ADD16ri;
+  unsigned ADD32ri = Epiphany::ADD32ri;
   unsigned IADDrr = Epiphany::IADDrr;
   unsigned MOVi32ri = Epiphany::MOVi32ri;
   unsigned MOVTi32ri = Epiphany::MOVTi32ri;
 
-  if (isInt<11>(Amount)) {
+  if (isInt<3>(Amount)) {
+    BuildMI(MBB, I, DL, get(ADD16ri), SP).addReg(SP).addImm(Amount);
+  } else if (isInt<11>(Amount)) {
     // add sp, sp, amount
-    BuildMI(MBB, I, DL, get(ADDri), SP).addReg(SP).addImm(Amount);
-  }
-  else { // Expand immediate that doesn't fit in 11-bit.
+    BuildMI(MBB, I, DL, get(ADD32ri), SP).addReg(SP).addImm(Amount);
+  } else { // Expand immediate that doesn't fit in 11-bit.
     // Set lower 16 bits
     BuildMI(MBB, I, DL, get(MOVi32ri), A1).addImm(Amount & 0xffff);
     // Set upper 16 bits

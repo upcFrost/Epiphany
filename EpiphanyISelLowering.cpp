@@ -65,9 +65,9 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     addRegisterClass(MVT::i32, &Epiphany::GPR32RegClass);
     addRegisterClass(MVT::f32, &Epiphany::FPR32RegClass);
 
-    //- Set .align 4
-    // It will emit .align 4 later
-    setMinFunctionAlignment(4);
+    //- Set .align 2
+    // It will emit .align 2 later
+    setMinFunctionAlignment(STI.stackAlignment());
 
     // Set boolean to i32 for now (as we don't have i1)
     setBooleanContents(ZeroOrOneBooleanContent);

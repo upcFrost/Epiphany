@@ -81,8 +81,8 @@ encodeInstruction(const MCInst &MI, raw_ostream &OS,
     llvm_unreachable("Pseudo opcode found in encodeInstruction()");
   }
 
-  // For now all instructions are 4 bytes
-  int Size = 4; // FIXME: Have Desc.getSize() return the correct value!
+  // Instruction size in bytes
+  int Size = Desc.getSize(); // FIXME: Have Desc.getSize() return the correct value!
 
   EmitInstruction(Binary, Size, OS);
 }

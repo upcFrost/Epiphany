@@ -72,7 +72,7 @@ public:
   
   bool hasCmp() const { return HasCmp; }
 
-  unsigned stackAlignment() const { return 8; }
+  unsigned stackAlignment() const { return 2; }
 
   EpiphanySubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS,
                                                      const TargetMachine &TM);
