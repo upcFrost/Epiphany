@@ -52,6 +52,7 @@ public:
 
   unsigned getFrameRegister(const MachineFunction &MF) const override;
 
+  const TargetRegisterClass *GPR16(unsigned Size) const;
   const TargetRegisterClass *GPR32(unsigned Size) const;
 };
 

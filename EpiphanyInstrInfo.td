@@ -38,7 +38,11 @@ let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
 }
 
 let isBranch=1, isTerminator=1, isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
-  def JR32 : JumpReg<"jr", 0b0101011111, [(brind GPR32:$Rn)], COND_NONE>;
+  def JR16 : JumpReg16<"jr", 0b0101000010, [(brind GPR16:$Rn)], COND_NONE>;
+}
+
+let isBranch=1, isTerminator=1, isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
+  def JR32 : JumpReg32<"jr", 0b0101001111, [(brind GPR32:$Rn)], COND_NONE>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -55,17 +59,26 @@ def HI16 : SDNodeXForm<imm, [{
 //===----------------------------------------------------------------------===//
 // Load/store instructions
 //===----------------------------------------------------------------------===//
-def LDRi8   : LoadM16<LS_add,  0, GPR32, AlignedLoad<sextloadi8>>;
-def LDRi8u  : LoadM16<LS_add,  0, GPR32, AlignedLoad<zextloadi8>>;
-def STRi8   : StoreM16<LS_add, 0, GPR32, AlignedStore<truncstorei8>>;
-def LDRi16  : LoadM16<LS_add,  0, GPR32, AlignedLoad<sextloadi16>>;
-def LDRi16u : LoadM16<LS_add,  0, GPR32, AlignedLoad<zextloadi16>>;
-def STRi16  : StoreM16<LS_add, 0, GPR32, AlignedStore<truncstorei16>>;
-def LDRi32  : LoadM16<LS_add,  0, GPR32, AlignedLoad<load>>;
-def STRi32  : StoreM16<LS_add, 0, GPR32, AlignedStore<store>>;
+multiclass LoadM<PatFrag LoadType> {
+  def _r16 : Load16<LS_add,  0, GPR16, LoadType>;
+  def _r32 : Load32<LS_add,  0, GPR32, LoadType>;
+}
+multiclass StoreM<PatFrag StoreType> {
+  def _r16 : Store16<LS_add,  0, GPR16, StoreType>;
+  def _r32 : Store32<LS_add,  0, GPR32, StoreType>;
+}
 
-def LDRf32 : LoadM16<LS_add,  0, FPR32, AlignedLoad<load>>;
-def STRf32 : StoreM16<LS_add, 0, FPR32, AlignedStore<store>>;
+defm LDRi8   : LoadM<AlignedLoad<sextloadi8>>;
+defm LDRi8u  : LoadM<AlignedLoad<zextloadi8>>;
+defm LDRi16  : LoadM<AlignedLoad<sextloadi16>>;
+defm LDRi16u : LoadM<AlignedLoad<zextloadi16>>;
+defm LDRi32  : LoadM<AlignedLoad<load>>;
+defm STRi8   : StoreM<AlignedStore<truncstorei8>>;
+defm STRi16  : StoreM<AlignedStore<truncstorei16>>;
+defm STRi32  : StoreM<AlignedStore<store>>;
+
+def LDRf32   : Load16<LS_add,  0, FPR32, AlignedLoad<load>>;
+def STRf32   : Store16<LS_add, 0, FPR32, AlignedStore<store>>;
 
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with registers
@@ -142,7 +155,7 @@ let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1 in {
   let Constraints = "$src = $Rd" in {
     def MOVTi32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set GPR32:$Rd, (or (and GPR32:$src, 0xffff), (shl immSExt16:$Imm, 16)))], 0b01011, /* MOVT = */ 1, GPR32>;
   }
-  def MOVi16ri : Mov16ri<"mov", (ins imm8:$Imm), [(set GPR32:$Rd, immSExt8:$Imm)], 0b00011, GPR32>;
+  def MOVi16ri : Mov16ri<"mov", (ins imm8:$Imm), [(set GPR16:$Rd, immSExt8:$Imm)], 0b00011, GPR16>;
   def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, immSExt16:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
   def MOVf32ri : Mov32ri<"mov", (ins fpimm16:$Imm), [(set FPR32:$Rd, fpimm16:$Imm)], 0b01011, /* MOVT = */ 0, FPR32>;
 

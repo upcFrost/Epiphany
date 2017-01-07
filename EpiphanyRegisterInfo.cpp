@@ -173,3 +173,9 @@ const TargetRegisterClass *
 EpiphanyRegisterInfo::GPR32(unsigned Size) const {
 	return &Epiphany::GPR32RegClass;
 }
+
+const TargetRegisterClass *
+EpiphanyRegisterInfo::GPR16(unsigned Size) const {
+	return &Epiphany::GPR16RegClass;
+}
+

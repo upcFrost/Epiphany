@@ -62,6 +62,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
   : TargetLowering(TM), Subtarget(STI), ABI(TM.getABI()) {
 
     // Set up the register classes
+    addRegisterClass(MVT::i32, &Epiphany::GPR16RegClass);
     addRegisterClass(MVT::i32, &Epiphany::GPR32RegClass);
     addRegisterClass(MVT::f32, &Epiphany::FPR32RegClass);
 

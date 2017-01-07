@@ -50,6 +50,14 @@ namespace llvm {
     void adjustStackPtr(unsigned SP, int64_t Amount, MachineBasicBlock &MBB,
         MachineBasicBlock::iterator I) const;
 
+    void storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+        unsigned SrcReg, bool KillSrc, int FrameIdx, const TargetRegisterClass *Rd,
+        const TargetRegisterInfo *TRI) const override;
+
+    void loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+        unsigned DestReg, int FrameIdx, const TargetRegisterClass *Rd,
+        const TargetRegisterInfo *TRI) const override;
+
     void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
         const DebugLoc &DL, unsigned DestReg, unsigned SrcReg,
         bool KillSrc) const override;

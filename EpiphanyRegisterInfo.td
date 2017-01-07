@@ -86,7 +86,10 @@ let Namespace = "Epiphany" in {
 //@Register Classes
 //===----------------------------------------------------------------------===//
 
-// General purpose
+// General purpose (first 7 only)
+def GPR16 : RegisterClass<"Epiphany", [i32], 32, (add (sequence "R%u", 0, 7))>;
+
+// General purpose (all)
 def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
   // Arg/result/scratch caller-saved regs
   R0, R1, R2, R3,
