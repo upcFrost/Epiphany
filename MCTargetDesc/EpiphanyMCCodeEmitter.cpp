@@ -179,7 +179,7 @@ unsigned
 EpiphanyMCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo,
     SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &STI) const {
-  // Base register is encoded in bits 20-16, offset is encoded in bits 15-0.
+  // Base register is encoded in bits 21-16, offset is encoded in bits 15-0.
   assert(MI.getOperand(OpNo).isReg());
   unsigned RegBits = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI) << 16;
   unsigned OffBits = getMachineOpValue(MI, MI.getOperand(OpNo+1), Fixups, STI);

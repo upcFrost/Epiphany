@@ -59,13 +59,16 @@ def HI16 : SDNodeXForm<imm, [{
 //===----------------------------------------------------------------------===//
 // Load/store instructions
 //===----------------------------------------------------------------------===//
+//def LDR : Pseudo32<(outs GPR32:$Rd), (ins mem11:$addr), [(set GPR32:$Rd, (load addr:$addr))]>;
+//def STR : Pseudo32<(outs), (ins GPR32:$Rd, mem11:$addr), [(store GPR32:$Rd, addr:$addr)]>;
+
 multiclass LoadM<PatFrag LoadType> {
-  def _r16 : Load16<LS_add,  0, GPR16, LoadType>;
-  def _r32 : Load32<LS_add,  0, GPR32, LoadType>;
+  def _r16 : Load16<0, GPR16, LoadType>;
+  def _r32 : Load32<0, GPR32, LoadType>;
 }
 multiclass StoreM<PatFrag StoreType> {
-  def _r16 : Store16<LS_add,  0, GPR16, StoreType>;
-  def _r32 : Store32<LS_add,  0, GPR32, StoreType>;
+  def _r16 : Store16<0, GPR16, StoreType>;
+  def _r32 : Store32<0, GPR32, StoreType>;
 }
 
 defm LDRi8   : LoadM<AlignedLoad<sextloadi8>>;
@@ -77,8 +80,8 @@ defm STRi8   : StoreM<AlignedStore<truncstorei8>>;
 defm STRi16  : StoreM<AlignedStore<truncstorei16>>;
 defm STRi32  : StoreM<AlignedStore<store>>;
 
-def LDRf32   : Load16<LS_add,  0, FPR32, AlignedLoad<load>>;
-def STRf32   : Store16<LS_add, 0, FPR32, AlignedStore<store>>;
+def LDRf32   : Load16<0, FPR32, AlignedLoad<load>>;
+def STRf32   : Store16<0, FPR32, AlignedStore<store>>;
 
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with registers

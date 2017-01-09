@@ -118,19 +118,21 @@ def Imm16_Operand  : ImmAsmOperand { let Name = "imm16";  }
 def Simm3_Operand  : ImmAsmOperand { let Name = "simm3";  }
 def Simm8_Operand  : ImmAsmOperand { let Name = "simm8";  }
 def Simm11_Operand : ImmAsmOperand { let Name = "simm11"; }
+def Simm12_Operand : ImmAsmOperand { let Name = "simm12"; }
 def Simm24_Operand : ImmAsmOperand { let Name = "simm24"; }
 def Fimm16_Operand : ImmAsmOperand { let Name = "fimm16"; }
 
 // Immediates
 let OperandType = "OPERAND_IMMEDIATE" in {
   def imm3   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 8);     }]> { let ParserMatchClass = Imm3_Operand;   }
-  def imm5   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 32);   }]> { let ParserMatchClass = Imm8_Operand;   }
+  def imm5   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 32);   }]>  { let ParserMatchClass = Imm5_Operand;   }
   def imm8   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 255);   }]> { let ParserMatchClass = Imm8_Operand;   }
   def imm11  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 2047);  }]> { let ParserMatchClass = Imm11_Operand;  }
   def imm16  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 65535); }]> { let ParserMatchClass = Imm16_Operand;  }
   def simm3  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -4       && Imm < 3);       }]> { let ParserMatchClass = Simm3_Operand;  }
   def simm8  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -128     && Imm < 127);     }]> { let ParserMatchClass = Simm8_Operand;  }
   def simm11 : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -1024    && Imm < 1023);    }]> { let ParserMatchClass = Simm11_Operand; }
+  def simm12 : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -2048    && Imm < 2047);    }]> { let ParserMatchClass = Simm12_Operand; }
   def simm24 : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -8388608 && Imm < 8388607); }]> { let ParserMatchClass = Simm24_Operand; }
 }
 
@@ -161,7 +163,7 @@ def mem3 : Operand<iPTR> {
 }
 def mem11 : Operand<iPTR> {
   let PrintMethod = "printMemOperand";
-  let MIOperandInfo = (ops GPR32:$Rn, imm11:$imm);
+  let MIOperandInfo = (ops GPR32:$Rn, simm12:$imm);
   let EncoderMethod = "getMemEncoding";
 }
 
@@ -244,54 +246,54 @@ class LS32_general<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opc
 
 // Memory Load/Store
 let canFoldAsLoad = 1 in
-class Load16<LS_addsub addsub, bit Pseudo, RegisterClass RegClass, PatFrag LoadType>
-    : LS16_general<(outs RegClass:$Rd), (ins mem3:$addr), !strconcat(LoadBit.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr:$addr))], 0b0100, LoadBit, LS_word, NoItinerary> {
-  // mem3 : Rn + imm3
-  bits<6> addr;
+class Load16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType>
+    : LS16_general<(outs RegClass:$Rd), (ins mem3:$addr), !strconcat(LoadBit.Asm, "\t$Rd, $addr"), [], 0b0100, LoadBit, LS_word, NoItinerary> {
+  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
+  bits<22> addr;
 
-  let Inst{12-10} = addr{5-3}; // Rn
+  let Inst{12-10} = addr{18-16}; // Rn
   let Inst{9-7}   = addr{2-0}; // imm3
   let isPseudo    = Pseudo;
 }
 
-class Store16<LS_addsub addsub, bit Pseudo, RegisterClass RegClass, PatFrag StoreType>
-    : LS16_general<(outs), (ins RegClass:$Rd, mem3:$addr), !strconcat(StoreBit.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr:$addr)], 0b0100, StoreBit, LS_word, NoItinerary> {
-  // mem3 : Rn + imm3
-  bits<6> addr;
+class Store16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType>
+    : LS16_general<(outs), (ins RegClass:$Rd, mem3:$addr), !strconcat(StoreBit.Asm, "\t$Rd, $addr"), [], 0b0100, StoreBit, LS_word, NoItinerary> {
+  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
+  bits<22> addr;
 
-  let Inst{12-10} = addr{5-3}; // Rn
+  let Inst{12-10} = addr{18-16}; // Rn
   let Inst{9-7}   = addr{2-0}; // imm3
   let isPseudo    = Pseudo;
 }
 
 
 let canFoldAsLoad = 1 in
-class Load32<LS_addsub addsub, bit Pseudo, RegisterClass RegClass, PatFrag LoadType>
+class Load32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType>
     : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr:$addr))], 0b1100, LoadBit, LS_word, NoItinerary> {
-  // mem11 : Rn + imm11
-  bits<17> addr;
+  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
+  bits<22> addr;
 
-  let Inst{28-26} = addr{16-14}; // Rn{5-3}
+  let Inst{28-26} = addr{21-19}; // Rn{5-3}
   let Inst{16-23} = addr{3-10};  // imm11{10-3}
-  let Inst{12-10} = addr{13-11}; // Rn{2-0}
+  let Inst{12-10} = addr{18-16}; // Rn{2-0}
   let Inst{7-9}   = addr{0-2};   // imm11{2-0}
   let Inst{25}    = 0b0;
-  let Inst{24}    = addsub.Value;
+  let Inst{24}    = addr{11};    // imm sign bit
   let isPseudo    = Pseudo;
 }
 
-class Store32<LS_addsub addsub, bit Pseudo, RegisterClass RegClass, PatFrag StoreType>
+class Store32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType>
     : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr:$addr)], 0b1100, StoreBit, LS_word, NoItinerary> {
-  // mem11 : Rn + imm11
-  bits<17> addr;
+  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
+  bits<22> addr;
 
-  let Inst{28-26} = addr{16-14}; // Rn{5-3}
+  let Inst{28-26} = addr{21-19}; // Rn{5-3}
   let Inst{16-23} = addr{3-10};  // imm11{10-3}
-  let Inst{12-10} = addr{13-11}; // Rn{2-0}
+  let Inst{12-10} = addr{18-16}; // Rn{2-0}
   let Inst{7-9}   = addr{0-2};   // imm11{2-0}
   let Inst{25}    = 0b0;
-  let Inst{24}    = addsub.Value;
-  let isPseudo = Pseudo;
+  let Inst{24}    = addr{11};    // imm sign bit
+  let isPseudo    = Pseudo;
 }
 
 //===----------------------------------------------------------------------===//
