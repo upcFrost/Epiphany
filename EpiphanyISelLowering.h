@@ -60,11 +60,8 @@ namespace llvm {
       /// instructions are only valid for a subset of condition codes.
       SETCC,
 
-      // Wraps an address which the ISelLowering phase has decided should be
-      // created using the small absolute memory model: i.e. adrp/add or
-      // adrp/mem-op. This exists to prevent bare TargetAddresses which may never
-      // get selected.
-      WrapperSmall,
+      // Wrapper for mov instructions as there is no unconditional ISD::SET
+      MOV,
 
       // Node for FMA and FMS
       FM_A_S
@@ -160,7 +157,7 @@ namespace llvm {
     private:
 
       // Lower Operand specifics
-      SDValue lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
 
       //- must be exist even without function all
       SDValue LowerFormalArguments(SDValue Chain,

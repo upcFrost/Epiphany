@@ -49,7 +49,7 @@ const char *EpiphanyTargetLowering::getTargetNodeName(unsigned Opcode) const {
     case EpiphanyISD::RTS:            return "EpiphanyISD::RTS";
     case EpiphanyISD::SELECT_CC:      return "EpiphanyISD::SELECT_CC";
     case EpiphanyISD::SETCC:          return "EpiphanyISD::SETCC";
-    case EpiphanyISD::WrapperSmall:   return "EpiphanyISD::WrapperSmall";
+    case EpiphanyISD::MOV:            return "EpiphanyISD::MOV";
     case EpiphanyISD::FM_A_S:         return "EpiphanyISD::FM_A_S";
 
     default:                          return NULL;
@@ -92,11 +92,18 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::MULHU,     MVT::i32, Expand);
     setOperationAction(ISD::UMUL_LOHI, MVT::i32, Expand);
     setOperationAction(ISD::SMUL_LOHI, MVT::i32, Expand);
+
+    // Custom operations, see below
+    setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
   }
 
 SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     SelectionDAG &DAG) const {
-  return EpiphanyTargetLowering::LowerOperation(Op, DAG);
+  switch (Op.getOpcode()) {
+    case ISD::GlobalAddress:
+      return LowerGlobalAddress(Op, DAG);
+  }
+  return SDValue();
 }
 
 //===----------------------------------------------------------------------===//
@@ -104,6 +111,20 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
 //===----------------------------------------------------------------------===//
 bool EpiphanyTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
    return false;
+}
+
+SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+
+  const GlobalValue *GV = cast<GlobalAddressSDNode>(Op)->getGlobal();
+  int64_t Offset = cast<GlobalAddressSDNode>(Op)->getOffset();
+  auto PTY = getPointerTy(DAG.getDataLayout());
+
+  // For now let's think that it's all 32bit STR/LDR
+  SDValue Reg = DAG.getRegister(Epiphany::R0, MVT::i32);
+  SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
+  return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
+//  return DAG.getNode(ISD::SETCC, DL, MVT::i32, DAG.getCopyToRegetRegister(Epiphany::R0, MVT::i32), result);
 }
 
 //===----------------------------------------------------------------------===//

@@ -59,9 +59,6 @@ def HI16 : SDNodeXForm<imm, [{
 //===----------------------------------------------------------------------===//
 // Load/store instructions
 //===----------------------------------------------------------------------===//
-//def LDR : Pseudo32<(outs GPR32:$Rd), (ins mem11:$addr), [(set GPR32:$Rd, (load addr:$addr))]>;
-//def STR : Pseudo32<(outs), (ins GPR32:$Rd, mem11:$addr), [(store GPR32:$Rd, addr:$addr)]>;
-
 multiclass LoadM<PatFrag LoadType> {
   def _r16 : Load16<0, GPR16, LoadType>;
   def _r32 : Load32<0, GPR32, LoadType>;
@@ -162,6 +159,9 @@ let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1 in {
   def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, immSExt16:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
   def MOVf32ri : Mov32ri<"mov", (ins fpimm16:$Imm), [(set FPR32:$Rd, fpimm16:$Imm)], 0b01011, /* MOVT = */ 0, FPR32>;
 
+  // Meta to use with tglobaladdr
+  def MOVri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, imm:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
+
   // One more for memory
   def MOViPTR : Mov32ri<"mov", (ins mem11:$Imm), [(set GPR32:$Rd, addr:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
 }
@@ -170,7 +170,6 @@ def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
 //===----------------------------------------------------------------------===//
 // Move operations: Registers
 //===----------------------------------------------------------------------===//
-
 // TODO: Unsigned comparison
 def MOVi32rr     : Mov32rr<"mov", [], GPR32>;
 def MOVf32rr     : Mov32rr<"mov", [], FPR32>;
@@ -187,4 +186,14 @@ let Constraints = "$src = $Rd" in {
   def MOVLT32rr   : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETLT))],  COND_LT,    GPR32>;
   def MOVLTE32rr  : MovCond32rr<"mov", [(set GPR32:$Rd, (setcc GPR32:$Rn, GPR32:$src, SETLE))], COND_LTE,   GPR32>;
 }
+
+//===----------------------------------------------------------------------===//
+// Move operations: Wrapper
+//===----------------------------------------------------------------------===//
+def SDT_MOV : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>, SDTCisPtrTy<0>]>;
+def MOV     : SDNode<"EpiphanyISD::MOV", SDT_MOV>;
+
+def : Pat<(i32 (MOV tglobaladdr:$dst)),   (MOVi32ri tglobaladdr:$dst)>;
+def : Pat<(i32 (MOV texternalsym:$dst)),  (MOVi32ri texternalsym:$dst)>;
+def : Pat<(i32 (MOV tblockaddress:$dst)), (MOVi32ri tblockaddress:$dst)>;
 

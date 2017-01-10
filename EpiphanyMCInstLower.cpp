@@ -30,13 +30,13 @@ using namespace llvm;
 EpiphanyMCInstLower::EpiphanyMCInstLower(EpiphanyAsmPrinter &asmprinter)
   : AsmPrinter(asmprinter) {}
 
-void EpiphanyMCInstLower::Initialize(MCContext* C) {
-  Ctx = C;
-}
+  void EpiphanyMCInstLower::Initialize(MCContext* C) {
+    Ctx = C;
+  }
 
 static void CreateMCInst(MCInst& Inst, unsigned Opc, const MCOperand& Opnd0,
-                         const MCOperand& Opnd1,
-                         const MCOperand& Opnd2 = MCOperand()) {
+    const MCOperand& Opnd1,
+    const MCOperand& Opnd2 = MCOperand()) {
   Inst.setOpcode(Opc);
   Inst.addOperand(Opnd0);
   Inst.addOperand(Opnd1);
@@ -46,10 +46,10 @@ static void CreateMCInst(MCInst& Inst, unsigned Opc, const MCOperand& Opnd0,
 
 // @LowerOperand
 MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
-                                       unsigned offset) const {
+    unsigned offset) const {
   switch (MO.getType()) {
     default: 
-      llvm_unreachable("unknown operand type");
+      llvm_unreachable("unknown operand type in EpiphanyMCInstLower::LowerOperand");
     case MachineOperand::MO_Register:
       // Ignore all implicit register operands
       if (MO.isImplicit()) break;
@@ -58,14 +58,28 @@ MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
       return MCOperand::createImm(MO.getImm());
     case MachineOperand::MO_RegisterMask:
       break;
-    }
-    
-    return MCOperand();
+    case MachineOperand::MO_GlobalAddress:
+      const MCSymbol *Symbol;
+      unsigned Offset;
+      Symbol = AsmPrinter.getSymbol(MO.getGlobal());
+      Offset += MO.getOffset();
+      MCSymbolRefExpr::VariantKind Kind = MCSymbolRefExpr::VK_None;
+      const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, Kind, *Ctx);
+      if (Offset) {
+        // Assume offset is never negative.
+        assert(Offset > 0);
+        Expr = MCBinaryExpr::createAdd(Expr, MCConstantExpr::create(Offset, *Ctx), *Ctx);
+      }
+      return MCOperand::createExpr(Expr);
+      break;
+  }
+
+  return MCOperand();
 }
 
 void EpiphanyMCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
   OutMI.setOpcode(MI->getOpcode());
-  
+
   for (unsigned i = 0, e = MI->getNumOperands(); i != e; ++i) {
     const MachineOperand &MO = MI->getOperand(i);
     MCOperand MCOp = LowerOperand(MO);
