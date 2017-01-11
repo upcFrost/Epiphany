@@ -145,6 +145,42 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
     const SmallVectorImpl<ISD::InputArg> &Ins,
     const SDLoc &DL, SelectionDAG &DAG,
     SmallVectorImpl<SDValue> &InVals) const {
+  
+  MachineFunction &MF = DAG.getMachineFunction();
+  MachineFrameInfo *MFI = MF.getFrameInfo();
+  EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
+  MachineRegisterInfo &RegInfo = MF.getRegInfo();
+
+  // Assign locations to all of the incoming arguments.
+  SmallVector<CCValAssign, 16> ArgLocs;
+  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
+  CCInfo.AnalyzeFormalArguments(Ins, CC_Epiphany_Assign);
+
+  // Create frame index for the start of the first vararg value
+  /*if (IsVarArg) {*/
+     //unsigned Offset = CCInfo.getNextStackOffset();
+    //FI->setVarArgsFrameIndex(MFI->CreateFixedObject(1, Offset, true));
+  /*}*/
+
+  for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
+    CCValAssign &VA = ArgLocs[i];
+
+    // If assigned to register
+    if (VA.isRegLoc()) {
+      EVT RegVT = VA.getLocVT();
+      
+      // Check that the type is correct
+      if (RegVT.getSimpleVT().SimpleTy == MVT::i32) {
+        unsigned VReg = RegInfo.createVirtualRegister(&Epiphany::GPR32RegClass);
+        RegInfo.addLiveIn(VA.getLocReg(), VReg);
+        SDValue ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, RegVT);
+        InVals.push_back(ArgValue);
+      } else {
+        llvm_unreachable("Wrong arg type at EpiphanyTargetLowering::LowerFormalArguments");
+      }
+    }
+  }
+
   return Chain;
 }
 // @LowerFormalArguments }

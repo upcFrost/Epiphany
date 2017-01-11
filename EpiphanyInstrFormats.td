@@ -571,7 +571,7 @@ class Mov32rr<string instr_asm, list<dag> pattern, RegisterClass RegClass>
     let Inst{12-10} = Rn{2-0};
     let Inst{9-8} = 0b00;
     let Inst{7-4} = COND_NONE.Code;
-    let Inst{3-0} = 0b0010;
+    let Inst{3-0} = 0b1111;
 }
 
 class MovCond32rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterClass RegClass>

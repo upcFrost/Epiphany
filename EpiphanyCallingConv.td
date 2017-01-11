@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 // Epiphany Argument Calling Conventions
 //===----------------------------------------------------------------------===//
-def CC_Epiphany_AssignStack : CallingConv<[
+def CC_Epiphany_Assign : CallingConv<[
   // Put ByVal arguments directly on the stack. 
   CCIfByVal<CCPassByVal<4, 4>>,
 

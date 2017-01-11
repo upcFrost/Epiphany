@@ -162,11 +162,10 @@ EpiphanyRegisterInfo::trackLivenessAfterRegAlloc(const MachineFunction &MF) cons
 	return true;
 }
 
-unsigned
-EpiphanyRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+// Returns current frame register: FP or SP depending if FramePointer is set
+unsigned EpiphanyRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
 	const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
-	return TFI->hasFP(MF) ? (Epiphany::FP) :
-		(Epiphany::SP);
+	return TFI->hasFP(MF) ? (Epiphany::FP) : (Epiphany::SP);
 }
 
 const TargetRegisterClass *
