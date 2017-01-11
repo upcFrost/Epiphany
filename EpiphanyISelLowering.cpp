@@ -120,11 +120,10 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   int64_t Offset = cast<GlobalAddressSDNode>(Op)->getOffset();
   auto PTY = getPointerTy(DAG.getDataLayout());
 
-  // For now let's think that it's all 32bit STR/LDR
+  // For now let's think that it's all 32bit 
   SDValue Reg = DAG.getRegister(Epiphany::R0, MVT::i32);
   SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
   return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
-//  return DAG.getNode(ISD::SETCC, DL, MVT::i32, DAG.getCopyToRegetRegister(Epiphany::R0, MVT::i32), result);
 }
 
 //===----------------------------------------------------------------------===//

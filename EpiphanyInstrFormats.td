@@ -115,6 +115,7 @@ def Imm5_Operand   : ImmAsmOperand { let Name = "imm5";   }
 def Imm8_Operand   : ImmAsmOperand { let Name = "imm8";   }
 def Imm11_Operand  : ImmAsmOperand { let Name = "imm11";  }
 def Imm16_Operand  : ImmAsmOperand { let Name = "imm16";  }
+def Imm24_Operand  : ImmAsmOperand { let Name = "imm24";  }
 def Simm3_Operand  : ImmAsmOperand { let Name = "simm3";  }
 def Simm8_Operand  : ImmAsmOperand { let Name = "simm8";  }
 def Simm11_Operand : ImmAsmOperand { let Name = "simm11"; }
@@ -124,11 +125,12 @@ def Fimm16_Operand : ImmAsmOperand { let Name = "fimm16"; }
 
 // Immediates
 let OperandType = "OPERAND_IMMEDIATE" in {
-  def imm3   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 8);     }]> { let ParserMatchClass = Imm3_Operand;   }
-  def imm5   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 32);   }]>  { let ParserMatchClass = Imm5_Operand;   }
-  def imm8   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 255);   }]> { let ParserMatchClass = Imm8_Operand;   }
-  def imm11  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 2047);  }]> { let ParserMatchClass = Imm11_Operand;  }
-  def imm16  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 65535); }]> { let ParserMatchClass = Imm16_Operand;  }
+  def imm3   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 8);       }]> { let ParserMatchClass = Imm3_Operand;   }
+  def imm5   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 32);      }]> { let ParserMatchClass = Imm5_Operand;   }
+  def imm8   : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 255);     }]> { let ParserMatchClass = Imm8_Operand;   }
+  def imm11  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 2047);    }]> { let ParserMatchClass = Imm11_Operand;  }
+  def imm16  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 65535);   }]> { let ParserMatchClass = Imm16_Operand;  }
+  def imm24  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 16777215; }]> { let ParserMatchClass = Imm24_Operand;  }
   def simm3  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -4       && Imm < 3);       }]> { let ParserMatchClass = Simm3_Operand;  }
   def simm8  : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -128     && Imm < 127);     }]> { let ParserMatchClass = Simm8_Operand;  }
   def simm11 : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= -1024    && Imm < 1023);    }]> { let ParserMatchClass = Simm11_Operand; }
@@ -148,6 +150,7 @@ def fpimm16 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP16I
 
 // Node immediate fits as N-bit sign extended on target immediate.
 def immUExt5   : PatLeaf<(imm), [{ return isInt<5>(N->getZExtValue()); }]>;
+def immUExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getZExtValue()); }]>;
 def immUExt24  : PatLeaf<(imm), [{ return isInt<24>(N->getZExtValue()); }]>;
 
 def immSExt3   : PatLeaf<(imm), [{ return isInt<3>(N->getSExtValue()); }]>;
@@ -598,6 +601,14 @@ class MovCond32rr<string instr_asm, list<dag> pattern, ConditionCode cond, Regis
 //===----------------------------------------------------------------------===//
 // Branching/Jumps
 //===----------------------------------------------------------------------===//
+def jmptarget : Operand<OtherVT> {
+  
+}
+
+def cc : Operand<i8> {
+
+}
+
 class JumpReg16<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionCode cond>
     : Normal16<(outs), (ins GPR16:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rn"),
              pattern, NoItinerary> {
@@ -607,6 +618,7 @@ class JumpReg16<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionC
   let Inst{9-0}   = opcode;
 
   let isBranch    = 1;
+  let isTerminator = 1;
 }
 
 class JumpReg32<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionCode cond>
@@ -620,17 +632,60 @@ class JumpReg32<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionC
   let Inst{9-0}   = opcode;
 
   let isBranch    = 1;
+  let isTerminator = 1;
 }
 
-class JumpImm<string instr_asm, list<dag> pattern, ConditionCode cond>
-    : Normal32<(outs), (ins immUExt24:$imm), !strconcat(instr_asm, cond.Asm, "\t$Rn"),
+class Branch16<list<dag> pattern>
+    : Normal16<(outs), (ins jmptarget:$addr), !strconcat("b", "\t$addr"),
              pattern, NoItinerary> {
-  bits<24> imm;
+  bits<8> target;
+  let Inst{15-8}   = target;
+  let Inst{7-4}    = COND_NONE.Code;
+  let Inst{3-0}    = 0;
 
-  let Inst{31-8}  = imm;
-  let Inst{7-4}   = cond.Code;
-  let Inst{3-0}   = 0b1000;
+  let isBranch     = 1;
+  let isTerminator = 1;
+  let Uses         = [STATUS];
+}
 
-  let isBranch    = 1;
+class Branch32<list<dag> pattern>
+    : Normal32<(outs), (ins jmptarget:$addr), !strconcat("b", "\t$addr"),
+             pattern, NoItinerary> {
+  bits<24> target;
+
+  let Inst{31-8}   = target;
+  let Inst{7-4}    = COND_NONE.Code;
+  let Inst{3-0}    = 0b1000;
+
+  let isBranch     = 1;
+  let isTerminator = 1;
+  let Uses         = [STATUS];
+}
+
+class BranchCC16<ConditionCode cond>
+    : Normal16<(outs), (ins GPR16:$Rd, GPR16:$Rn, jmptarget:$addr), !strconcat("b", cond.Asm, "\t$addr"),
+             [], NoItinerary> {
+  bits<8> target;
+  let Inst{15-8}   = target;
+  let Inst{7-4}    = cond.Code;
+  let Inst{3-0}    = 0;
+
+  let isBranch     = 1;
+  let isTerminator = 1;
+  let Uses         = [STATUS];
+}
+
+class BranchCC32<ConditionCode cond>
+    : Normal32<(outs), (ins GPR32:$Rd, jmptarget:$addr), !strconcat("b", cond.Asm, "\t$addr"),
+             [], NoItinerary> {
+  bits<24> target;
+
+  let Inst{31-8}   = target;
+  let Inst{7-4}    = cond.Code;
+  let Inst{3-0}    = 0b1000;
+
+  let isBranch     = 1;
+  let isTerminator = 1;
+  let Uses         = [STATUS];
 }
 

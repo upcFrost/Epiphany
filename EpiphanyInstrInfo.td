@@ -31,21 +31,6 @@ def NOP : Interrupt<0b0110100010, [], "nop">;
 
 
 //===----------------------------------------------------------------------===//
-// Branching
-//===----------------------------------------------------------------------===//
-let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
-  def RTS : Pseudo32<(outs), (ins), [(EpiphanyRet)]>;
-}
-
-let isBranch=1, isTerminator=1, isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
-  def JR16 : JumpReg16<"jr", 0b0101000010, [(brind GPR16:$Rn)], COND_NONE>;
-}
-
-let isBranch=1, isTerminator=1, isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
-  def JR32 : JumpReg32<"jr", 0b0101001111, [(brind GPR32:$Rn)], COND_NONE>;
-}
-
-//===----------------------------------------------------------------------===//
 // Transformation functions
 //===----------------------------------------------------------------------===//
 def LO16 : SDNodeXForm<imm, [{
@@ -196,4 +181,42 @@ def MOV     : SDNode<"EpiphanyISD::MOV", SDT_MOV>;
 def : Pat<(i32 (MOV tglobaladdr:$dst)),   (MOVi32ri tglobaladdr:$dst)>;
 def : Pat<(i32 (MOV texternalsym:$dst)),  (MOVi32ri texternalsym:$dst)>;
 def : Pat<(i32 (MOV tblockaddress:$dst)), (MOVi32ri tblockaddress:$dst)>;
+
+//===----------------------------------------------------------------------===//
+// Branching
+//===----------------------------------------------------------------------===//
+let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
+  def RTS : Pseudo32<(outs), (ins), [(EpiphanyRet)]>;
+}
+
+let isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
+  def JR16 : JumpReg16<"jr", 0b0101000010, [(brind GPR16:$Rn)], COND_NONE>;
+}
+
+let isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
+  def JR32 : JumpReg32<"jr", 0b0101001111, [(brind GPR32:$Rn)], COND_NONE>;
+}
+
+// Branches are made combining sub (cmp replacement) and b<cond>
+def BNONE32 : Branch32<[(br bb:$addr)]>;
+def BEQ32   : BranchCC32<COND_EQ>;
+def BGTU32  : BranchCC32<COND_GTU>;
+def BGTEU32 : BranchCC32<COND_GTEU>;
+def BLTEU32 : BranchCC32<COND_LTEU>;
+def BLTU32  : BranchCC32<COND_LTU>;
+def BGT32   : BranchCC32<COND_GT>;
+def BGTE32  : BranchCC32<COND_GTE>;
+def BLT32   : BranchCC32<COND_LT>;
+def BLTE32  : BranchCC32<COND_LTE>;
+
+def BEQ32_t   : Pat<(brcc SETEQ,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BEQ32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def BGTU32_t  : Pat<(brcc SETUGT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTU32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def BGTEU32_t : Pat<(brcc SETUGE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTEU32 (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def BLTEU32_t : Pat<(brcc SETULE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTEU32 (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def BLTU32_t  : Pat<(brcc SETULT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTU32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def BGT32_t   : Pat<(brcc SETGT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGT32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def BGTE32_t  : Pat<(brcc SETGE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTE32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def BLT32_t   : Pat<(brcc SETLT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLT32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def BLTE32_t  : Pat<(brcc SETLE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTE32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+
 

@@ -47,6 +47,10 @@ static void CreateMCInst(MCInst& Inst, unsigned Opc, const MCOperand& Opnd0,
 // @LowerOperand
 MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
     unsigned offset) const {
+  const MCSymbol *Symbol;
+  unsigned Offset;
+  MCSymbolRefExpr::VariantKind Kind = MCSymbolRefExpr::VK_None;
+
   switch (MO.getType()) {
     default: 
       llvm_unreachable("unknown operand type in EpiphanyMCInstLower::LowerOperand");
@@ -58,23 +62,26 @@ MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
       return MCOperand::createImm(MO.getImm());
     case MachineOperand::MO_RegisterMask:
       break;
+    case MachineOperand::MO_MachineBasicBlock:
+      Symbol = MO.getMBB()->getSymbol();
+      break;
+    case MachineOperand::MO_BlockAddress:
+      Symbol = AsmPrinter.GetBlockAddressSymbol(MO.getBlockAddress());
+      Offset += MO.getOffset();
+      break;
     case MachineOperand::MO_GlobalAddress:
-      const MCSymbol *Symbol;
-      unsigned Offset;
       Symbol = AsmPrinter.getSymbol(MO.getGlobal());
       Offset += MO.getOffset();
-      MCSymbolRefExpr::VariantKind Kind = MCSymbolRefExpr::VK_None;
-      const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, Kind, *Ctx);
-      if (Offset) {
-        // Assume offset is never negative.
-        assert(Offset > 0);
-        Expr = MCBinaryExpr::createAdd(Expr, MCConstantExpr::create(Offset, *Ctx), *Ctx);
-      }
-      return MCOperand::createExpr(Expr);
       break;
   }
+  const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, Kind, *Ctx);
+  if (Offset) {
+    // Assume offset is never negative.
+    assert(Offset > 0);
+    Expr = MCBinaryExpr::createAdd(Expr, MCConstantExpr::create(Offset, *Ctx), *Ctx);
+  }
+  return MCOperand::createExpr(Expr);
 
-  return MCOperand();
 }
 
 void EpiphanyMCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
