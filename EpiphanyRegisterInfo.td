@@ -44,9 +44,10 @@ let Namespace = "Epiphany" in {
   def V5    : Bank0Reg<8,  "V5">,  DwarfRegAlias<R8>;
   def SB    : Bank0Reg<9,  "SB">,  DwarfRegAlias<R9>;
   def SL    : Bank0Reg<10, "SL">,  DwarfRegAlias<R10>;
-  def FP    : Bank0Reg<11, "FP">,  DwarfRegAlias<R11>;
+  def V8    : Bank0Reg<11, "V8">,  DwarfRegAlias<R11>;
   def SP    : Bank0Reg<13, "SP">,  DwarfRegAlias<R13>;
   def LR    : Bank0Reg<14, "LR">,  DwarfRegAlias<R14>;
+  def FP    : Bank0Reg<15, "FP">,  DwarfRegAlias<R15>;
   def ZERO  : Bank0Reg<31, "ZERO">, DwarfRegAlias<R31>;
 }
 
