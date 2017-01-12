@@ -55,8 +55,7 @@ EpiphanyRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
 }
 
 // pure virtual method
-BitVector EpiphanyRegisterInfo::
-getReservedRegs(const MachineFunction &MF) const {
+BitVector EpiphanyRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 	BitVector Reserved(getNumRegs());
 	// Stack base, limit and pointer
 	Reserved.set(Epiphany::SB);
@@ -124,9 +123,14 @@ eliminateFrameIndex(MachineBasicBlock::iterator MBBI, int SPAdj,
 	//  3. Locations for callee-saved registers.
 	// Everything else is referenced relative to whatever register
 	// getFrameRegister() returns.
-	unsigned FrameReg;
-
-	FrameReg = Epiphany::SP;
+	unsigned FrameReg = getFrameRegister(MF);
+  if (FrameIndex >= 0) {
+    if (hasBasePointer(MF)) {
+      FrameReg = getBaseRegister();
+    } else if (needsStackRealignment(MF)) {
+	    FrameReg = Epiphany::SP;
+    }
+  }
 
 	// Calculate final offset.
 	// - There is no need to change the offset if the frame object is one of the
@@ -137,9 +141,7 @@ eliminateFrameIndex(MachineBasicBlock::iterator MBBI, int SPAdj,
 	//   incoming argument, callee-saved register location or local variable.
 	int64_t Offset;
 	Offset = spOffset + (int64_t)stackSize;
-
-	Offset    += MI.getOperand(i+1).getImm();
-
+	Offset += MI.getOperand(i+1).getImm();
 	DEBUG(errs() << "Offset     : " << Offset << "\n" << "<--------->\n");
 
 	// If MI is not a debug value, make sure Offset fits in the 16-bit immediate
@@ -161,6 +163,22 @@ bool
 EpiphanyRegisterInfo::trackLivenessAfterRegAlloc(const MachineFunction &MF) const {
 	return true;
 }
+
+bool EpiphanyRegisterInfo::hasBasePointer(const MachineFunction &MF) const {
+  const MachineFrameInfo *MFI = MF.getFrameInfo();
+  // When we need stack realignment and there are dynamic allocas, we can't
+  // reference off of the stack pointer, so we reserve a base pointer.
+  if (needsStackRealignment(MF) && MFI->hasVarSizedObjects()) {
+    return true;
+  }
+  return false;
+}
+
+// Returns stack base register
+unsigned EpiphanyRegisterInfo::getBaseRegister() const { 
+  return Epiphany::SB; 
+}
+
 
 // Returns current frame register: FP or SP depending if FramePointer is set
 unsigned EpiphanyRegisterInfo::getFrameRegister(const MachineFunction &MF) const {

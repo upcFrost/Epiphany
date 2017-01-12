@@ -51,6 +51,8 @@ public:
                            RegScavenger *Rs = nullptr) const override;
 
   unsigned getFrameRegister(const MachineFunction &MF) const override;
+  unsigned getBaseRegister() const;
+  bool hasBasePointer(const MachineFunction &MF) const;
 
   const TargetRegisterClass *GPR16(unsigned Size) const;
   const TargetRegisterClass *GPR32(unsigned Size) const;
