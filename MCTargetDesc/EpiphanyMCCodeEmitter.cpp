@@ -57,8 +57,7 @@ void EpiphanyMCCodeEmitter::EmitInstruction(uint64_t Val, unsigned Size, raw_ost
 
 /// encodeInstruction - Emit the instruction.
 /// Size the instruction (currently only 4 bytes)
-void EpiphanyMCCodeEmitter::
-encodeInstruction(const MCInst &MI, raw_ostream &OS,
+void EpiphanyMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &STI) const
 {
@@ -154,10 +153,8 @@ getExprOpValue(const MCExpr *Expr,SmallVectorImpl<MCFixup> &Fixups,
 
 /// getMachineOpValue - Return binary encoding of operand. If the machine
 /// operand requires relocation, record the relocation and return zero.
-unsigned EpiphanyMCCodeEmitter::
-getMachineOpValue(const MCInst &MI, const MCOperand &MO,
-    SmallVectorImpl<MCFixup> &Fixups,
-    const MCSubtargetInfo &STI) const {
+unsigned EpiphanyMCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,
+    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   if (MO.isReg()) {
     unsigned Reg = MO.getReg();
     unsigned RegNo = Ctx.getRegisterInfo()->getEncodingValue(Reg);
@@ -173,16 +170,38 @@ getMachineOpValue(const MCInst &MI, const MCOperand &MO,
   return getExprOpValue(MO.getExpr(),Fixups, STI);
 }
 
+// In some cases we will need to print shifted Imm, e.g. for load/store instructions
+static unsigned getShift(unsigned int OpCode) {
+    unsigned Shift = 0;
+    switch (OpCode) {
+      case Epiphany::LDRi16_r16:
+      case Epiphany::STRi16_r16:
+      case Epiphany::LDRi16_r32:
+      case Epiphany::STRi16_r32:
+        Shift = 1;
+      case Epiphany::LDRi32_r16:
+      case Epiphany::STRi32_r16:
+      case Epiphany::LDRi32_r32:
+      case Epiphany::STRi32_r32:
+        Shift = 2;
+    }
+
+    return Shift;
+}
+
 /// getMemEncoding - Return binary encoding of memory related operand.
 /// If the offset operand requires relocation, record the relocation.
-unsigned
-EpiphanyMCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo,
-    SmallVectorImpl<MCFixup> &Fixups,
-    const MCSubtargetInfo &STI) const {
+unsigned EpiphanyMCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo,
+    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   // Base register is encoded in bits 21-16, offset is encoded in bits 15-0.
-  assert(MI.getOperand(OpNo).isReg());
+  if (!MI.getOperand(OpNo).isReg()) {
+    MI.getOperand(OpNo).print(errs());
+    llvm_unreachable("Wrong operand type in getMemEncoding");
+  }
+
+  // Get value shift for load/store instructions
   unsigned RegBits = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI) << 16;
-  unsigned OffBits = getMachineOpValue(MI, MI.getOperand(OpNo+1), Fixups, STI);
+  unsigned OffBits = getMachineOpValue(MI, MI.getOperand(OpNo+1), Fixups, STI) >> getShift(MI.getOpcode());
 
   return (OffBits & 0xFFFF) | RegBits;
 }

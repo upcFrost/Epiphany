@@ -69,7 +69,10 @@ private:
   void processFunctionAfterISel(MachineFunction &MF);
 
   // Complex Pattern.
-  bool SelectAddr(SDNode *Parent, SDValue N, SDValue &Base, SDValue &Offset);
+  template<bool is16bit> bool SelectAddr(SDNode *Parent, SDValue Addr, SDValue &Base, SDValue &Offset) {
+    return SelectAddr(Parent, Addr, Base, Offset, is16bit);
+  }
+  bool SelectAddr(SDNode *Parent, SDValue N, SDValue &Base, SDValue &Offset, bool is16bit);
 
   // getImm - Return a target constant with the specified value.
   inline SDValue getImm(const SDNode *Node, unsigned Imm) {

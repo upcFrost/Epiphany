@@ -31,11 +31,6 @@ namespace llvm {
       // Start the numbering from where ISD NodeType finishes.
       FIRST_NUMBER = ISD::BUILTIN_OP_END,
 
-      // This is a conditional branch which also notes the flag needed
-      // (eq/sgt/...). Epiphany puts this information on the branches rather than
-      // compares as LLVM does.
-      BR_CC,
-
       // A node to be selected to an actual call operation: either BL or BLR in
       // the absence of tail calls.
       Call,
@@ -45,26 +40,12 @@ namespace llvm {
       RTS,
       RTI,
 
-      /// This is an A64-ification of the standard LLVM SELECT_CC operation. The
-      /// main difference is that it only has the values and an A64 condition,
-      /// which will be produced by a setcc instruction.
-      SELECT_CC,
-
-      /// This serves most of the functions of the LLVM SETCC instruction, for two
-      /// purposes. First, it prevents optimisations from fiddling with the
-      /// compare after we've moved the CondCode information onto the SELECT_CC or
-      /// BR_CC instructions. Second, it gives a legal instruction for the actual
-      /// comparison.
-      ///
-      /// It keeps a record of the condition flags asked for because certain
-      /// instructions are only valid for a subset of condition codes.
-      SETCC,
-
       // Wrapper for mov instructions as there is no unconditional ISD::SET
       MOV,
 
-      // Node for FMA and FMS
-      FM_A_S
+      // Store and load instruction wrappers
+      STORE,
+      LOAD
     };
   }
 
@@ -155,7 +136,6 @@ namespace llvm {
       const EpiphanyABIInfo &ABI;
 
     private:
-
       // Lower Operand specifics
       SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
 

@@ -177,8 +177,6 @@ def mem11 : Operand<iPTR> {
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
-def addr : ComplexPattern<iPTR, 2, "SelectAddr", [frameindex], [SDNPWantParent]>;
-
 class AlignedLoad<PatFrag Node> :
   PatFrag<(ops node:$ptr), (Node node:$ptr), [{
   LoadSDNode *LD = cast<LoadSDNode>(N);
@@ -208,9 +206,9 @@ class LS_size<bits<2> opcode, string asm> {
   string Asm = asm;
 }
 
-def LS_byte : LS_size<0b00, "b">;
+def LS_byte  : LS_size<0b00, "b">;
 def LS_hword : LS_size<0b01, "h">;
-def LS_word : LS_size<0b10, "">;
+def LS_word  : LS_size<0b10, "">;
 def LS_dword : LS_size<0b11, "d">;
 
 class LS_addsub<bits<1> opcode, string asm> {
@@ -248,9 +246,12 @@ class LS32_general<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opc
 }
 
 // Memory Load/Store
+def addr3  : ComplexPattern<iPTR, 2, "SelectAddr<true>",  [frameindex], [SDNPWantParent]>;
+def addr11 : ComplexPattern<iPTR, 2, "SelectAddr<false>", [frameindex], [SDNPWantParent]>;
+
 let canFoldAsLoad = 1 in
-class Load16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType>
-    : LS16_general<(outs RegClass:$Rd), (ins mem3:$addr), !strconcat(LoadBit.Asm, "\t$Rd, $addr"), [], 0b0100, LoadBit, LS_word, NoItinerary> {
+class Load16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize>
+    : LS16_general<(outs RegClass:$Rd), (ins mem3:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr3:$addr))], 0b0100, LoadBit, LoadSize, NoItinerary> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -259,8 +260,8 @@ class Load16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType>
   let isPseudo    = Pseudo;
 }
 
-class Store16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType>
-    : LS16_general<(outs), (ins RegClass:$Rd, mem3:$addr), !strconcat(StoreBit.Asm, "\t$Rd, $addr"), [], 0b0100, StoreBit, LS_word, NoItinerary> {
+class Store16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize>
+    : LS16_general<(outs), (ins RegClass:$Rd, mem3:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr3:$addr)], 0b0100, StoreBit, StoreSize, NoItinerary> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -271,8 +272,8 @@ class Store16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType>
 
 
 let canFoldAsLoad = 1 in
-class Load32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType>
-    : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr:$addr))], 0b1100, LoadBit, LS_word, NoItinerary> {
+class Load32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize>
+    : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr11:$addr))], 0b1100, LoadBit, LoadSize, NoItinerary> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -285,8 +286,9 @@ class Load32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType>
   let isPseudo    = Pseudo;
 }
 
-class Store32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType>
-    : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr:$addr)], 0b1100, StoreBit, LS_word, NoItinerary> {
+
+class Store32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize>
+    : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr11:$addr)], 0b1100, StoreBit, StoreSize, NoItinerary> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 

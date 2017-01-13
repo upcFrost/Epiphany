@@ -58,9 +58,11 @@ void EpiphanyDAGToDAGISel::processFunctionAfterISel(MachineFunction &MF) {
 }
 
 //@SelectAddr {
-/// ComplexPattern used on EpiphanyInstrInfo
+/// ComplexPattern used on EpiphanyInstrInfo.td
 /// Used on Epiphany Load/Store instructions
-bool EpiphanyDAGToDAGISel::SelectAddr(SDNode *Parent, SDValue Addr, SDValue &Base, SDValue &Offset) {
+//
+// See header for the bool parameter
+bool EpiphanyDAGToDAGISel::SelectAddr(SDNode *Parent, SDValue Addr, SDValue &Base, SDValue &Offset, bool is16bit) {
   EVT ValTy = Addr.getValueType();
   SDLoc DL(Addr);
 
@@ -75,6 +77,17 @@ bool EpiphanyDAGToDAGISel::SelectAddr(SDNode *Parent, SDValue Addr, SDValue &Bas
         return false;
     }
   }
+
+  // Check if we're dealing with frames as both SP and FP are out of GPR16
+  // TODO: Well, if someone smart will try to move the frame pointer somewhere else...
+  if (is16bit && dyn_cast<FrameIndexSDNode>(Addr)) {
+    return false;
+  }
+  if (is16bit && CurDAG->isBaseWithConstantOffset(Addr) && 
+      dyn_cast<FrameIndexSDNode>(Addr.getOperand(0))) {
+    return false;
+  }
+ 
 
   // if Address is FI, get the TargetFrameIndex.
   if (FrameIndexSDNode *FIN = dyn_cast<FrameIndexSDNode>(Addr)) {

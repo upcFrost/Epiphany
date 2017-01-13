@@ -44,26 +44,26 @@ def HI16 : SDNodeXForm<imm, [{
 //===----------------------------------------------------------------------===//
 // Load/store instructions
 //===----------------------------------------------------------------------===//
-multiclass LoadM<PatFrag LoadType> {
-  def _r16 : Load16<0, GPR16, LoadType>;
-  def _r32 : Load32<0, GPR32, LoadType>;
+multiclass LoadM<PatFrag LoadType, LS_size LoadSize> {
+  def _r16 : Load16<0, GPR16, LoadType, LoadSize>;
+  def _r32 : Load32<0, GPR32, LoadType, LoadSize>;
 }
-multiclass StoreM<PatFrag StoreType> {
-  def _r16 : Store16<0, GPR16, StoreType>;
-  def _r32 : Store32<0, GPR32, StoreType>;
+multiclass StoreM<PatFrag StoreType, LS_size StoreSize> {
+  def _r16 : Store16<0, GPR16, StoreType, StoreSize>;
+  def _r32 : Store32<0, GPR32, StoreType, StoreSize>;
 }
 
-defm LDRi8   : LoadM<AlignedLoad<sextloadi8>>;
-defm LDRi8u  : LoadM<AlignedLoad<zextloadi8>>;
-defm LDRi16  : LoadM<AlignedLoad<sextloadi16>>;
-defm LDRi16u : LoadM<AlignedLoad<zextloadi16>>;
-defm LDRi32  : LoadM<AlignedLoad<load>>;
-defm STRi8   : StoreM<AlignedStore<truncstorei8>>;
-defm STRi16  : StoreM<AlignedStore<truncstorei16>>;
-defm STRi32  : StoreM<AlignedStore<store>>;
+defm LDRi8   : LoadM<AlignedLoad<sextloadi8>,      LS_byte>;
+defm LDRi8u  : LoadM<AlignedLoad<zextloadi8>,      LS_byte>;
+defm LDRi16  : LoadM<AlignedLoad<sextloadi16>,     LS_hword>;
+defm LDRi16u : LoadM<AlignedLoad<zextloadi16>,     LS_hword>;
+defm LDRi32  : LoadM<AlignedLoad<load>,            LS_word>;
+defm STRi8   : StoreM<AlignedStore<truncstorei8>,  LS_byte>;
+defm STRi16  : StoreM<AlignedStore<truncstorei16>, LS_hword>;
+defm STRi32  : StoreM<AlignedStore<store>,         LS_word>;
 
-def LDRf32   : Load16<0, FPR32, AlignedLoad<load>>;
-def STRf32   : Store16<0, FPR32, AlignedStore<store>>;
+def LDRf32   : Load16<0, FPR32, AlignedLoad<load>,    LS_word>;
+def STRf32   : Store16<0, FPR32, AlignedStore<store>, LS_word>;
 
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with registers
@@ -148,7 +148,7 @@ let isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1 in {
   def MOVri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, imm:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
 
   // One more for memory
-  def MOViPTR : Mov32ri<"mov", (ins mem11:$Imm), [(set GPR32:$Rd, addr:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
+  def MOViPTR : Mov32ri<"mov", (ins mem11:$Imm), [(set GPR32:$Rd, addr11:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
 }
 def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
 
@@ -209,14 +209,14 @@ def BGTE32  : BranchCC32<COND_GTE>;
 def BLT32   : BranchCC32<COND_LT>;
 def BLTE32  : BranchCC32<COND_LTE>;
 
-def BEQ32_t   : Pat<(brcc SETEQ,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BEQ32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def BGTU32_t  : Pat<(brcc SETUGT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTU32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def BGTEU32_t : Pat<(brcc SETUGE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTEU32 (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def BLTEU32_t : Pat<(brcc SETULE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTEU32 (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def BLTU32_t  : Pat<(brcc SETULT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTU32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def BGT32_t   : Pat<(brcc SETGT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGT32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def BGTE32_t  : Pat<(brcc SETGE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTE32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def BLT32_t   : Pat<(brcc SETLT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLT32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def BLTE32_t  : Pat<(brcc SETLE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTE32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETEQ,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BEQ32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETUGT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTU32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETUGE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTEU32 (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETULE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTEU32 (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETULT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTU32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETGT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGT32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETGE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTE32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETLT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLT32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETLE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTE32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
 
 

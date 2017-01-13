@@ -43,14 +43,12 @@ using namespace llvm;
 
 const char *EpiphanyTargetLowering::getTargetNodeName(unsigned Opcode) const {
   switch (Opcode) {
-    case EpiphanyISD::BR_CC:          return "EpiphanyISD::BR_CC";
     case EpiphanyISD::Call:           return "EpiphanyISD::Call";
     case EpiphanyISD::RTI:            return "EpiphanyISD::RTI";
     case EpiphanyISD::RTS:            return "EpiphanyISD::RTS";
-    case EpiphanyISD::SELECT_CC:      return "EpiphanyISD::SELECT_CC";
-    case EpiphanyISD::SETCC:          return "EpiphanyISD::SETCC";
     case EpiphanyISD::MOV:            return "EpiphanyISD::MOV";
-    case EpiphanyISD::FM_A_S:         return "EpiphanyISD::FM_A_S";
+    case EpiphanyISD::STORE:          return "EpiphanyISD::STORE";
+    case EpiphanyISD::LOAD:           return "EpiphanyISD::LOAD";
 
     default:                          return NULL;
   }
@@ -82,16 +80,16 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setStackPointerRegisterToSaveRestore(Epiphany::SP);
 
     // Provide ops that we don't have
-    setOperationAction(ISD::SDIV,      MVT::i32, Expand);
-    setOperationAction(ISD::SREM,      MVT::i32, Expand);
-    setOperationAction(ISD::UDIV,      MVT::i32, Expand);
-    setOperationAction(ISD::UREM,      MVT::i32, Expand);
-    setOperationAction(ISD::SDIVREM,   MVT::i32, Expand);
-    setOperationAction(ISD::UDIVREM,   MVT::i32, Expand);
-    setOperationAction(ISD::MULHS,     MVT::i32, Expand);
-    setOperationAction(ISD::MULHU,     MVT::i32, Expand);
-    setOperationAction(ISD::UMUL_LOHI, MVT::i32, Expand);
-    setOperationAction(ISD::SMUL_LOHI, MVT::i32, Expand);
+    setOperationAction(ISD::SDIV,      MVT::i32,  Expand);
+    setOperationAction(ISD::SREM,      MVT::i32,  Expand);
+    setOperationAction(ISD::UDIV,      MVT::i32,  Expand);
+    setOperationAction(ISD::UREM,      MVT::i32,  Expand);
+    setOperationAction(ISD::SDIVREM,   MVT::i32,  Expand);
+    setOperationAction(ISD::UDIVREM,   MVT::i32,  Expand);
+    setOperationAction(ISD::MULHS,     MVT::i32,  Expand);
+    setOperationAction(ISD::MULHU,     MVT::i32,  Expand);
+    setOperationAction(ISD::UMUL_LOHI, MVT::i32,  Expand);
+    setOperationAction(ISD::SMUL_LOHI, MVT::i32,  Expand);
 
     // Custom operations, see below
     setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
@@ -102,6 +100,7 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
   switch (Op.getOpcode()) {
     case ISD::GlobalAddress:
       return LowerGlobalAddress(Op, DAG);
+      break;
   }
   return SDValue();
 }
@@ -110,7 +109,7 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
 //  Lower helper functions
 //===----------------------------------------------------------------------===//
 bool EpiphanyTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
-   return false;
+  return false;
 }
 
 SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const {
@@ -121,7 +120,6 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   auto PTY = getPointerTy(DAG.getDataLayout());
 
   // For now let's think that it's all 32bit 
-  SDValue Reg = DAG.getRegister(Epiphany::R0, MVT::i32);
   SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
   return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
 }
@@ -145,10 +143,9 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
     const SmallVectorImpl<ISD::InputArg> &Ins,
     const SDLoc &DL, SelectionDAG &DAG,
     SmallVectorImpl<SDValue> &InVals) const {
-  
+
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo *MFI = MF.getFrameInfo();
-  EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
   MachineRegisterInfo &RegInfo = MF.getRegInfo();
 
   // Assign locations to all of the incoming arguments.
@@ -158,27 +155,51 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
 
   // Create frame index for the start of the first vararg value
   /*if (IsVarArg) {*/
-     //unsigned Offset = CCInfo.getNextStackOffset();
-    //FI->setVarArgsFrameIndex(MFI->CreateFixedObject(1, Offset, true));
+  //unsigned Offset = CCInfo.getNextStackOffset();
+  //FI->setVarArgsFrameIndex(MFI->CreateFixedObject(1, Offset, true));
   /*}*/
 
   for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
     CCValAssign &VA = ArgLocs[i];
+    SDValue ArgValue;
 
     // If assigned to register
     if (VA.isRegLoc()) {
       EVT RegVT = VA.getLocVT();
-      
-      // Check that the type is correct
-      if (RegVT.getSimpleVT().SimpleTy == MVT::i32) {
-        unsigned VReg = RegInfo.createVirtualRegister(&Epiphany::GPR32RegClass);
-        RegInfo.addLiveIn(VA.getLocReg(), VReg);
-        SDValue ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, RegVT);
-        InVals.push_back(ArgValue);
-      } else {
-        llvm_unreachable("Wrong arg type at EpiphanyTargetLowering::LowerFormalArguments");
+      DEBUG(errs() << "\nArg " << i << " assigned to reg " << VA.getLocReg()) ;
+
+      // Get register that was assigned
+      const TargetRegisterClass *RC = getRegClassFor(RegVT.getSimpleVT());
+      unsigned VReg = RegInfo.createVirtualRegister(RC);
+      RegInfo.addLiveIn(VA.getLocReg(), VReg);
+      ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, RegVT);
+
+      // Check how exactly we should make assignment based on the value type
+      switch (VA.getLocInfo()) {
+        default: llvm_unreachable("Unknown loc info!");
+        case CCValAssign::Full: 
+                 break;
+        case CCValAssign::BCvt:
+                 ArgValue = DAG.getNode(ISD::BITCAST, DL, VA.getValVT(), ArgValue);
+                 break;
+        case CCValAssign::SExt:
+                 ArgValue = DAG.getNode(ISD::AssertSext, DL, RegVT, ArgValue, DAG.getValueType(VA.getValVT()));
+                 ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
+                 break;
+        case CCValAssign::ZExt:        
+                 ArgValue = DAG.getNode(ISD::AssertZext, DL, RegVT, ArgValue, DAG.getValueType(VA.getValVT()));
+                 ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
+                 break;
       }
+
+    } else { // VA.isRegLoc()
+      assert(VA.isMemLoc());
+      int FI = MFI->CreateFixedObject(VA.getLocVT().getSizeInBits()/8, VA.getLocMemOffset(), true);
+      SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
+      ArgValue = DAG.getLoad(VA.getLocVT(), DL, Chain, FIN, MachinePointerInfo::getFixedStack(MF, FI));
     }
+
+    InVals.push_back(ArgValue);
   }
 
   return Chain;
@@ -241,8 +262,7 @@ EpiphanyTargetLowering::LowerReturn(SDValue Chain,
 
     if (!Reg)
       llvm_unreachable("sret virtual register not created in the entry block");
-    SDValue Val =
-      DAG.getCopyFromReg(Chain, DL, Reg, getPointerTy(DAG.getDataLayout()));
+    SDValue Val = DAG.getCopyFromReg(Chain, DL, Reg, getPointerTy(DAG.getDataLayout()));
     unsigned A1 = Epiphany::A1;
 
     Chain = DAG.getCopyToReg(Chain, DL, A1, Val, Flag);
@@ -252,7 +272,7 @@ EpiphanyTargetLowering::LowerReturn(SDValue Chain,
   //@Ordinary struct type: 2 }
 
   RetOps[0] = Chain;  // Update chain.
-
+ 
   // Add the flag if we have it.
   if (Flag.getNode())
     RetOps.push_back(Flag);
