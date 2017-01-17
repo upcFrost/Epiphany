@@ -31,7 +31,8 @@ void EpiphanyInstrInfo::anchor() {}
 
 //@EpiphanyInstrInfo {
 EpiphanyInstrInfo::EpiphanyInstrInfo(const EpiphanySubtarget &STI)
-  : Subtarget(STI), RI(STI) {}
+  : EpiphanyGenInstrInfo(Epiphany::ADJCALLSTACKDOWN, Epiphany::ADJCALLSTACKUP),
+    Subtarget(STI), RI(STI) {}
 
   const EpiphanyRegisterInfo &EpiphanyInstrInfo::getRegisterInfo() const {
     return RI;
@@ -78,11 +79,11 @@ void EpiphanyInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
 
   // Build instruction
   if (Rd == &Epiphany::GPR16RegClass) {
-    BuildMI(MBB, MI, DL, get(STRi32_r16)).addFrameIndex(FrameIdx).addImm(0)
-      .addReg(SrcReg, getKillRegState(KillSrc)).addMemOperand(MMO);
+    BuildMI(MBB, MI, DL, get(STRi32_r16)).addReg(SrcReg, getKillRegState(KillSrc))
+      .addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
   } else if (Rd == &Epiphany::GPR32RegClass) {
-    BuildMI(MBB, MI, DL, get(STRi32_r32)).addFrameIndex(FrameIdx).addImm(0)
-      .addReg(SrcReg, getKillRegState(KillSrc)).addMemOperand(MMO);
+    BuildMI(MBB, MI, DL, get(STRi32_r32)).addReg(SrcReg, getKillRegState(KillSrc))
+      .addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
   } else {
     llvm_unreachable("Cannot store this register to stack slot!");
   }
@@ -109,11 +110,9 @@ void EpiphanyInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
 
   // Build instruction
   if (Rd == &Epiphany::GPR16RegClass) {
-    BuildMI(MBB, MI, DL, get(LDRi32_r16)).addReg(DestReg, getDefRegState(true))
-      .addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
+    BuildMI(MBB, MI, DL, get(LDRi32_r16), DestReg).addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
   } else if (Rd == &Epiphany::GPR32RegClass) {
-    BuildMI(MBB, MI, DL, get(LDRi32_r32)).addReg(DestReg, getDefRegState(true))
-      .addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
+    BuildMI(MBB, MI, DL, get(LDRi32_r32), DestReg).addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
   } else {
     llvm_unreachable("Cannot store this register to stack slot!");
   }
@@ -143,22 +142,21 @@ void EpiphanyInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
     MachineBasicBlock::iterator I) const {
   DebugLoc DL = I != MBB.end() ? I->getDebugLoc() : DebugLoc();
   unsigned A1 = Epiphany::A1;
-  unsigned ADD16ri = Epiphany::ADD16ri;
-  unsigned ADD32ri = Epiphany::ADD32ri;
-  unsigned IADDrr = Epiphany::IADDrr;
+  unsigned ADD = Epiphany::ADDrr_r32;
+  unsigned IADD = Epiphany::ADDrr_i32_r32;
   unsigned MOVi32ri = Epiphany::MOVi32ri;
   unsigned MOVTi32ri = Epiphany::MOVTi32ri;
 
   if (isInt<11>(Amount)) {
     // add sp, sp, amount
-    BuildMI(MBB, I, DL, get(ADD32ri), SP).addReg(SP).addImm(Amount);
+    BuildMI(MBB, I, DL, get(ADD), SP).addReg(SP).addImm(Amount);
   } else { // Expand immediate that doesn't fit in 11-bit.
     // Set lower 16 bits
     BuildMI(MBB, I, DL, get(MOVi32ri), A1).addImm(Amount & 0xffff);
     // Set upper 16 bits
     BuildMI(MBB, I, DL, get(MOVTi32ri), A1).addReg(A1).addImm(Amount >> 16);
     // iadd sp, sp, amount
-    BuildMI(MBB, I, DL, get(IADDrr), SP).addReg(SP).addReg(A1, RegState::Kill);
+    BuildMI(MBB, I, DL, get(IADD), SP).addReg(SP).addReg(A1, RegState::Kill);
   }
 }
 

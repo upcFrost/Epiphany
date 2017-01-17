@@ -344,12 +344,12 @@ class Math32rr<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode,
 // Arithmetic operations with registers: Floating/Integer
 //===----------------------------------------------------------------------===//
 
-class AnyMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+class SimpleMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
   Math16rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, NoItinerary> {}
 
-class AnyMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
-  Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
+class SimpleMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+  Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"),
           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, NoItinerary> {
   let Inst{19-16} = 0b1010;
 }
@@ -358,28 +358,14 @@ class AnyMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass
 // Arithmetic operations with registers: Integer
 //===----------------------------------------------------------------------===//
 
-class IntMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
-  Math16rr<(outs GPR16:$Rd), (ins GPR16:$Rn, GPR16:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set GPR16:$Rd, (OpNode GPR16:$Rn, GPR16:$Rm))], opcode, NoItinerary> {}
+class ComplexMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+  Math16rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"), 
+           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, NoItinerary> {}
 
-class IntMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
-  Math32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set GPR32:$Rd, (OpNode GPR32:$Rn, GPR32:$Rm))], opcode, NoItinerary> {
-  let Inst{19-16} = 0b1010;
-}
-
-//===----------------------------------------------------------------------===//
-// Arithmetic operations with registers: Floating point
-//===----------------------------------------------------------------------===//
-
-class FPMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
-  Math16rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {}
-          
-class FPMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode> :
-  Math32rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set FPR32:$Rd, (OpNode FPR32:$Rn, FPR32:$Rm))], opcode, NoItinerary> {
- let Inst{19-16} = 0b0111;
+class ComplexMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+  Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"), 
+           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, NoItinerary> {
+  let Inst{19-16} = 0b0111;
 }
 
 //===----------------------------------------------------------------------===//
@@ -603,13 +589,18 @@ class MovCond32rr<string instr_asm, list<dag> pattern, ConditionCode cond, Regis
 //===----------------------------------------------------------------------===//
 // Branching/Jumps
 //===----------------------------------------------------------------------===//
-def jmptarget : Operand<OtherVT> {
-  
+class IsTailCall {
+  bit isCall = 1;
+  bit isTerminator = 1;
+  bit isReturn = 1;
+  bit isBarrier = 1;
+  bit hasExtraSrcRegAllocReq = 1;
+  bit isCodeGenOnly = 1;
 }
 
-def cc : Operand<i8> {
-
-}
+def jmptarget : Operand<OtherVT> {}
+def cc : Operand<i8> {}
+def calltarget  : Operand<iPTR> { let EncoderMethod = "getJumpTargetOpValue"; }
 
 class JumpReg16<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionCode cond>
     : Normal16<(outs), (ins GPR16:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rn"),
@@ -650,13 +641,13 @@ class Branch16<list<dag> pattern>
   let Uses         = [STATUS];
 }
 
-class Branch32<list<dag> pattern>
-    : Normal32<(outs), (ins jmptarget:$addr), !strconcat("b", "\t$addr"),
+class Branch32<dag ins, list<dag> pattern, ConditionCode cond>
+    : Normal32<(outs), ins, !strconcat("b", cond.Asm, "\t$addr"),
              pattern, NoItinerary> {
   bits<24> target;
 
   let Inst{31-8}   = target;
-  let Inst{7-4}    = COND_NONE.Code;
+  let Inst{7-4}    = cond.Code;
   let Inst{3-0}    = 0b1000;
 
   let isBranch     = 1;
