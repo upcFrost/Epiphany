@@ -1,4 +1,4 @@
-//===----- EpiphanyInstrInfo.td - Epiphany Instruction Info ----*- tablegen -*-=//
+//===---- EpiphanyInstrInfo.td - Epiphany Instruction Info ---*- tablegen -*-=//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -12,6 +12,56 @@
 //===----------------------------------------------------------------------===//
 
 include "EpiphanyInstrFormats.td"
+
+//===----------------------------------------------------------------------===//
+// Note for self and anyone who may read it (mini-manual as the web one sucks):
+//   MC  - Machine code. In short and in general, binary.
+//   DAG - Directed Acyclic Graph. Think of it as if you're solving an equation
+//         with pen and paper. Solution steps = DAG
+//   Lowering - Changing instructions in DAG. Think of it as solving an equation
+//              and substituting one form (i.e. with variables) with another
+//              (i.e. with numbers).
+// 
+// Most of the classes (except some very final multiclasses) are kept in
+//   EpiphanyInstrFormats.td. It's my personal preference.
+//
+// Classes are used to set up main parameters, and usually only require opcode
+//   and/or RegClass to be used.
+//
+// Multiclasses are used to make definitions shorter. For example:
+//     multiclass LoadM<> {
+//       def _r16: Load16<>;
+//       def _r32: Load32<>;
+//     }
+//     defm LDR : LoadM<>;
+//   Is the same as writing to defs for Load16 and Load32. 
+//   Names are LDR_r16 and LDR_r32
+//
+// For how SDNodes are used see EpiphanyISelLowering.cpp, look for "Custom"
+//
+// Pseudo instructions are used in the same way as SDNodes, i.e. when we need
+//   to show that there is an instruction, but we will disclose how it should
+//   look later on. They may even have their patterns empty if they are matched
+//   from the C++ code.
+//
+// Patterns (Pat keyword) are used to replace one DAG value with another. For
+//   example 
+//     def : Pat<(add A, B, C), (mul A, B, C)>;
+//   will replace addition with multiplication (yeah, stupid example, i know).
+//
+// Complex patterns have some function attached, i.e. "SelectAddr" for the 
+//   address pattern. See EpiphanyISelDAGToDAG how those are used.
+//   Those functions return true if the operand is valid for this pattern,
+//   and false otherwise (i.e. if we expect 1 byte value, int 1 is true, and 
+//   int 2^62 is false);
+//
+// Custom operands have additional methods for them, such as EncoderMethod and
+//   PrintMethod. Note that Encoder = MC printing, Printer = Asm printing.
+//
+//
+//
+// Petr Belyaev <upcfrost@gmail.com>
+//===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
 // Target-specific ISD nodes and profiles
@@ -66,24 +116,35 @@ def LDRf32   : Load16<0, FPR32, AlignedLoad<load>,    LS_word>;
 def STRf32   : Store16<0, FPR32, AlignedStore<store>, LS_word>;
 
 //===----------------------------------------------------------------------===//
-// Integer arithmetic operations with registers
+// Arithmetic operations with registers
 //===----------------------------------------------------------------------===//
-let Defs = [STATUS] in {
-  // Integer
-  def ADDi32rr : AnyMath32rr<0b0011111, "add", addc, GPR32>;
-  def SUBi32rr : AnyMath32rr<0b0111111, "sub", subc, GPR32>;
-  def ANDi32rr : AnyMath32rr<0b1011111, "and", and,  GPR32>;
-  def ORRi32rr : AnyMath32rr<0b1111111, "orr", or,   GPR32>;
-  def EORi32rr : AnyMath32rr<0b0001111, "eor", xor,  GPR32>;
-  def LSLi32rr : AnyMath32rr<0b0101111, "lsl", shl,  GPR32>;
-  def LSRi32rr : AnyMath32rr<0b1001111, "lsr", srl,  GPR32>;
-  def ASRi32rr : AnyMath32rr<0b1101111, "asr", sra,  GPR32>;
+multiclass SimpleMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
+  def _r16 : SimpleMath16rr<opcode16, instr_asm, OpNode, GPR16>;
+  def _r32 : SimpleMath32rr<opcode32, instr_asm, OpNode, GPR32>;
 }
 
 let Defs = [STATUS] in {
-  def IADDrr : IntMath32rr<0b0011111, "iadd", add>;
-  def IMULrr : IntMath32rr<0b0101111, "imul", mul>;
-  def ISUBrr : IntMath32rr<0b0111111, "isub", sub>;
+  defm ADDrr : SimpleMath<0b0011010, 0b0011111, "add", addc>;
+  defm SUBrr : SimpleMath<0b0111010, 0b0111111, "sub", subc>;
+  defm ANDrr : SimpleMath<0b1011010, 0b1011111, "and", and >;
+  defm ORRrr : SimpleMath<0b1111010, 0b1111111, "orr", or  >;
+  defm EORrr : SimpleMath<0b0001010, 0b0001111, "eor", xor >;
+  defm ASRrr : SimpleMath<0b1101010, 0b1101111, "asr", sra >;
+  defm LSRrr : SimpleMath<0b1001010, 0b1001111, "lsr", srl >;
+  defm LSLrr : SimpleMath<0b0101010, 0b0101111, "lsl", shl >;
+}
+
+// Complex math: i32/f32
+multiclass ComplexMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNodeI, SDNode OpNodeF> {
+  def _i32_r16 : ComplexMath16rr<opcode16, !strconcat("i", instr_asm), OpNodeI, GPR16>;
+  def _i32_r32 : ComplexMath32rr<opcode32, !strconcat("i", instr_asm), OpNodeI, GPR32>;
+  def _f32_r32 : ComplexMath32rr<opcode32, !strconcat("f", instr_asm), OpNodeF, FPR32>;
+}
+
+let Defs = [STATUS] in {
+  defm ADDrr : ComplexMath<0b0000111, 0b0011111, "add", add, fadd>;
+  defm SUBrr : ComplexMath<0b0010111, 0b0111111, "sub", sub, fsub>;
+  defm MULrr : ComplexMath<0b0100111, 0b0101111, "mul", mul, fmul>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -112,17 +173,6 @@ let Defs = [STATUS] in {
 //===----------------------------------------------------------------------===//
 // Additional integer arithmetic patterns
 //===----------------------------------------------------------------------===//
-
-//===----------------------------------------------------------------------===//
-// Floating-point arithmetic operations with registers
-//===----------------------------------------------------------------------===//
-
-// All the instructions set STATUS flags
-let Defs = [STATUS] in {
-  def FADDrr : FPMath32rr<0b0001111, "fadd", fadd>;
-  def FSUBrr : FPMath32rr<0b0011111, "fsub", fsub>;
-  def FMULrr : FPMath32rr<0b0101111, "fmul", fmul>;
-}
 
 //===----------------------------------------------------------------------===//
 // IntToFloat and Abs
@@ -185,20 +235,19 @@ def : Pat<(i32 (MOV tblockaddress:$dst)), (MOVi32ri tblockaddress:$dst)>;
 //===----------------------------------------------------------------------===//
 // Branching
 //===----------------------------------------------------------------------===//
+// Return
 let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
   def RTS : Pseudo32<(outs), (ins), [(EpiphanyRet)]>;
 }
 
+// JR
 let isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
   def JR16 : JumpReg16<"jr", 0b0101000010, [(brind GPR16:$Rn)], COND_NONE>;
-}
-
-let isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
   def JR32 : JumpReg32<"jr", 0b0101001111, [(brind GPR32:$Rn)], COND_NONE>;
 }
 
 // Branches are made combining sub (cmp replacement) and b<cond>
-def BNONE32 : Branch32<[(br bb:$addr)]>;
+def BNONE32 : Branch32<(ins jmptarget:$addr), [(br bb:$addr)], COND_NONE>;
 def BEQ32   : BranchCC32<COND_EQ>;
 def BGTU32  : BranchCC32<COND_GTU>;
 def BGTEU32 : BranchCC32<COND_GTEU>;
@@ -209,14 +258,43 @@ def BGTE32  : BranchCC32<COND_GTE>;
 def BLT32   : BranchCC32<COND_LT>;
 def BLTE32  : BranchCC32<COND_LTE>;
 
-def : Pat<(brcc SETEQ,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BEQ32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETUGT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTU32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETUGE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTEU32 (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETULE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTEU32 (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETULT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTU32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETGT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGT32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETGE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTE32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETLT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLT32   (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETLE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTE32  (SUBi32rr GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+// Patterns to use while replacing "brcc" (condition branch)
+def : Pat<(brcc SETEQ,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BEQ32   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETUGT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTU32  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETUGE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTEU32 (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETULE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTEU32 (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETULT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTU32  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETGT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGT32   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETGE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTE32  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETLT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLT32   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETLE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTE32  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
 
+//===----------------------------------------------------------------------===//
+// Function Calls and JALR
+//===----------------------------------------------------------------------===//
+// Types
+def SDT_CallSeqStart : SDCallSeqStart<[ SDTCisPtrTy<0> ]>;
+def SDT_CallSeqEnd   : SDCallSeqEnd<[ SDTCisPtrTy<0>, SDTCisPtrTy<1> ]>; 
+def SDT_JmpLink      : SDTypeProfile<0, 1, [SDTCisVT<0, iPTR>]>;
 
+// Nodes
+def callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_CallSeqStart, [SDNPHasChain, SDNPOutGlue]>;
+def callseq_end   : SDNode<"ISD::CALLSEQ_END",   SDT_CallSeqEnd, [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
+def EpiphanyCall  : SDNode<"EpiphanyISD::Call",  SDT_JmpLink, [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
+
+// Pseudo instructions (see EpiphanyInstrInfo.cpp)
+let Defs = [SP], Uses = [SP] in {
+  def ADJCALLSTACKDOWN : Pseudo32<(outs), (ins i32imm:$amt), [(callseq_start timm:$amt)]>;
+  def ADJCALLSTACKUP   : Pseudo32<(outs), (ins i32imm:$amt1, i32imm:$amt2), [(callseq_end timm:$amt1, timm:$amt2)]>;
+}
+
+let isCall = 1, Defs = [LR] in {
+  def BL32 : Branch32<(ins calltarget:$addr), [(EpiphanyCall tglobaladdr:$addr)], COND_L> {
+    let isBranch = 1;
+  }
+  
+  let isBarrier = 0 in {
+    def JALR16 : JumpReg16<"jalr",   0b0101010010, [(EpiphanyCall GPR16:$Rn)], COND_NONE>;
+    def JALR32 : JumpReg32<"jalr.l", 0b0101011111, [(EpiphanyCall GPR32:$Rn)], COND_NONE>;
+  }
+}

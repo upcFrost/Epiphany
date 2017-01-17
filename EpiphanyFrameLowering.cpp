@@ -50,7 +50,7 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
     *static_cast<const EpiphanyRegisterInfo *>(STI.getRegisterInfo());
 
   MachineBasicBlock::iterator MBBI = MBB.begin();
-  DebugLoc dl = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
+  DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
   EpiphanyABIInfo ABI = STI.getABI();
   unsigned SP = Epiphany::SP;
   unsigned FP = Epiphany::FP;
@@ -69,24 +69,24 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
   const MCRegisterInfo *MRI = MMI.getContext().getRegisterInfo();
   MachineLocation DstML, SrcML;
 
-    // if framepointer enabled, set it to point to the stack pointer.
+  // if framepointer enabled, set it to point to the stack pointer.
   if (hasFP(MF)) {
     // TODO: Offset 0 for the SP is fixed for now. This is not correct, but at least for testing. 
     // offset is added later
     //
     // Save old FP to stack
-    BuildMI(MBB, MBBI, dl, TII.get(STRi32_r32), FP).addReg(SP).addImm(0).setMIFlag(MachineInstr::FrameSetup);
- 
+    BuildMI(MBB, MBBI, DL, TII.get(STRi32_r32), FP).addReg(SP).addImm(0).setMIFlag(MachineInstr::FrameSetup);
+
     // Adding offset
     // TODO: Should be merged in STR/POSTMODIFY
     TII.adjustStackPtr(SP, -StackSize, MBB, MBBI);
 
     // Move new SP to FP
-    BuildMI(MBB, MBBI, dl, TII.get(MOVi32rr), FP).addReg(SP).setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MBBI, DL, TII.get(MOVi32rr), FP).addReg(SP).setMIFlag(MachineInstr::FrameSetup);
 
     // emit ".cfi_def_cfa_register $fp"
     CFIIndex = MMI.addFrameInst(MCCFIInstruction::createDefCfaRegister(nullptr, MRI->getDwarfRegNum(FP, true)));
-    BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
+    BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
   } else {
     // Just adjust SP if no frame present
     TII.adjustStackPtr(SP, -StackSize, MBB, MBBI);
@@ -94,7 +94,7 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
 
   // emit ".cfi_def_cfa_offset StackSize"
   CFIIndex = MMI.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, -StackSize));
-  BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
+  BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
 
   const std::vector<CalleeSavedInfo> &CSI = MFI->getCalleeSavedInfo();
 
@@ -113,7 +113,7 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
       {
         // Reg is in CPURegs.
         CFIIndex = MMI.addFrameInst(MCCFIInstruction::createOffset(nullptr, MRI->getDwarfRegNum(Reg, 1), Offset));
-        BuildMI(MBB, MBBI, dl, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
+        BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
       }
     }
   }
@@ -145,12 +145,12 @@ void EpiphanyFrameLowering::emitEpilogue(MachineFunction &MF,
   if (!StackSize)
     return;
 
-   // if framepointer enabled, set it to point to the stack pointer.
+  // if framepointer enabled, set it to point to the stack pointer.
   if (hasFP(MF)) {
     // Restore old frame pointer as SP + offset
     BuildMI(MBB, MBBI, dl, TII.get(LDRi32_r32), FP).addReg(SP).addImm(StackSize).setMIFlag(MachineInstr::FrameSetup);
   }
- 
+
   // Adjust stack.
   TII.adjustStackPtr(SP, StackSize, MBB, MBBI);
 }
@@ -179,8 +179,7 @@ void EpiphanyFrameLowering::determineCalleeSaves(MachineFunction &MF,
   return;
 }
 
-bool
-EpiphanyFrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
+bool EpiphanyFrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
 
   // Reserve call frame if the size of the maximum call frame fits into 16-bit
@@ -189,6 +188,31 @@ EpiphanyFrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
   // instruction.
   return isInt<16>(MFI->getMaxCallFrameSize() + getStackAlignment()) &&
     !MFI->hasVarSizedObjects();
+}
+
+bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
+    MachineBasicBlock::iterator MI, const std::vector<CalleeSavedInfo> &CSI, const TargetRegisterInfo *TRI) const {
+  MachineFunction *MF = MBB.getParent();
+  MachineBasicBlock *EntryBlock = &MF->front();
+  const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
+
+  for (unsigned i = 0, e = CSI.size(); i != e; ++i) {
+    // Add the callee-saved register as live-in.
+    // It's killed at the spill, unless the register is LR and return address
+    // is taken.
+    unsigned Reg = CSI[i].getReg();
+    bool IsRAAndRetAddrIsTaken = (Reg == Epiphany::LR) && MF->getFrameInfo()->isReturnAddressTaken();
+    if (!IsRAAndRetAddrIsTaken) {
+      EntryBlock->addLiveIn(Reg);
+    }
+
+    // Insert the spill to the stack frame.
+    bool IsKill = !IsRAAndRetAddrIsTaken;
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+    TII.storeRegToStackSlot(*EntryBlock, MI, Reg, IsKill, CSI[i].getFrameIdx(), RC, TRI);
+  }
+
+  return true;
 }
 
 // hasFP - Return true if the specified function should have a dedicated frame
@@ -204,3 +228,23 @@ bool EpiphanyFrameLowering::hasFP(const MachineFunction &MF) const {
       MFI->hasVarSizedObjects() ||
       MFI->isFrameAddressTaken());
 }
+
+// Eliminate pseudo ADJCALLSTACKUP/ADJCALLSTACKDOWN instructions
+// See EpiphanyInstrInfo.td and EpiphanyInstrInfo.cpp
+MachineBasicBlock::iterator EpiphanyFrameLowering::eliminateCallFramePseudoInstr(
+    MachineFunction &MF, MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const {
+  unsigned SP = Epiphany::SP;
+
+  if (!hasReservedCallFrame(MF)) {
+    // Keep positive if adjusting up, negate if down
+    int64_t Amount = I->getOperand(0).getImm();
+    if (I->getOpcode() == Epiphany::ADJCALLSTACKDOWN) {
+      Amount = -Amount;
+    }
+    // Issue adjustment commands
+    STI.getInstrInfo()->adjustStackPtr(SP, Amount, MBB, I);
+  }
+
+  return MBB.erase(I);
+}
+
