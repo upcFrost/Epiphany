@@ -247,16 +247,18 @@ let isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
 }
 
 // Branches are made combining sub (cmp replacement) and b<cond>
-def BNONE32 : Branch32<(ins jmptarget:$addr), [(br bb:$addr)], COND_NONE>;
-def BEQ32   : BranchCC32<COND_EQ>;
-def BGTU32  : BranchCC32<COND_GTU>;
-def BGTEU32 : BranchCC32<COND_GTEU>;
-def BLTEU32 : BranchCC32<COND_LTEU>;
-def BLTU32  : BranchCC32<COND_LTU>;
-def BGT32   : BranchCC32<COND_GT>;
-def BGTE32  : BranchCC32<COND_GTE>;
-def BLT32   : BranchCC32<COND_LT>;
-def BLTE32  : BranchCC32<COND_LTE>;
+let isBarrier = 1, hasDelaySlot = 0 in {
+  def BNONE32 : Branch32<(ins jmptarget:$addr), [(br bb:$addr)], COND_NONE>;
+  def BEQ32   : BranchCC32<COND_EQ>;
+  def BGTU32  : BranchCC32<COND_GTU>;
+  def BGTEU32 : BranchCC32<COND_GTEU>;
+  def BLTEU32 : BranchCC32<COND_LTEU>;
+  def BLTU32  : BranchCC32<COND_LTU>;
+  def BGT32   : BranchCC32<COND_GT>;
+  def BGTE32  : BranchCC32<COND_GTE>;
+  def BLT32   : BranchCC32<COND_LT>;
+  def BLTE32  : BranchCC32<COND_LTE>;
+}
 
 // Patterns to use while replacing "brcc" (condition branch)
 def : Pat<(brcc SETEQ,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BEQ32   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
@@ -288,7 +290,7 @@ let Defs = [SP], Uses = [SP] in {
   def ADJCALLSTACKUP   : Pseudo32<(outs), (ins i32imm:$amt1, i32imm:$amt2), [(callseq_end timm:$amt1, timm:$amt2)]>;
 }
 
-let isCall = 1, Defs = [LR] in {
+let isCall = 1, Defs = [LR], hasDelaySlot = 0 in {
   def BL32 : Branch32<(ins calltarget:$addr), [(EpiphanyCall tglobaladdr:$addr)], COND_L> {
     let isBranch = 1;
   }

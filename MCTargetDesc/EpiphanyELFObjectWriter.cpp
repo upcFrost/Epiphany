@@ -78,6 +78,12 @@ unsigned EpiphanyELFObjectWriter::getRelocType(MCContext &Ctx,
   case Epiphany::fixup_Epiphany_GOT_LO16:
     Type = ELF::R_EPIPHANY_GOT_LO16;
     break;
+  case Epiphany::fixup_Epiphany_PCREL16:
+    Type = ELF::R_EPIPHANY_PCREL16;
+    break;
+  case Epiphany::fixup_Epiphany_PCREL24:
+    Type = ELF::R_EPIPHANY_PCREL24;
+    break;
   }
 
   return Type;

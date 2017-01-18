@@ -46,9 +46,8 @@ static void CreateMCInst(MCInst& Inst, unsigned Opc, const MCOperand& Opnd0,
 
 // @LowerOperand
 MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
-    unsigned offset) const {
+    unsigned Offset) const {
   const MCSymbol *Symbol;
-  unsigned Offset;
   MCSymbolRefExpr::VariantKind Kind = MCSymbolRefExpr::VK_None;
 
   switch (MO.getType()) {

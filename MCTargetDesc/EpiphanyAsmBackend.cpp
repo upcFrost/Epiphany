@@ -118,7 +118,9 @@ getFixupKindInfo(MCFixupKind Kind) const {
 		{ "fixup_Epiphany_GPREL16",        0,     16,   0 },
 		{ "fixup_Epiphany_GOT",            0,     16,   0 },
 		{ "fixup_Epiphany_GOT_HI16",       0,     16,   0 },
-		{ "fixup_Epiphany_GOT_LO16",       0,     16,   0 }
+		{ "fixup_Epiphany_GOT_LO16",       0,     16,   0 },
+		{ "fixup_Epiphany_PCREL16",        0,     16,   MCFixupKindInfo::FKF_IsPCRel },
+		{ "fixup_Epiphany_PCREL24",        0,     24,   MCFixupKindInfo::FKF_IsPCRel }
 	};
 
 	if (Kind < FirstTargetFixupKind)

@@ -46,6 +46,10 @@ namespace llvm {
 			// resulting in - R_EPIPHANY_GOT_LO16
 			fixup_Epiphany_GOT_LO16,
 
+      // All branches are relative to the PC
+      fixup_Epiphany_PCREL16,
+      fixup_Epiphany_PCREL24,
+
 			// Marker
 			LastTargetFixupKind,
 			NumTargetFixupKinds = LastTargetFixupKind - FirstTargetFixupKind
