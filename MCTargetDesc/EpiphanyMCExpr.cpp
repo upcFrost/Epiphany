@@ -21,7 +21,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "cpu0mcexpr"
+#define DEBUG_TYPE "mcexpr"
 
 const EpiphanyMCExpr *EpiphanyMCExpr::create(EpiphanyMCExpr::EpiphanyExprKind Kind,
                                      const MCExpr *Expr, MCContext &Ctx) {

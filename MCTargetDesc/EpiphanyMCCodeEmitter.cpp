@@ -120,14 +120,12 @@ getJumpTargetOpValue(const MCInst &MI, unsigned OpNo,
 
   // If destination is already resolved into immediate - nothing to do
   if (MO.isImm()) {
-    dbgs() << "\nFixup to immediate: " << MO.getImm() << "\n";
     return MO.getImm();
   }
 
   // If not imm - it should be an expression, otherwise it's smth strange
   assert(MO.isExpr() && "Strange MO in getJumpTargetOpValue");
   const MCExpr *Expr = MO.getExpr();
-  dbgs() << "\nFixup to expression: "; MO.getExpr()->dump();
   Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind(Epiphany::fixup_Epiphany_PCREL24)));
   return 0;
 }
