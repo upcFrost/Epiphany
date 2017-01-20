@@ -15,7 +15,6 @@
 #include "EpiphanyISelLowering.h"
 
 #include "MCTargetDesc/EpiphanyAddressingModes.h"
-#include "MCTargetDesc/EpiphanyBaseInfo.h"
 #include "EpiphanyMachineFunction.h"
 #include "EpiphanyTargetMachine.h"
 #include "EpiphanyTargetObjectFile.h"
@@ -273,7 +272,7 @@ EpiphanyTargetLowering::LowerReturn(SDValue Chain,
   //@Ordinary struct type: 2 }
 
   RetOps[0] = Chain;  // Update chain.
-
+ 
   // Add the flag if we have it.
   if (Flag.getNode())
     RetOps.push_back(Flag);

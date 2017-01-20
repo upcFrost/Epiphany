@@ -72,9 +72,6 @@ MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
       Symbol = AsmPrinter.getSymbol(MO.getGlobal());
       Offset += MO.getOffset();
       break;
-    case MachineOperand::MO_JumpTableIndex:
-      Symbol = AsmPrinter.GetJTISymbol(MO.getIndex());
-      break;
   }
   const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, Kind, *Ctx);
   if (Offset) {

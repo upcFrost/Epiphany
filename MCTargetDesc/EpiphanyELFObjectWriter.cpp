@@ -105,9 +105,6 @@ EpiphanyELFObjectWriter::needsRelocateWithSymbol(const MCSymbol &Sym,
   //  llvm_unreachable("Should have been handled already");
     return true;
 
-  // Jumps and branches need relocation
-  case ELF::R_EPIPHANY_PCREL16:
-  case ELF::R_EPIPHANY_PCREL24:
   // These relocations might be paired with another relocation. The pairing is
   // done by the static linker by matching the symbol. Since we only see one
   // relocation at a time, we have to force them to relocate with a symbol to
