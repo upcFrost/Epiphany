@@ -604,7 +604,6 @@ let OperandType = "OPERAND_PCREL" in {
 }
 def cc : Operand<i8> {}
 
-
 class JumpReg16<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionCode cond>
     : Normal16<(outs), (ins GPR16:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rn"),
              pattern, NoItinerary> {

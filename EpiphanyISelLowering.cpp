@@ -272,13 +272,227 @@ EpiphanyTargetLowering::LowerReturn(SDValue Chain,
   //@Ordinary struct type: 2 }
 
   RetOps[0] = Chain;  // Update chain.
- 
+
   // Add the flag if we have it.
   if (Flag.getNode())
     RetOps.push_back(Flag);
 
   return DAG.getNode(EpiphanyISD::RTS, DL, MVT::Other, RetOps);
 }
+
+//===----------------------------------------------------------------------===//
+//@            Function Call Calling Convention Implementation
+//===----------------------------------------------------------------------===//
+// From original Hoenchen implementation
+
+SDValue
+EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue> &InVals) const {
+  // Init needed parameters
+  SelectionDAG &DAG                     = CLI.DAG;
+  SDLoc &DL                             = CLI.DL;
+  SmallVector<ISD::OutputArg, 32> &Outs = CLI.Outs;
+  SmallVector<SDValue, 32> &OutVals     = CLI.OutVals;
+  SmallVector<ISD::InputArg, 32> &Ins   = CLI.Ins;
+  SDValue Chain                         = CLI.Chain;
+  SDValue Callee                        = CLI.Callee;
+  bool &IsTailCall                      = CLI.IsTailCall;
+  CallingConv::ID CallConv              = CLI.CallConv;
+  bool IsVarArg                         = CLI.IsVarArg;
+
+  MachineFunction &MF = DAG.getMachineFunction();
+  bool IsStructRet = !Outs.empty() && Outs[0].Flags.isSRet();
+
+  // Check if the call is eligible for tail optimization
+  if (IsTailCall) {
+    IsTailCall = IsEligibleForTailCallOptimization(Callee, CallConv, IsVarArg, IsStructRet, MF.getFunction()->hasStructRetAttr(), Outs, OutVals, Ins, DAG);
+  }
+
+  // Analyze return variables based on EpiphanyCallingConv.td
+  SmallVector<CCValAssign, 16> ArgLocs;
+  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
+  CCInfo.AnalyzeCallOperands(Outs, RetCC_Epiphany);
+
+  // On Epiphany (and all other architectures I'm aware of) the most this has to
+  // do is adjust the stack pointer.
+  //
+  unsigned NextStackOffset = CCInfo.getNextStackOffset();
+  unsigned StackAlignment = 16;
+  NextStackOffset = alignTo(NextStackOffset, StackAlignment);
+  SDValue NextStackOffsetVal = DAG.getIntPtrConstant(NextStackOffset, DL, true);
+  Chain = DAG.getCALLSEQ_START(Chain, NextStackOffsetVal, DL);
+  SDValue StackPtr = DAG.getCopyFromReg(Chain, DL, Epiphany::SP, getPointerTy(DAG.getDataLayout()));
+  SmallVector<SDValue, 8> MemOpChains;
+  SmallVector<std::pair<unsigned, SDValue>, 8> RegsToPass;
+
+  // Check each argument if it needs any modifications and push it into the stack
+  for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
+    CCValAssign &VA = ArgLocs[i];
+    ISD::ArgFlagsTy Flags = Outs[i].Flags;
+    SDValue Arg = OutVals[i];
+
+    // Callee does the actual widening, so all extensions just use an implicit
+    // definition of the rest of the Loc. Aesthetically, this would be nicer as
+    // an ANY_EXTEND, but that isn't valid for floating-point types and this
+    // alternative works on integer types too.
+    switch (VA.getLocInfo()) {
+      default: llvm_unreachable("Unknown loc info!");
+      case CCValAssign::Full: 
+               // Nothing to do
+               break;
+      case CCValAssign::SExt:
+      case CCValAssign::ZExt:
+      case CCValAssign::AExt:
+               // Floating-point arguments only get extended/truncated if they're going
+               // in memory, so using the integer operation is acceptable here.
+               Arg = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), Arg);
+               break;
+      case CCValAssign::BCvt:
+               Arg = DAG.getNode(ISD::BITCAST, DL, VA.getLocVT(), Arg);
+               break;
+    }
+
+    if (VA.isRegLoc()) {
+      // A normal register (sub-) argument. For now we just note it down because
+      // we want to copy things into registers as late as possible to avoid
+      // register-pressure (and possibly worse).
+      RegsToPass.push_back(std::make_pair(VA.getLocReg(), Arg));
+      continue;
+    }
+
+    // If arg is neither Reg nor Memory - throw error
+    assert(VA.isMemLoc() && "unexpected argument location");
+
+    // Deal with memory-stored args
+    SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset(), DL, /* isTarget = */ false);
+    SDValue DstAddr = DAG.getNode(ISD::ADD, DL, getPointerTy(DAG.getDataLayout()), StackPtr, PtrOff);
+
+    if (Flags.isByVal()) {
+      SDValue SizeNode = DAG.getConstant(Flags.getByValSize(), DL, MVT::i32);
+      SDValue Cpy = DAG.getMemcpy(Chain, DL, DstAddr, Arg, SizeNode, Flags.getByValAlign(), 
+          /*isVolatile = */ false, /*alwaysInline = */ false, /*isTailCall = */ false,
+          MachinePointerInfo(), MachinePointerInfo());
+      MemOpChains.push_back(Cpy);
+    } else {
+      // Normal stack argument, put it where it's needed.
+      SDValue Store = DAG.getStore(Chain, DL, Arg, DstAddr, MachinePointerInfo());
+      MemOpChains.push_back(Store);
+    }
+  }
+
+  // The loads and stores generated above shouldn't clash with each
+  // other. Combining them with this TokenFactor notes that fact for the rest of
+  // the backend.
+  if (!MemOpChains.empty()) {
+    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOpChains);
+  }
+
+  // Most of the rest of the instructions need to be glued together; we don't
+  // want assignments to actual registers used by a call to be rearranged by a
+  // well-meaning scheduler.
+  SDValue InFlag;
+  for (unsigned i = 0, e = RegsToPass.size(); i != e; ++i) {
+    Chain = DAG.getCopyToReg(Chain, DL, RegsToPass[i].first, RegsToPass[i].second, InFlag);
+    InFlag = Chain.getValue(1);
+  }
+
+  // The linker is responsible for inserting veneers when necessary to put a
+  // function call destination in range, so we don't need to bother with a
+  // wrapper here.
+  if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
+    const GlobalValue *GV = G->getGlobal();
+    Callee = DAG.getTargetGlobalAddress(GV, DL, getPointerTy(DAG.getDataLayout()));
+  } else if (ExternalSymbolSDNode *S = dyn_cast<ExternalSymbolSDNode>(Callee)) {
+    const char *Sym = S->getSymbol();
+    Callee = DAG.getTargetExternalSymbol(Sym, getPointerTy(DAG.getDataLayout()));
+  }
+
+  // We produce the following DAG scheme for the actual call instruction:
+  //     (EpiphanyCall Chain, Callee, reg1, ..., regn, preserveMask, inflag?
+  //
+  // Most arguments aren't going to be used and just keep the values live as
+  // far as LLVM is concerned. It's expected to be selected as simply "bl
+  // callee" (for a direct, non-tail call).
+  std::vector<SDValue> Ops;
+  Ops.push_back(Chain);
+  Ops.push_back(Callee);
+
+  for (unsigned i = 0, e = RegsToPass.size(); i != e; ++i) {
+    Ops.push_back(DAG.getRegister(RegsToPass[i].first, RegsToPass[i].second.getValueType()));
+  }
+
+  // Add a register mask operand representing the call-preserved registers. This
+  // is used later in codegen to constrain register-allocation.
+  const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
+  const uint32_t *Mask = TRI->getCallPreservedMask(MF, CallConv);
+  assert(Mask && "Missing call preserved mask for calling convention");
+  Ops.push_back(DAG.getRegisterMask(Mask));
+
+  // If we needed glue, put it in as the last argument.
+  if (InFlag.getNode()) {
+    Ops.push_back(InFlag);
+  }
+
+  SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
+  Chain = DAG.getNode(EpiphanyISD::Call, DL, NodeTys, Ops);
+  InFlag = Chain.getValue(1);
+
+  // Now we can reclaim the stack, just as well do it before working out where
+  // our return value is.
+  uint64_t CalleePopBytes = /*DoesCalleeRestoreStack(CallConv, TailCallOpt) ? NumBytes :*/ 0;
+  Chain = DAG.getCALLSEQ_END(Chain, NextStackOffsetVal, 
+      DAG.getIntPtrConstant(CalleePopBytes, DL, /* isTarget = */ true), InFlag, DL);
+  InFlag = Chain.getValue(1);
+
+  return LowerCallResult(Chain, InFlag, CallConv, IsVarArg, Ins, DL, DAG, InVals);
+}
+
+//===----------------------------------------------------------------------===//
+//@            Call Return Parameters Calling Convention Implementation
+//===----------------------------------------------------------------------===//
+// From original Hoenchen implementation
+SDValue
+EpiphanyTargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
+    CallingConv::ID CallConv, bool IsVarArg, const SmallVectorImpl<ISD::InputArg> &Ins,
+    const SDLoc &DL, SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
+  // Assign locations to each value returned by this call according to EpiphanyCallingConv.td
+  SmallVector<CCValAssign, 16> RVLocs;
+  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs, *DAG.getContext());
+  CCInfo.AnalyzeCallResult(Ins, CC_Epiphany_Assign);
+
+  // For each argument check if some modification is needed
+  for (unsigned i = 0; i != RVLocs.size(); ++i) {
+    CCValAssign VA = RVLocs[i];
+
+    // Return values that are too big to fit into registers should use an sret
+    // pointer, so this can be a lot simpler than the main argument code.
+    assert(VA.isRegLoc() && "Memory locations not expected for call return");
+    SDValue Val = DAG.getCopyFromReg(Chain, DL, VA.getLocReg(), VA.getLocVT(), InFlag);
+    Chain = Val.getValue(1);
+    InFlag = Val.getValue(2);
+
+    switch (VA.getLocInfo()) {
+      default: llvm_unreachable("Unknown loc info!");
+      case CCValAssign::Full: 
+               break;
+      case CCValAssign::BCvt:
+               Val = DAG.getNode(ISD::BITCAST, DL, VA.getValVT(), Val);
+               break;
+      case CCValAssign::ZExt:
+      case CCValAssign::SExt:
+      case CCValAssign::AExt:
+               // Floating-point arguments only get extended/truncated if they're going
+               // in memory, so using the integer operation is acceptable here.
+               Val = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), Val);
+               break;
+    }
+    InVals.push_back(Val);
+  }
+  return Chain;
+}
+
+//===----------------------------------------------------------------------===//
+//@            Additional Functions For Calling Convention Implementation
+//===----------------------------------------------------------------------===//
 
 EpiphanyTargetLowering::EpiphanyCC::EpiphanyCC(
     CallingConv::ID CC, bool IsE16_, CCState &Info,
@@ -288,9 +502,8 @@ EpiphanyTargetLowering::EpiphanyCC::EpiphanyCC(
     CCInfo.AllocateStack(reservedArgArea(), 1);
   }
 
-template<typename Ty>
-void EpiphanyTargetLowering::EpiphanyCC::
-analyzeReturn(const SmallVectorImpl<Ty> &RetVals, bool IsSoftFloat,
+template<typename Ty> 
+void EpiphanyTargetLowering::EpiphanyCC::analyzeReturn(const SmallVectorImpl<Ty> &RetVals, bool IsSoftFloat,
     const SDNode *CallNode, const Type *RetTy) const {
   CCAssignFn *Fn;
 
@@ -311,14 +524,12 @@ analyzeReturn(const SmallVectorImpl<Ty> &RetVals, bool IsSoftFloat,
   }
 }
 
-void EpiphanyTargetLowering::EpiphanyCC::
-analyzeCallResult(const SmallVectorImpl<ISD::InputArg> &Ins, bool IsSoftFloat,
+void EpiphanyTargetLowering::EpiphanyCC::analyzeCallResult(const SmallVectorImpl<ISD::InputArg> &Ins, bool IsSoftFloat,
     const SDNode *CallNode, const Type *RetTy) const {
   analyzeReturn(Ins, IsSoftFloat, CallNode, RetTy);
 }
 
-void EpiphanyTargetLowering::EpiphanyCC::
-analyzeReturn(const SmallVectorImpl<ISD::OutputArg> &Outs, bool IsSoftFloat,
+void EpiphanyTargetLowering::EpiphanyCC::analyzeReturn(const SmallVectorImpl<ISD::OutputArg> &Outs, bool IsSoftFloat,
     const Type *RetTy) const {
   analyzeReturn(Outs, IsSoftFloat, nullptr, RetTy);
 }

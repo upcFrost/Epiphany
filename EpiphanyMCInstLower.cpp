@@ -88,7 +88,7 @@ MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
       Offset += MO.getOffset();
       break;
  }
-  const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, Kind, *Ctx);
+ const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, Kind, *Ctx);
   if (Offset) {
     // Assume offset is never negative.
     assert(Offset > 0);
