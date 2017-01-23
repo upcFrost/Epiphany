@@ -14,6 +14,7 @@
 
 #include "EpiphanyMCCodeEmitter.h"
 
+#include "MCTargetDesc/EpiphanyAsmBackend.h"
 #include "MCTargetDesc/EpiphanyBaseInfo.h"
 #include "MCTargetDesc/EpiphanyFixupKinds.h"
 #include "MCTargetDesc/EpiphanyMCExpr.h"
@@ -128,7 +129,9 @@ getJumpTargetOpValue(const MCInst &MI, unsigned OpNo,
   assert(MO.isExpr() && "Strange MO in getJumpTargetOpValue");
   const MCExpr *Expr = MO.getExpr();
   dbgs() << "\nFixup to expression: "; MO.getExpr()->dump();
-  Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind(Epiphany::fixup_Epiphany_PCREL24)));
+  // Get fixup kind and info, then create new fixup
+  MCFixupKind FixupKind = MCFixupKind(Epiphany::fixup_Epiphany_PCREL24);
+  Fixups.push_back(MCFixup::create(0, Expr, FixupKind));
   return 0;
 }
 //@CH8_1 }
