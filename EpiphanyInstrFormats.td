@@ -600,7 +600,7 @@ class IsTailCall {
 
 let OperandType = "OPERAND_PCREL" in {
   def jmptarget   : Operand<OtherVT> { let EncoderMethod = "getJumpTargetOpValue"; }
-  def calltarget  : Operand<iPTR> { let EncoderMethod = "getJumpTargetOpValue"; }
+  def calltarget  : Operand<iPTR>    { let EncoderMethod = "getJumpTargetOpValue"; }
 }
 def cc : Operand<i8> {}
 

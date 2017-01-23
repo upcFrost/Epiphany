@@ -45,12 +45,15 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     case Epiphany::fixup_Epiphany_PCREL16:
       // Shift by 7 as it will be shifted by 1 afterwards
       // See Arch reference
-      Value = (Value & 0xff) << 7;
+      Value = (Value << 7) & 0xffff;
       break;
     case Epiphany::fixup_Epiphany_PCREL24:
+      // Sign-extend and shift by 7 bits
       // Shift by 7 as it will be shifted by 1 afterwards
       // See Arch reference
-      Value = (Value & 0xfffff) << 7;
+      // TODO: iPTR is 16 bits, that's why sign-extension is needed in such way
+      Value = ((Value | (0xffff0000 * ((Value & 0x8000) >> 15))) << 7) & 0xffffffff;
+      DEBUG(dbgs() << "\nValue after adjust: " << Value << "\n");
       break;
 		case FK_GPRel_4:
 		case FK_Data_4:
@@ -134,7 +137,7 @@ getFixupKindInfo(MCFixupKind Kind) const {
 		{ "fixup_Epiphany_GOT_HI16",       0,     16,   0 },
 		{ "fixup_Epiphany_GOT_LO16",       0,     16,   0 },
 		{ "fixup_Epiphany_PCREL16",        8,     16,   MCFixupKindInfo::FKF_IsPCRel },
-		{ "fixup_Epiphany_PCREL24",        8,     24,   MCFixupKindInfo::FKF_IsPCRel }
+		{ "fixup_Epiphany_PCREL24",        8,     32,   MCFixupKindInfo::FKF_IsPCRel }
 	};
 
 	if (Kind < FirstTargetFixupKind)
