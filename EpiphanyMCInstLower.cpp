@@ -46,9 +46,8 @@ static void CreateMCInst(MCInst& Inst, unsigned Opc, const MCOperand& Opnd0,
 
 // @LowerOperand
 MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
-    unsigned offset) const {
+    unsigned Offset) const {
   const MCSymbol *Symbol;
-  unsigned Offset;
   MCSymbolRefExpr::VariantKind Kind = MCSymbolRefExpr::VK_None;
 
   switch (MO.getType()) {
@@ -59,26 +58,37 @@ MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
       if (MO.isImplicit()) break;
       return MCOperand::createReg(MO.getReg());
     case MachineOperand::MO_Immediate:
-      return MCOperand::createImm(MO.getImm());
+      return MCOperand::createImm(MO.getImm() + Offset);
     case MachineOperand::MO_RegisterMask:
       break;
     case MachineOperand::MO_MachineBasicBlock:
       Symbol = MO.getMBB()->getSymbol();
       break;
-    case MachineOperand::MO_BlockAddress:
-      Symbol = AsmPrinter.GetBlockAddressSymbol(MO.getBlockAddress());
-      Offset += MO.getOffset();
-      break;
     case MachineOperand::MO_GlobalAddress:
       Symbol = AsmPrinter.getSymbol(MO.getGlobal());
+      Offset += MO.getOffset();
+      break;
+    case MachineOperand::MO_BlockAddress:
+      Symbol = AsmPrinter.GetBlockAddressSymbol(MO.getBlockAddress());
       Offset += MO.getOffset();
       break;
     case MachineOperand::MO_ExternalSymbol:
       Symbol = AsmPrinter.GetExternalSymbolSymbol(MO.getSymbolName());
       Offset += MO.getOffset();
       break;
-  }
-  const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, Kind, *Ctx);
+    case MachineOperand::MO_MCSymbol:
+      Symbol = MO.getMCSymbol();
+      Offset += MO.getOffset();
+      break;
+    case MachineOperand::MO_JumpTableIndex:
+      Symbol = AsmPrinter.GetJTISymbol(MO.getIndex());
+      break;
+    case MachineOperand::MO_ConstantPoolIndex:
+      Symbol = AsmPrinter.GetCPISymbol(MO.getIndex());
+      Offset += MO.getOffset();
+      break;
+ }
+ const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, Kind, *Ctx);
   if (Offset) {
     // Assume offset is never negative.
     assert(Offset > 0);

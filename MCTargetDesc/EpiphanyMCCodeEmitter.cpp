@@ -14,6 +14,7 @@
 
 #include "EpiphanyMCCodeEmitter.h"
 
+#include "MCTargetDesc/EpiphanyAsmBackend.h"
 #include "MCTargetDesc/EpiphanyBaseInfo.h"
 #include "MCTargetDesc/EpiphanyFixupKinds.h"
 #include "MCTargetDesc/EpiphanyMCExpr.h"
@@ -116,6 +117,21 @@ unsigned EpiphanyMCCodeEmitter::
 getJumpTargetOpValue(const MCInst &MI, unsigned OpNo,
     SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &STI) const {
+  const MCOperand &MO = MI.getOperand(OpNo);
+
+  // If destination is already resolved into immediate - nothing to do
+  if (MO.isImm()) {
+    dbgs() << "\nFixup to immediate: " << MO.getImm() << "\n";
+    return MO.getImm();
+  }
+
+  // If not imm - it should be an expression, otherwise it's smth strange
+  assert(MO.isExpr() && "Strange MO in getJumpTargetOpValue");
+  const MCExpr *Expr = MO.getExpr();
+  dbgs() << "\nFixup to expression: "; MO.getExpr()->dump();
+  // Get fixup kind and info, then create new fixup
+  MCFixupKind FixupKind = MCFixupKind(Epiphany::fixup_Epiphany_PCREL24);
+  Fixups.push_back(MCFixup::create(0, Expr, FixupKind));
   return 0;
 }
 //@CH8_1 }
@@ -125,6 +141,11 @@ unsigned EpiphanyMCCodeEmitter::
 getExprOpValue(const MCExpr *Expr,SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &STI) const {
   //@getExprOpValue body {
+  int64_t Res;
+  if (Expr->evaluateAsAbsolute(Res)) {
+    return Res;
+  }
+  
   MCExpr::ExprKind Kind = Expr->getKind();
   if (Kind == MCExpr::Constant) {
     return cast<MCConstantExpr>(Expr)->getValue();
@@ -141,7 +162,9 @@ getExprOpValue(const MCExpr *Expr,SmallVectorImpl<MCFixup> &Fixups,
 
     Epiphany::Fixups FixupKind = Epiphany::Fixups(0);
     switch (EpiphanyExpr->getKind()) {
-      default: llvm_unreachable("Unsupported fixup kind for target expression!");
+      default: 
+        llvm_unreachable("Unsupported fixup kind for target expression!");
+        break;
     } // switch
     Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind(FixupKind)));
     return 0;

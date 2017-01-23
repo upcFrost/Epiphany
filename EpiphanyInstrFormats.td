@@ -598,9 +598,11 @@ class IsTailCall {
   bit isCodeGenOnly = 1;
 }
 
-def jmptarget : Operand<OtherVT> {}
+let OperandType = "OPERAND_PCREL" in {
+  def jmptarget   : Operand<OtherVT> { let EncoderMethod = "getJumpTargetOpValue"; }
+  def calltarget  : Operand<iPTR> { let EncoderMethod = "getJumpTargetOpValue"; }
+}
 def cc : Operand<i8> {}
-def calltarget  : Operand<iPTR> { let EncoderMethod = "getJumpTargetOpValue"; }
 
 class JumpReg16<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionCode cond>
     : Normal16<(outs), (ins GPR16:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rn"),
@@ -624,15 +626,15 @@ class JumpReg32<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionC
   let Inst{12-10} = Rn{2-0};
   let Inst{9-0}   = opcode;
 
-  let isBranch    = 1;
+  let isBranch     = 1;
   let isTerminator = 1;
 }
 
 class Branch16<list<dag> pattern>
     : Normal16<(outs), (ins jmptarget:$addr), !strconcat("b", "\t$addr"),
              pattern, NoItinerary> {
-  bits<8> target;
-  let Inst{15-8}   = target;
+  bits<8> addr;
+  let Inst{15-8}   = addr;
   let Inst{7-4}    = COND_NONE.Code;
   let Inst{3-0}    = 0;
 
@@ -644,9 +646,9 @@ class Branch16<list<dag> pattern>
 class Branch32<dag ins, list<dag> pattern, ConditionCode cond>
     : Normal32<(outs), ins, !strconcat("b", cond.Asm, "\t$addr"),
              pattern, NoItinerary> {
-  bits<24> target;
+  bits<24> addr;
 
-  let Inst{31-8}   = target;
+  let Inst{31-8}   = addr;
   let Inst{7-4}    = cond.Code;
   let Inst{3-0}    = 0b1000;
 
@@ -658,8 +660,8 @@ class Branch32<dag ins, list<dag> pattern, ConditionCode cond>
 class BranchCC16<ConditionCode cond>
     : Normal16<(outs), (ins GPR16:$Rd, GPR16:$Rn, jmptarget:$addr), !strconcat("b", cond.Asm, "\t$addr"),
              [], NoItinerary> {
-  bits<8> target;
-  let Inst{15-8}   = target;
+  bits<8> addr;
+  let Inst{15-8}   = addr;
   let Inst{7-4}    = cond.Code;
   let Inst{3-0}    = 0;
 
@@ -671,9 +673,9 @@ class BranchCC16<ConditionCode cond>
 class BranchCC32<ConditionCode cond>
     : Normal32<(outs), (ins GPR32:$Rd, jmptarget:$addr), !strconcat("b", cond.Asm, "\t$addr"),
              [], NoItinerary> {
-  bits<24> target;
+  bits<24> addr;
 
-  let Inst{31-8}   = target;
+  let Inst{31-8}   = addr;
   let Inst{7-4}    = cond.Code;
   let Inst{3-0}    = 0b1000;
 

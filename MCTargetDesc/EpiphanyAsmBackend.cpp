@@ -23,10 +23,13 @@
 #include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
+
+#define DEBUG_TYPE "mc-dump"
 
 //@adjustFixupValue {
 // Prepare value for the target space for it
@@ -39,6 +42,16 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
 	switch (Kind) {
 		default:
 			return 0;
+    case Epiphany::fixup_Epiphany_PCREL16:
+      // Shift by 7 as it will be shifted by 1 afterwards
+      // See Arch reference
+      Value = (Value & 0xff) << 7;
+      break;
+    case Epiphany::fixup_Epiphany_PCREL24:
+      // Shift by 7 as it will be shifted by 1 afterwards
+      // See Arch reference
+      Value = (Value & 0xfffff) << 7;
+      break;
 		case FK_GPRel_4:
 		case FK_Data_4:
 		case Epiphany::fixup_Epiphany_LO16:
@@ -69,8 +82,9 @@ void EpiphanyAsmBackend::applyFixup(const MCFixup &Fixup, char *Data,
 	MCFixupKind Kind = Fixup.getKind();
 	Value = adjustFixupValue(Fixup, Value);
 
-	if (!Value)
+	if (!Value) {
 		return; // Doesn't change encoding.
+  }
 
 	// Where do we start in the object
 	unsigned Offset = Fixup.getOffset();
@@ -118,7 +132,9 @@ getFixupKindInfo(MCFixupKind Kind) const {
 		{ "fixup_Epiphany_GPREL16",        0,     16,   0 },
 		{ "fixup_Epiphany_GOT",            0,     16,   0 },
 		{ "fixup_Epiphany_GOT_HI16",       0,     16,   0 },
-		{ "fixup_Epiphany_GOT_LO16",       0,     16,   0 }
+		{ "fixup_Epiphany_GOT_LO16",       0,     16,   0 },
+		{ "fixup_Epiphany_PCREL16",        8,     16,   MCFixupKindInfo::FKF_IsPCRel },
+		{ "fixup_Epiphany_PCREL24",        8,     24,   MCFixupKindInfo::FKF_IsPCRel }
 	};
 
 	if (Kind < FirstTargetFixupKind)
