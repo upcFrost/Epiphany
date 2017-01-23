@@ -152,6 +152,21 @@ getFixupKindInfo(MCFixupKind Kind) const {
 ///
 /// \return - True on success.
 bool EpiphanyAsmBackend::writeNopData(uint64_t Count, MCObjectWriter *OW) const {
+
+  static const uint16_t Nopcode = 0x1A2, // Hard-coded NOP code
+                        InstrSize = 2;   // Minimal instruction size is 2 bytes
+
+  // If alignment is not even, something's wrong. 
+  if (Count % InstrSize) {
+    llvm_unreachable("Alignment is not a multiple of 2 in writeNopData");
+  }
+
+  // Add nops
+  while (Count) {
+    Count -= InstrSize;
+    OW->write16(Nopcode);
+  }
+
 	return true;
 }
 
