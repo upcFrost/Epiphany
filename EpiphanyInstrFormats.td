@@ -602,7 +602,9 @@ let OperandType = "OPERAND_PCREL" in {
   def jmptarget   : Operand<OtherVT> { let EncoderMethod = "getJumpTargetOpValue"; }
   def calltarget  : Operand<iPTR>    { let EncoderMethod = "getJumpTargetOpValue"; }
 }
-def cc : Operand<i8> {}
+def cc : Operand<i8> {
+  let PrintMethod = "printCondCode";
+}
 
 class JumpReg16<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionCode cond>
     : Normal16<(outs), (ins GPR16:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rn"),
@@ -670,13 +672,14 @@ class BranchCC16<ConditionCode cond>
   let Uses         = [STATUS];
 }
 
-class BranchCC32<ConditionCode cond>
-    : Normal32<(outs), (ins GPR32:$Rd, jmptarget:$addr), !strconcat("b", cond.Asm, "\t$addr"),
+class BranchCC32
+    : Normal32<(outs), (ins jmptarget:$addr, cc:$cc, GPR32:$Rd), !strconcat("b$cc", "\t$addr"),
              [], NoItinerary> {
   bits<24> addr;
+  bits<4>  cc;
 
   let Inst{31-8}   = addr;
-  let Inst{7-4}    = cond.Code;
+  let Inst{7-4}    = cc;
   let Inst{3-0}    = 0b1000;
 
   let isBranch     = 1;

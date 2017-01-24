@@ -31,21 +31,21 @@ using namespace llvm;
 
 // In some cases we will need to print shifted Imm, e.g. for load/store instructions
 static unsigned getShift(unsigned int OpCode) {
-    unsigned Shift = 0;
-    switch (OpCode) {
-      case Epiphany::LDRi16_r16:
-      case Epiphany::STRi16_r16:
-      case Epiphany::LDRi16_r32:
-      case Epiphany::STRi16_r32:
-        Shift = 1;
-      case Epiphany::LDRi32_r16:
-      case Epiphany::STRi32_r16:
-      case Epiphany::LDRi32_r32:
-      case Epiphany::STRi32_r32:
-        Shift = 2;
-    }
+  unsigned Shift = 0;
+  switch (OpCode) {
+    case Epiphany::LDRi16_r16:
+    case Epiphany::STRi16_r16:
+    case Epiphany::LDRi16_r32:
+    case Epiphany::STRi16_r32:
+      Shift = 1;
+    case Epiphany::LDRi32_r16:
+    case Epiphany::STRi32_r16:
+    case Epiphany::LDRi32_r32:
+    case Epiphany::STRi32_r32:
+      Shift = 2;
+  }
 
-    return Shift;
+  return Shift;
 }
 
 void EpiphanyInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
@@ -96,4 +96,62 @@ void EpiphanyInstPrinter::printMemOperand(const MCInst *MI, unsigned opNum, raw_
   O << ",";
   printOperand(MI, opNum+1, O);
   O << "]";
+}
+
+void EpiphanyInstPrinter::printCondCode(const MCInst *MI, unsigned OpNo,
+    raw_ostream &O) {
+  unsigned CC = MI->getOperand(OpNo).getImm();
+
+  switch (CC) {
+    default:
+      llvm_unreachable("Unsupported CC code");
+     case EpiphanyCC::COND_EQ:
+      O << "eq";
+      break;
+     case EpiphanyCC::COND_NE:
+      O << "ne";
+      break;
+     case EpiphanyCC::COND_GTU:
+      O << "gtu";
+      break;
+     case EpiphanyCC::COND_GTEU:
+      O << "gteu";
+      break;
+     case EpiphanyCC::COND_LTEU:
+      O << "lteu";
+      break;
+     case EpiphanyCC::COND_LTU:
+      O << "ltu";
+      break;
+     case EpiphanyCC::COND_GT:
+      O << "gt";
+      break;
+     case EpiphanyCC::COND_GTE:
+      O << "gte";
+      break;
+     case EpiphanyCC::COND_LT:
+      O << "lt";
+      break;
+     case EpiphanyCC::COND_LTE:
+      O << "lte";
+      break;
+     case EpiphanyCC::COND_BEQ:
+      O << "beq";
+      break;
+     case EpiphanyCC::COND_BNE:
+      O << "bne";
+      break;
+     case EpiphanyCC::COND_BLT:
+      O << "blt";
+      break;
+     case EpiphanyCC::COND_BLTE:
+      O << "blte";
+      break;
+     case EpiphanyCC::COND_NONE:
+      O << "";
+      break;
+     case EpiphanyCC::COND_L:
+      O << "l";
+      break;
+  }
 }

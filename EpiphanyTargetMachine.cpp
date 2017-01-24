@@ -97,6 +97,7 @@ public:
   }
 
   bool addInstSelector() override;
+  void addPreSched2() override;
 
   const EpiphanySubtarget &getEpiphanySubtarget() const {
     return *getEpiphanyTargetMachine().getSubtargetImpl();
@@ -111,5 +112,9 @@ TargetPassConfig *EpiphanyTargetMachine::createPassConfig(PassManagerBase &PM) {
 bool EpiphanyPassConfig::addInstSelector() {
   addPass(new EpiphanyDAGToDAGISel(getEpiphanyTargetMachine(), getOptLevel()));
   return false;
+}
+
+void EpiphanyPassConfig::addPreSched2() {
+  addPass(&IfConverterID, false);
 }
 

@@ -16,6 +16,28 @@
 #include "MCTargetDesc/EpiphanyMCTargetDesc.h"
 #include "llvm/Target/TargetMachine.h"
 
+namespace EpiphanyCC {
+  // Epiphany-specific condition codes
+  enum CondCodes {
+    COND_EQ = 0x0,
+    COND_NE = 0x1,
+    COND_GTU = 0x2,
+    COND_GTEU = 0x3,
+    COND_LTEU = 0x4,
+    COND_LTU = 0x5,
+    COND_GT = 0x6,
+    COND_GTE = 0x7,
+    COND_LT = 0x8,
+    COND_LTE = 0x9,
+    COND_BEQ = 0xA,
+    COND_BNE = 0xB,
+    COND_BLT = 0xC,
+    COND_BLTE = 0xD,
+    COND_NONE = 0xE,
+    COND_L = 0xF
+  };
+}
+
 namespace llvm {
   class EpiphanyTargetMachine;
   class FunctionPass;

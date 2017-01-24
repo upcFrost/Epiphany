@@ -247,29 +247,24 @@ let isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
 }
 
 // Branches are made combining sub (cmp replacement) and b<cond>
-let isBarrier = 1, hasDelaySlot = 0 in {
+let isBarrier = 0, hasDelaySlot = 0 in {
   def BNONE32 : Branch32<(ins jmptarget:$addr), [(br bb:$addr)], COND_NONE>;
-  def BEQ32   : BranchCC32<COND_EQ>;
-  def BGTU32  : BranchCC32<COND_GTU>;
-  def BGTEU32 : BranchCC32<COND_GTEU>;
-  def BLTEU32 : BranchCC32<COND_LTEU>;
-  def BLTU32  : BranchCC32<COND_LTU>;
-  def BGT32   : BranchCC32<COND_GT>;
-  def BGTE32  : BranchCC32<COND_GTE>;
-  def BLT32   : BranchCC32<COND_LT>;
-  def BLTE32  : BranchCC32<COND_LTE>;
+}
+
+let isBarrier = 1, hasDelaySlot = 0 in {
+  def BCC32   : BranchCC32;
 }
 
 // Patterns to use while replacing "brcc" (condition branch)
-def : Pat<(brcc SETEQ,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BEQ32   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETUGT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTU32  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETUGE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTEU32 (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETULE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTEU32 (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETULT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTU32  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETGT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGT32   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETGE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BGTE32  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETLT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLT32   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
-def : Pat<(brcc SETLE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BLTE32  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn), bb:$addr)>;
+def : Pat<(brcc SETEQ,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_EQ.Code,   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
+def : Pat<(brcc SETUGT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_GTU.Code,  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
+def : Pat<(brcc SETUGE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_GTEU.Code, (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
+def : Pat<(brcc SETULE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_LTEU.Code, (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
+def : Pat<(brcc SETULT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_LTU.Code,  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
+def : Pat<(brcc SETGT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_GT.Code,   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
+def : Pat<(brcc SETGE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_GTE.Code,  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
+def : Pat<(brcc SETLT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_LT.Code,   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
+def : Pat<(brcc SETLE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_LTE.Code,  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
 
 //===----------------------------------------------------------------------===//
 // Function Calls and JALR
@@ -290,7 +285,7 @@ let Defs = [SP], Uses = [SP] in {
   def ADJCALLSTACKUP   : Pseudo32<(outs), (ins i32imm:$amt1, i32imm:$amt2), [(callseq_end timm:$amt1, timm:$amt2)]>;
 }
 
-let isCall = 1, Defs = [LR], hasDelaySlot = 0 in {
+let isCall = 1, Defs = [LR], hasDelaySlot = 0, isBarrier = 0 in {
   def BL32 : Branch32<(ins calltarget:$addr), [(EpiphanyCall tglobaladdr:$addr)], COND_L> {
     let isBranch = 1;
   }
