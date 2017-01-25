@@ -113,10 +113,8 @@ getBranch24TargetOpValue(const MCInst &MI, unsigned OpNo,
 /// If the machine operand requires relocation,
 /// record the relocation and return zero.
 //@getJumpTargetOpValue {
-unsigned EpiphanyMCCodeEmitter::
-getJumpTargetOpValue(const MCInst &MI, unsigned OpNo,
-    SmallVectorImpl<MCFixup> &Fixups,
-    const MCSubtargetInfo &STI) const {
+unsigned EpiphanyMCCodeEmitter::getJumpTargetOpValue(const MCInst &MI, unsigned OpNo,
+    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   const MCOperand &MO = MI.getOperand(OpNo);
 
   // If destination is already resolved into immediate - nothing to do
@@ -128,7 +126,6 @@ getJumpTargetOpValue(const MCInst &MI, unsigned OpNo,
   // If not imm - it should be an expression, otherwise it's smth strange
   assert(MO.isExpr() && "Strange MO in getJumpTargetOpValue");
   const MCExpr *Expr = MO.getExpr();
-  dbgs() << "\nFixup to expression: "; MO.getExpr()->dump();
   // Get fixup kind and info, then create new fixup
   MCFixupKind FixupKind = MCFixupKind(Epiphany::fixup_Epiphany_PCREL24);
   Fixups.push_back(MCFixup::create(0, Expr, FixupKind));
