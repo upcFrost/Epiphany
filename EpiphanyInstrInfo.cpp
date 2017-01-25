@@ -95,7 +95,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
 			return true;
 
 		// Indirect branches with links are not handled
-		if (I->getOpcode() == Epiphany::BL32)
+		if (I->getOpcode() == Epiphany::BL32 || I->getOpcode() == Epiphany::JR32)
 			return true;
 
 		// Handle unconditional branches.
