@@ -92,7 +92,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SMUL_LOHI, MVT::i32,  Expand);
 
     // Custom operations, see below
-    setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
+    setOperationAction(ISD::GlobalAddress,  MVT::i32, Custom);
+    setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
   }
 
 SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
@@ -101,6 +102,8 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     case ISD::GlobalAddress:
       return LowerGlobalAddress(Op, DAG);
       break;
+    case ISD::ExternalSymbol:
+      return LowerExternalSymbol(Op, DAG);
   }
   return SDValue();
 }
@@ -122,6 +125,16 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   // For now let's think that it's all 32bit 
   SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
   return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
+}
+
+SDValue EpiphanyTargetLowering::LowerExternalSymbol(SDValue Op,
+                                                  SelectionDAG &DAG) const {
+  SDLoc dl(Op);
+  const char *Sym = cast<ExternalSymbolSDNode>(Op)->getSymbol();
+  auto PtrVT = getPointerTy(DAG.getDataLayout());
+  SDValue Result = DAG.getTargetExternalSymbol(Sym, PtrVT);
+
+  return DAG.getNode(EpiphanyISD::MOV, dl, PtrVT, Result);
 }
 
 //===----------------------------------------------------------------------===//
