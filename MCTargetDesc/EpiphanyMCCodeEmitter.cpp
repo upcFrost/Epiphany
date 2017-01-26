@@ -67,8 +67,8 @@ void EpiphanyMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
   // Check for unimplemented opcodes.
   unsigned Opcode = MI.getOpcode();
   if (!Binary) {
-    dbgs() << "Opcode: " << Opcode << "\n";
-    dbgs() << "Binary: " << Binary << "\n";
+    DEBUG(dbgs() << "Opcode: " << Opcode << "\n");
+    DEBUG(dbgs() << "Binary: " << Binary << "\n");
     llvm_unreachable("unimplemented opcode in encodeInstruction()");
   }
 
@@ -119,7 +119,7 @@ unsigned EpiphanyMCCodeEmitter::getJumpTargetOpValue(const MCInst &MI, unsigned 
 
   // If destination is already resolved into immediate - nothing to do
   if (MO.isImm()) {
-    dbgs() << "\nFixup to immediate: " << MO.getImm() << "\n";
+    DEBUG(dbgs() << "\nFixup to immediate: " << MO.getImm() << "\n");
     return MO.getImm();
   }
 

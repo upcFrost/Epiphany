@@ -515,10 +515,7 @@ void EpiphanyTargetLowering::EpiphanyCC::analyzeReturn(const SmallVectorImpl<Ty>
     MVT RegVT = this->getRegVT(VT, RetTy, CallNode, IsSoftFloat);
 
     if (Fn(I, VT, RegVT, CCValAssign::Full, Flags, this->CCInfo)) {
-#ifndef NDEBUG
-      dbgs() << "Call result #" << I << " has unhandled type "
-        << EVT(VT).getEVTString() << '\n';
-#endif
+      DEBUG(dbgs() << "Call result #" << I << " has unhandled type " << EVT(VT).getEVTString() << '\n');
       llvm_unreachable(nullptr);
     }
   }

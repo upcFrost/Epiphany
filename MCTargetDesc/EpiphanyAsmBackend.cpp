@@ -46,9 +46,8 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
       // Shift by 7 as it will be shifted by 1 afterwards, See Arch reference
       // TODO: iPTR is 16 bits, that's why sign-extension is needed in such way
       DEBUG(dbgs() << "PCREL24 Value before adjust "; dbgs().write_hex(Value); dbgs() << "\n");
-      Value = (Value & 0x1ffffff) << 7;
+      Value = ((Value & 0xffffffff) << 7) & 0xffffffff;
       DEBUG(dbgs() << "PCREL24 Value after adjust "; dbgs().write_hex(Value); dbgs() << "\n");
-      Value = Value & 0xffffffff;
       break;
 		case FK_GPRel_4:
 		case FK_Data_4:
@@ -58,6 +57,7 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
 		case Epiphany::fixup_Epiphany_HI16:
 		case Epiphany::fixup_Epiphany_GOT:
 			// Get the higher 16-bits. Also add 1 if bit 15 is 1.
+      DEBUG(dbgs() << "HI16/GOT value before adjust "; dbgs().write_hex(Value); dbgs() << "\n");
 			Value = ((Value + 0x8000) >> 16) & 0xffff;
 			break;
 	}
