@@ -112,8 +112,8 @@ defm STRi8   : StoreM<AlignedStore<truncstorei8>,  LS_byte>;
 defm STRi16  : StoreM<AlignedStore<truncstorei16>, LS_hword>;
 defm STRi32  : StoreM<AlignedStore<store>,         LS_word>;
 
-def LDRf32   : Load16<0, FPR32, AlignedLoad<load>,    LS_word>;
-def STRf32   : Store16<0, FPR32, AlignedStore<store>, LS_word>;
+def LDRf32   : Load32<0, FPR32, AlignedLoad<load>,    LS_word>;
+def STRf32   : Store32<0, FPR32, AlignedStore<store>, LS_word>;
 
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with registers

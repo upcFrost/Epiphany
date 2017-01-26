@@ -93,6 +93,10 @@ public:
     return &InstrItins;
   }
 
+  AntiDepBreakMode getAntiDepBreakMode() const override { return ANTIDEP_ALL; }
+
+  bool enablePostRAScheduler() const override { return true; }
+
 };
 } // End llvm namespace
 

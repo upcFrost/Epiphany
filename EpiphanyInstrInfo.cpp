@@ -57,6 +57,12 @@ bool EpiphanyInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
 }
 // }
 
+
+
+//-------------------------------------------------------------------
+// Branch analysis
+//-------------------------------------------------------------------
+
 // Check if the branch behavior is predicated
 bool EpiphanyInstrInfo::isUnpredicatedTerminator(const MachineInstr &MI) const {
 	// If not terminator - false
@@ -218,6 +224,111 @@ unsigned EpiphanyInstrInfo::InsertBranch(MachineBasicBlock &MBB,
 	}
 	return Count;
 }
+
+bool EpiphanyInstrInfo::ReverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
+  assert(Cond.size() == 1 && "More than 1 condition");
+  EpiphanyCC::CondCodes CC = static_cast<EpiphanyCC::CondCodes>(Cond[0].getImm());
+  switch(CC) {
+    default:
+      llvm_unreachable("Wrong branch condition code!");
+    case EpiphanyCC::COND_BEQ:
+    case EpiphanyCC::COND_BNE:
+    case EpiphanyCC::COND_BLT:
+    case EpiphanyCC::COND_BLTE:
+      llvm_unreachable("Unimplemented reverse conditions");
+    case EpiphanyCC::COND_NONE:
+    case EpiphanyCC::COND_L:
+      llvm_unreachable("Unconditional branch cant be reversed");
+    case EpiphanyCC::COND_EQ:
+      CC = EpiphanyCC::COND_NE;
+      break;
+    case EpiphanyCC::COND_NE:
+      CC = EpiphanyCC::COND_EQ;
+      break;
+    case EpiphanyCC::COND_GTU:
+      CC = EpiphanyCC::COND_LTEU;
+      break;
+    case EpiphanyCC::COND_GTEU:
+      CC = EpiphanyCC::COND_LTU;
+      break;
+    case EpiphanyCC::COND_LTEU:
+      CC = EpiphanyCC::COND_GTU;
+      break;
+    case EpiphanyCC::COND_LTU:
+      CC = EpiphanyCC::COND_GTEU;
+      break;
+    case EpiphanyCC::COND_GT:
+      CC = EpiphanyCC::COND_LTE;
+      break;
+    case EpiphanyCC::COND_GTE:
+      CC = EpiphanyCC::COND_LT;
+      break;
+    case EpiphanyCC::COND_LTE:
+      CC = EpiphanyCC::COND_GT;
+      break;
+    case EpiphanyCC::COND_LT:
+      CC = EpiphanyCC::COND_GTE;
+      break;
+  }
+
+  Cond[0].setImm(CC);
+  return false;
+}
+
+
+//-------------------------------------------------------------------
+// Load/Store
+//-------------------------------------------------------------------
+
+/// isLoadFromStackSlot - If the specified machine instruction is a direct
+/// load from a stack slot, return the virtual or physical register number of
+/// the destination along with the FrameIndex of the loaded stack slot.  If
+/// not, return 0.  This predicate must return 0 if the instruction has
+/// any side effects other than loading from the stack slot.
+unsigned EpiphanyInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
+                                             int &FrameIndex) const {
+  // Load instructions
+  unsigned inst[] = {
+    Epiphany::LDRi8_r16,  Epiphany::LDRi8_r32,  Epiphany::LDRi8u_r16,  Epiphany::LDRi8u_r32, 
+    Epiphany::LDRi16_r16, Epiphany::LDRi16_r32, Epiphany::LDRi16u_r16, Epiphany::LDRi16u_r32, 
+    Epiphany::LDRi32_r16, Epiphany::LDRi32_r32, Epiphany::LDRf32
+  };
+  // Check if current opcode is one of those
+  bool found = (std::find(std::begin(inst), std::end(inst), MI.getOpcode()) != std::end(inst));
+  // If true, check operands
+  if (found) {
+    if (MI.getOperand(1).isFI() && MI.getOperand(2).isImm() && MI.getOperand(2).getImm() == 0) {
+      FrameIndex = MI.getOperand(1).getIndex();
+      return MI.getOperand(0).getReg();
+    }
+  }
+  return 0;
+}
+
+/// isStoreToStackSlot - If the specified machine instruction is a direct
+/// store to a stack slot, return the virtual or physical register number of
+/// the source reg along with the FrameIndex of the loaded stack slot.  If
+/// not, return 0.  This predicate must return 0 if the instruction has
+/// any side effects other than storing to the stack slot.
+unsigned EpiphanyInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
+                                            int &FrameIndex) const {
+  unsigned inst[] = {
+    Epiphany::STRi8_r16,  Epiphany::STRi8_r32,
+    Epiphany::STRi16_r16, Epiphany::STRi16_r32,
+    Epiphany::STRi32_r16, Epiphany::STRi32_r32, Epiphany::STRf32
+  };
+  // Check if current opcode is one of those
+  bool found = (std::find(std::begin(inst), std::end(inst), MI.getOpcode()) != std::end(inst));
+  // If true, check operands
+  if (found) {
+    if (MI.getOperand(0).isFI() && MI.getOperand(1).isImm() && MI.getOperand(1).getImm() == 0) {
+      FrameIndex = MI.getOperand(0).getIndex();
+      return MI.getOperand(2).getReg();
+    }
+  }
+  return 0;
+}
+
 
 void EpiphanyInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
 		MachineBasicBlock::iterator MI, unsigned SrcReg, bool KillSrc, int FrameIdx,
