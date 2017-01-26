@@ -1,0 +1,189 @@
+diff -ruNa llvm-3.9.0.src.orig/CMakeLists.txt llvm-3.9.0.src/CMakeLists.txt
+--- llvm-3.9.0.src.orig/CMakeLists.txt	2016-08-12 00:55:38.000000000 +0300
++++ llvm-3.9.0.src/CMakeLists.txt	2016-12-09 16:28:13.239699571 +0200
+@@ -223,6 +223,7 @@
+   AMDGPU
+   ARM
+   BPF
++  Epiphany
+   Hexagon
+   Mips
+   MSP430
+diff -ruNa llvm-3.9.0.src.orig/include/llvm/ADT/Triple.h llvm-3.9.0.src/include/llvm/ADT/Triple.h
+--- llvm-3.9.0.src.orig/include/llvm/ADT/Triple.h	2016-07-24 13:34:15.000000000 +0300
++++ llvm-3.9.0.src/include/llvm/ADT/Triple.h	2016-12-12 11:33:03.268521197 +0200
+@@ -53,6 +53,7 @@
+     avr,            // AVR: Atmel AVR microcontroller
+     bpfel,          // eBPF or extended BPF or 64-bit BPF (little endian)
+     bpfeb,          // eBPF or extended BPF or 64-bit BPF (big endian)
++    epiphany,       // Epiphany E16 backend
+     hexagon,        // Hexagon: hexagon
+     mips,           // MIPS: mips, mipsallegrex
+     mipsel,         // MIPSEL: mipsel, mipsallegrexel
+diff -ruNa llvm-3.9.0.src.orig/include/llvm/Object/ELFObjectFile.h llvm-3.9.0.src/include/llvm/Object/ELFObjectFile.h
+--- llvm-3.9.0.src.orig/include/llvm/Object/ELFObjectFile.h	2016-07-16 01:27:55.000000000 +0300
++++ llvm-3.9.0.src/include/llvm/Object/ELFObjectFile.h	2017-01-04 11:45:08.959197514 +0200
+@@ -842,6 +842,8 @@
+       return "ELF32-iamcu";
+     case ELF::EM_X86_64:
+       return "ELF32-x86-64";
++    case ELF::EM_ADAPTEVA_EPIPHANY:
++      return "ELF32-epiphany";
+     case ELF::EM_ARM:
+       return (IsLittleEndian ? "ELF32-arm-little" : "ELF32-arm-big");
+     case ELF::EM_AVR:
+diff -ruNa llvm-3.9.0.src.orig/include/llvm/Support/ELF.h llvm-3.9.0.src/include/llvm/Support/ELF.h
+--- llvm-3.9.0.src.orig/include/llvm/Support/ELF.h	2016-07-16 01:27:55.000000000 +0300
++++ llvm-3.9.0.src/include/llvm/Support/ELF.h	2017-01-04 11:44:38.686755120 +0200
+@@ -312,6 +312,7 @@
+   EM_AMDGPU        = 224, // AMD GPU architecture
+   EM_LANAI         = 244, // Lanai 32-bit processor
+   EM_BPF           = 247, // Linux kernel bpf virtual machine
++  EM_ADAPTEVA_EPIPHANY = 0x1223, // Adapteva's Epiphany architecture
+ 
+   // A request has been made to the maintainer of the official registry for
+   // such numbers for an official value for WebAssembly. As soon as one is
+@@ -532,6 +533,11 @@
+ #include "ELFRelocs/Mips.def"
+ };
+ 
++// ELF Relocation types for Epiphany
++enum {
++#include "ELFRelocs/Epiphany.def"
++};
++
+ // Special values for the st_other field in the symbol table entry for MIPS.
+ enum {
+   STO_MIPS_OPTIONAL        = 0x04,  // Symbol whose definition is optional
+diff -ruNa llvm-3.9.0.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def llvm-3.9.0.src/include/llvm/Support/ELFRelocs/Epiphany.def
+--- llvm-3.9.0.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def	1970-01-01 02:00:00.000000000 +0200
++++ llvm-3.9.0.src/include/llvm/Support/ELFRelocs/Epiphany.def	2017-01-18 19:22:04.697989106 +0200
+@@ -0,0 +1,31 @@
++
++#ifndef ELF_RELOC
++#error "ELF_RELOC must be defined"
++#endif
++
++ELF_RELOC(R_EPIPHANY_NONE,                0)
++ELF_RELOC(R_EPIPHANY_32,                  2)
++ELF_RELOC(R_EPIPHANY_HI16,                5)
++ELF_RELOC(R_EPIPHANY_LO16,                6)
++ELF_RELOC(R_EPIPHANY_GPREL16,             7)
++ELF_RELOC(R_EPIPHANY_LITERAL,             8)
++ELF_RELOC(R_EPIPHANY_GOT16,               9)
++ELF_RELOC(R_EPIPHANY_PC16,               10)
++ELF_RELOC(R_EPIPHANY_CALL16,             12)
++ELF_RELOC(R_EPIPHANY_GPREL32,            13)
++ELF_RELOC(R_EPIPHANY_PC24,               14)
++ELF_RELOC(R_EPIPHANY_GOT_HI16,           22)
++ELF_RELOC(R_EPIPHANY_GOT_LO16,           23)
++ELF_RELOC(R_EPIPHANY_RELGOT,             36)
++ELF_RELOC(R_EPIPHANY_TLS_GD,             42)
++ELF_RELOC(R_EPIPHANY_TLS_LDM,            43)
++ELF_RELOC(R_EPIPHANY_TLS_DTP_HI16,       44)
++ELF_RELOC(R_EPIPHANY_TLS_DTP_LO16,       45)
++ELF_RELOC(R_EPIPHANY_TLS_GOTTPREL,       46)
++ELF_RELOC(R_EPIPHANY_TLS_TPREL32,        47)
++ELF_RELOC(R_EPIPHANY_TLS_TP_HI16,        49)
++ELF_RELOC(R_EPIPHANY_TLS_TP_LO16,        50)
++ELF_RELOC(R_EPIPHANY_GLOB_DAT,           51)
++ELF_RELOC(R_EPIPHANY_JUMP_SLOT,         127)
++ELF_RELOC(R_EPIPHANY_PCREL16,           135)
++ELF_RELOC(R_EPIPHANY_PCREL24,           136)
+\ No newline at end of file
+diff -ruNa llvm-3.9.0.src.orig/lib/Object/ELF.cpp llvm-3.9.0.src/lib/Object/ELF.cpp
+--- llvm-3.9.0.src.orig/lib/Object/ELF.cpp	2016-07-16 01:27:55.000000000 +0300
++++ llvm-3.9.0.src/lib/Object/ELF.cpp	2017-01-04 11:45:35.579583772 +0200
+@@ -118,6 +118,13 @@
+       break;
+     }
+     break;
++  case ELF::EM_ADAPTEVA_EPIPHANY:
++    switch (Type) {
++#include "llvm/Support/ELFRelocs/Epiphany.def"
++    default:
++      break;
++    }
++    break;
+   default:
+     break;
+   }
+diff -ruNa llvm-3.9.0.src.orig/lib/Support/Triple.cpp llvm-3.9.0.src/lib/Support/Triple.cpp
+--- llvm-3.9.0.src.orig/lib/Support/Triple.cpp	2016-07-24 13:34:15.000000000 +0300
++++ llvm-3.9.0.src/lib/Support/Triple.cpp	2016-12-12 13:33:58.917535609 +0200
+@@ -28,6 +28,7 @@
+   case avr:            return "avr";
+   case bpfel:          return "bpfel";
+   case bpfeb:          return "bpfeb";
++  case epiphany:       return "epiphany";
+   case hexagon:        return "hexagon";
+   case mips:           return "mips";
+   case mipsel:         return "mipsel";
+@@ -97,6 +98,8 @@
+ 
+   case hexagon:     return "hexagon";
+ 
++  case epiphany:    return "epiphany";
++
+   case amdgcn:      return "amdgcn";
+   case r600:        return "r600";
+ 
+@@ -247,6 +250,7 @@
+     .Case("armeb", armeb)
+     .Case("avr", avr)
+     .StartsWith("bpf", BPFArch)
++    .Case("epiphany", epiphany)
+     .Case("mips", mips)
+     .Case("mipsel", mipsel)
+     .Case("mips64", mips64)
+@@ -363,6 +367,7 @@
+     .Case("arm64", Triple::aarch64)
+     .Case("arm", Triple::arm)
+     .Case("armeb", Triple::armeb)
++    .Case("epiphany", Triple::epiphany)
+     .Case("thumb", Triple::thumb)
+     .Case("thumbeb", Triple::thumbeb)
+     .Case("avr", Triple::avr)
+@@ -588,6 +593,7 @@
+   case Triple::bpfeb:
+   case Triple::bpfel:
+   case Triple::hexagon:
++  case Triple::epiphany:
+   case Triple::lanai:
+   case Triple::hsail:
+   case Triple::hsail64:
+@@ -1126,6 +1132,7 @@
+   case llvm::Triple::arm:
+   case llvm::Triple::armeb:
+   case llvm::Triple::hexagon:
++  case llvm::Triple::epiphany:
+   case llvm::Triple::le32:
+   case llvm::Triple::mips:
+   case llvm::Triple::mipsel:
+@@ -1205,6 +1212,7 @@
+   case Triple::arm:
+   case Triple::armeb:
+   case Triple::hexagon:
++  case Triple::epiphany:
+   case Triple::kalimba:
+   case Triple::le32:
+   case Triple::mips:
+@@ -1250,6 +1258,7 @@
+   case Triple::UnknownArch:
+   case Triple::avr:
+   case Triple::hexagon:
++  case Triple::epiphany:
+   case Triple::kalimba:
+   case Triple::lanai:
+   case Triple::msp430:
+diff -ruNa llvm-3.9.0.src.orig/lib/Target/LLVMBuild.txt llvm-3.9.0.src/lib/Target/LLVMBuild.txt
+--- llvm-3.9.0.src.orig/lib/Target/LLVMBuild.txt	2016-05-05 17:35:40.000000000 +0300
++++ llvm-3.9.0.src/lib/Target/LLVMBuild.txt	2016-12-09 14:37:25.672642018 +0200
+@@ -24,6 +24,7 @@
+  AArch64
+  AVR
+  BPF
++ Epiphany
+  Lanai
+  Hexagon
+  MSP430
