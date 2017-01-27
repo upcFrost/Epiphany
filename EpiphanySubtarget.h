@@ -40,7 +40,7 @@ protected:
   // Epiphany architecture version
   EpiphanyArchEnum EpiphanyArchVersion;
   // HasCmp - cmp instructions.
-  bool HasCmp;
+  bool HasCmp = false;
   // Itinerary data
   InstrItineraryData InstrItins;
   // Target Machine

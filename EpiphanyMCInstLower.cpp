@@ -55,12 +55,12 @@ MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
       llvm_unreachable("unknown operand type in EpiphanyMCInstLower::LowerOperand");
     case MachineOperand::MO_Register:
       // Ignore all implicit register operands
-      if (MO.isImplicit()) break;
+      if (MO.isImplicit()) return MCOperand();
       return MCOperand::createReg(MO.getReg());
     case MachineOperand::MO_Immediate:
       return MCOperand::createImm(MO.getImm() + Offset);
     case MachineOperand::MO_RegisterMask:
-      break;
+      return MCOperand();
     case MachineOperand::MO_MachineBasicBlock:
       Symbol = MO.getMBB()->getSymbol();
       break;
