@@ -108,10 +108,8 @@ getBranch24TargetOpValue(const MCInst &MI, unsigned OpNo,
   return 0;
 }
 
-/// getJumpTargetOpValue - Return binary encoding of the jump
-/// target operand, such as JSUB. 
-/// If the machine operand requires relocation,
-/// record the relocation and return zero.
+/// getJumpTargetOpValue - Return binary encoding of the jump target operand.
+/// If the machine operand requires relocation, record the relocation and return zero.
 //@getJumpTargetOpValue {
 unsigned EpiphanyMCCodeEmitter::getJumpTargetOpValue(const MCInst &MI, unsigned OpNo,
     SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
@@ -127,7 +125,7 @@ unsigned EpiphanyMCCodeEmitter::getJumpTargetOpValue(const MCInst &MI, unsigned 
   assert(MO.isExpr() && "Strange MO in getJumpTargetOpValue");
   const MCExpr *Expr = MO.getExpr();
   // Get fixup kind and info, then create new fixup
-  MCFixupKind FixupKind = MCFixupKind(Epiphany::fixup_Epiphany_PCREL24);
+  MCFixupKind FixupKind = MCFixupKind(Epiphany::fixup_Epiphany_SIMM24);
   Fixups.push_back(MCFixup::create(0, Expr, FixupKind));
   return 0;
 }

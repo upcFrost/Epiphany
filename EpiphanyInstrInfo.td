@@ -227,6 +227,7 @@ let Constraints = "$src = $Rd" in {
 //===----------------------------------------------------------------------===//
 def SDT_MOV : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>, SDTCisPtrTy<0>]>;
 def MOV     : SDNode<"EpiphanyISD::MOV", SDT_MOV>;
+def MOVi32  : Pat<(i32 (MOV tglobaladdr:$dst)), (MOVTi32ri (MOVi32ri tglobaladdr:$dst), tglobaladdr:$dst)>;
 
 def : Pat<(i32 (MOV tglobaladdr:$dst)),   (MOVi32ri tglobaladdr:$dst)>;
 def : Pat<(i32 (MOV texternalsym:$dst)),  (MOVi32ri texternalsym:$dst)>;
