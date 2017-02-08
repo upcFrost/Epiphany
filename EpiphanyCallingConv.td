@@ -36,7 +36,9 @@ def CC_Epiphany_Assign : CallingConv<[
 def RetCC_Epiphany : CallingConv<[
   CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
   // Result to be returned in first 4 regs
-  CCIfType<[i32,f32], CCAssignToReg<[R0, R1, R2, R3]>>
+  CCIfType<[i32,f32], CCAssignToReg<[R0, R1, R2, R3]>>,
+  // Alternatively, they are assigned to the stack in 4-byte aligned units.
+  CCAssignToStack<4, 4>
 ]>;
 
 def CSR32 : CalleeSavedRegs<(add R4, R5, R6, R7, R8, SB, SL, FP, LR, R15,

@@ -544,6 +544,10 @@ class Mov16rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterC
     let Inst{9-8} = 0b00;
     let Inst{7-4} = cond.Code;
     let Inst{3-0} = 0b0010;
+
+    let isMoveImm = 1;
+    let isAsCheapAsAMove = 1;
+    let isReMaterializable = 1;
 }
 
 class Mov32rr<string instr_asm, list<dag> pattern, RegisterClass RegClass>
@@ -560,13 +564,17 @@ class Mov32rr<string instr_asm, list<dag> pattern, RegisterClass RegClass>
     let Inst{9-8} = 0b00;
     let Inst{7-4} = COND_NONE.Code;
     let Inst{3-0} = 0b1111;
+
+    let isMoveImm = 1;
+    let isAsCheapAsAMove = 1;
+    let isReMaterializable = 1;
 }
 
-class MovCond32rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterClass RegClass>
-    : Normal32<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rd, $Rn"),
-             pattern, NoItinerary> {
+class MovCond32rr<dag outs, dag ins, list<dag> pattern>
+    : Normal32<outs, ins, !strconcat("mov$cc", "\t$Rd, $Rn"), pattern, NoItinerary> {
     bits<6> Rd;
     bits<6> Rn;
+    bits<4> cc;
     
     let Inst{31-29} = Rd{5-3};
     let Inst{28-26} = Rn{5-3};
@@ -574,8 +582,40 @@ class MovCond32rr<string instr_asm, list<dag> pattern, ConditionCode cond, Regis
     let Inst{15-13} = Rd{2-0};
     let Inst{12-10} = Rn{2-0};
     let Inst{9-8} = 0b00;
-    let Inst{7-4} = cond.Code;
+    let Inst{7-4} = cc;
     let Inst{3-0} = 0b0010;
+}
+
+// Special MOVFS/MOVTS
+class SpecRegClass<bits<2> group_code> {
+  bits<2> Code = group_code;
+}
+def CoreReg    : SpecRegClass<0>;
+def DmaReg     : SpecRegClass<1>;
+def MemProtReg : SpecRegClass<2>;
+def ConfReg    : SpecRegClass<3>;
+
+class SpecRegFromTo<bits<1> ft_code> {
+  bits<1> Code = ft_code;
+}
+def SpecTo   : SpecRegFromTo<0>;
+def SpecFrom : SpecRegFromTo<1>;
+
+class MovSpecial<string instr_asm, dag outs, dag ins, list<dag> pattern, SpecRegClass regclass, SpecRegFromTo FromTo>
+    : Normal32<outs, ins, !strconcat(instr_asm, "\t$Rd, $Rn"), pattern, NoItinerary> {
+    bits<6> Rd;
+    bits<6> Rn;
+    
+    let Inst{31-29} = Rd{5-3};
+    let Inst{28-26} = Rn{5-3};
+    let Inst{21-20} = regclass.Code;
+    let Inst{19-16} = 0b0010;
+    let Inst{15-13} = Rd{2-0};
+    let Inst{12-10} = Rn{2-0};
+    let Inst{9-8}   = 0b01;
+    let Inst{7-5}   = 0;
+    let Inst{4}     = FromTo.Code;
+    let Inst{3-0}   = 0b1111;
 }
 
 //===----------------------------------------------------------------------===//
@@ -672,9 +712,9 @@ class BranchCC16<ConditionCode cond>
   let Uses         = [STATUS];
 }
 
-class BranchCC32
-    : Normal32<(outs), (ins jmptarget:$addr, cc:$cc, GPR32:$Rd), !strconcat("b$cc", "\t$addr"),
-             [], NoItinerary> {
+class BranchCC32<dag ins, list<dag> pattern>
+    : Normal32<(outs), ins, !strconcat("b$cc", "\t$addr"),
+             pattern, NoItinerary> {
   bits<24> addr;
   bits<4>  cc;
 
