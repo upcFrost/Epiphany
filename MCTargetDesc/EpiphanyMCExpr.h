@@ -23,23 +23,9 @@ class EpiphanyMCExpr : public MCTargetExpr {
 public:
   enum EpiphanyExprKind {
     CEK_None,
-    CEK_ABS_HI,
-    CEK_ABS_LO,
-    CEK_CALL_HI16,
-    CEK_CALL_LO16,
-    CEK_DTP_HI,
-    CEK_DTP_LO,
-    CEK_GOT,
-    CEK_GOTTPREL,
-    CEK_GOT_CALL,
-    CEK_GOT_DISP,
-    CEK_GOT_HI16,
-    CEK_GOT_LO16,
+    CEK_HIGH,
+    CEK_LOW,
     CEK_GPREL,
-    CEK_TLSGD,
-    CEK_TLSLDM,
-    CEK_TP_HI,
-    CEK_TP_LO,
     CEK_Special,
   };
 

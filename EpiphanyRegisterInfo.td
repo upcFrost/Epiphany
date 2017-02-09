@@ -123,3 +123,22 @@ def FPR32 : RegisterClass<"Epiphany", [f32], 32, (add GPR32)>;
 
 // Status register
 def SR : RegisterClass<"Epiphany", [i32], 32, (add STATUS)>;
+
+// Special regs
+def SPECIAL : RegisterClass<"Epiphany", [i32], 32, (add CONFIG, 
+  STATUS, 
+  PC, 
+  DEBUGSTATUS,
+  LC,
+  LS,
+  LE,
+  IRET,
+  IMASK,
+  ILAT,
+  ILATST,
+  ILATCL,
+  IPEND,
+  CTIMER0,
+  CTIMER1,
+  FSTATUS,
+  DEBUGCMD)>;

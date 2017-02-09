@@ -1,6 +1,6 @@
-diff -ruNa llvm-3.9.0.src.orig/CMakeLists.txt llvm-3.9.0.src/CMakeLists.txt
---- llvm-3.9.0.src.orig/CMakeLists.txt	2016-08-12 00:55:38.000000000 +0300
-+++ llvm-3.9.0.src/CMakeLists.txt	2016-12-09 16:28:13.239699571 +0200
+diff -Naur llvm-3.9.1.src.orig/CMakeLists.txt llvm-3.9.1.src/CMakeLists.txt
+--- llvm-3.9.1.src.orig/CMakeLists.txt	2016-09-13 16:44:50.000000000 +0300
++++ llvm-3.9.1.src/CMakeLists.txt	2017-02-04 00:54:55.780860041 +0300
 @@ -223,6 +223,7 @@
    AMDGPU
    ARM
@@ -9,9 +9,10 @@ diff -ruNa llvm-3.9.0.src.orig/CMakeLists.txt llvm-3.9.0.src/CMakeLists.txt
    Hexagon
    Mips
    MSP430
-diff -ruNa llvm-3.9.0.src.orig/include/llvm/ADT/Triple.h llvm-3.9.0.src/include/llvm/ADT/Triple.h
---- llvm-3.9.0.src.orig/include/llvm/ADT/Triple.h	2016-07-24 13:34:15.000000000 +0300
-+++ llvm-3.9.0.src/include/llvm/ADT/Triple.h	2016-12-12 11:33:03.268521197 +0200
+
+diff -Naur llvm-3.9.1.src.orig/include/llvm/ADT/Triple.h llvm-3.9.1.src/include/llvm/ADT/Triple.h
+--- llvm-3.9.1.src.orig/include/llvm/ADT/Triple.h	2016-07-24 13:34:15.000000000 +0300
++++ llvm-3.9.1.src/include/llvm/ADT/Triple.h	2017-02-04 00:54:55.780860041 +0300
 @@ -53,6 +53,7 @@
      avr,            // AVR: Atmel AVR microcontroller
      bpfel,          // eBPF or extended BPF or 64-bit BPF (little endian)
@@ -20,9 +21,10 @@ diff -ruNa llvm-3.9.0.src.orig/include/llvm/ADT/Triple.h llvm-3.9.0.src/include/
      hexagon,        // Hexagon: hexagon
      mips,           // MIPS: mips, mipsallegrex
      mipsel,         // MIPSEL: mipsel, mipsallegrexel
-diff -ruNa llvm-3.9.0.src.orig/include/llvm/Object/ELFObjectFile.h llvm-3.9.0.src/include/llvm/Object/ELFObjectFile.h
---- llvm-3.9.0.src.orig/include/llvm/Object/ELFObjectFile.h	2016-07-16 01:27:55.000000000 +0300
-+++ llvm-3.9.0.src/include/llvm/Object/ELFObjectFile.h	2017-01-04 11:45:08.959197514 +0200
+
+diff -Naur llvm-3.9.1.src.orig/include/llvm/Object/ELFObjectFile.h llvm-3.9.1.src/include/llvm/Object/ELFObjectFile.h
+--- llvm-3.9.1.src.orig/include/llvm/Object/ELFObjectFile.h	2016-07-16 01:27:55.000000000 +0300
++++ llvm-3.9.1.src/include/llvm/Object/ELFObjectFile.h	2017-02-04 00:54:55.780860041 +0300
 @@ -842,6 +842,8 @@
        return "ELF32-iamcu";
      case ELF::EM_X86_64:
@@ -32,9 +34,10 @@ diff -ruNa llvm-3.9.0.src.orig/include/llvm/Object/ELFObjectFile.h llvm-3.9.0.sr
      case ELF::EM_ARM:
        return (IsLittleEndian ? "ELF32-arm-little" : "ELF32-arm-big");
      case ELF::EM_AVR:
-diff -ruNa llvm-3.9.0.src.orig/include/llvm/Support/ELF.h llvm-3.9.0.src/include/llvm/Support/ELF.h
---- llvm-3.9.0.src.orig/include/llvm/Support/ELF.h	2016-07-16 01:27:55.000000000 +0300
-+++ llvm-3.9.0.src/include/llvm/Support/ELF.h	2017-01-04 11:44:38.686755120 +0200
+
+diff -Naur llvm-3.9.1.src.orig/include/llvm/Support/ELF.h llvm-3.9.1.src/include/llvm/Support/ELF.h
+--- llvm-3.9.1.src.orig/include/llvm/Support/ELF.h	2016-07-16 01:27:55.000000000 +0300
++++ llvm-3.9.1.src/include/llvm/Support/ELF.h	2017-02-04 00:54:55.781860041 +0300
 @@ -312,6 +312,7 @@
    EM_AMDGPU        = 224, // AMD GPU architecture
    EM_LANAI         = 244, // Lanai 32-bit processor
@@ -55,45 +58,47 @@ diff -ruNa llvm-3.9.0.src.orig/include/llvm/Support/ELF.h llvm-3.9.0.src/include
  // Special values for the st_other field in the symbol table entry for MIPS.
  enum {
    STO_MIPS_OPTIONAL        = 0x04,  // Symbol whose definition is optional
-diff -ruNa llvm-3.9.0.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def llvm-3.9.0.src/include/llvm/Support/ELFRelocs/Epiphany.def
---- llvm-3.9.0.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def	1970-01-01 02:00:00.000000000 +0200
-+++ llvm-3.9.0.src/include/llvm/Support/ELFRelocs/Epiphany.def	2017-01-18 19:22:04.697989106 +0200
-@@ -0,0 +1,31 @@
-+
+
+diff -Naur llvm-3.9.1.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def llvm-3.9.1.src/include/llvm/Support/ELFRelocs/Epiphany.def
+--- llvm-3.9.1.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def	1970-01-01 03:00:00.000000000 +0300
++++ llvm-3.9.1.src/include/llvm/Support/ELFRelocs/Epiphany.def	2017-02-05 01:33:48.406731506 +0300
+@@ -0,0 +1,33 @@
 +#ifndef ELF_RELOC
 +#error "ELF_RELOC must be defined"
 +#endif
 +
-+ELF_RELOC(R_EPIPHANY_NONE,                0)
-+ELF_RELOC(R_EPIPHANY_32,                  2)
-+ELF_RELOC(R_EPIPHANY_HI16,                5)
-+ELF_RELOC(R_EPIPHANY_LO16,                6)
-+ELF_RELOC(R_EPIPHANY_GPREL16,             7)
-+ELF_RELOC(R_EPIPHANY_LITERAL,             8)
-+ELF_RELOC(R_EPIPHANY_GOT16,               9)
-+ELF_RELOC(R_EPIPHANY_PC16,               10)
-+ELF_RELOC(R_EPIPHANY_CALL16,             12)
-+ELF_RELOC(R_EPIPHANY_GPREL32,            13)
-+ELF_RELOC(R_EPIPHANY_PC24,               14)
-+ELF_RELOC(R_EPIPHANY_GOT_HI16,           22)
-+ELF_RELOC(R_EPIPHANY_GOT_LO16,           23)
-+ELF_RELOC(R_EPIPHANY_RELGOT,             36)
-+ELF_RELOC(R_EPIPHANY_TLS_GD,             42)
-+ELF_RELOC(R_EPIPHANY_TLS_LDM,            43)
-+ELF_RELOC(R_EPIPHANY_TLS_DTP_HI16,       44)
-+ELF_RELOC(R_EPIPHANY_TLS_DTP_LO16,       45)
-+ELF_RELOC(R_EPIPHANY_TLS_GOTTPREL,       46)
-+ELF_RELOC(R_EPIPHANY_TLS_TPREL32,        47)
-+ELF_RELOC(R_EPIPHANY_TLS_TP_HI16,        49)
-+ELF_RELOC(R_EPIPHANY_TLS_TP_LO16,        50)
-+ELF_RELOC(R_EPIPHANY_GLOB_DAT,           51)
-+ELF_RELOC(R_EPIPHANY_JUMP_SLOT,         127)
-+ELF_RELOC(R_EPIPHANY_PCREL16,           135)
-+ELF_RELOC(R_EPIPHANY_PCREL24,           136)
-\ No newline at end of file
-diff -ruNa llvm-3.9.0.src.orig/lib/Object/ELF.cpp llvm-3.9.0.src/lib/Object/ELF.cpp
---- llvm-3.9.0.src.orig/lib/Object/ELF.cpp	2016-07-16 01:27:55.000000000 +0300
-+++ llvm-3.9.0.src/lib/Object/ELF.cpp	2017-01-04 11:45:35.579583772 +0200
++ELF_RELOC(R_EPIPHANY_NONE,    0)
++
++/* Absolute address relocations.  */
++ELF_RELOC(R_EPIPHANY_8,       1)
++ELF_RELOC(R_EPIPHANY_16,      2)
++ELF_RELOC(R_EPIPHANY_32,      3)
++
++/* PC-relative relocations.  */
++ELF_RELOC(R_EPIPHANY_8_PCREL, 4)
++ELF_RELOC(R_EPIPHANY_16_PCREL,5)
++ELF_RELOC(R_EPIPHANY_32_PCREL,6)
++
++/* special forms for 8/24 bit branch displacements.  */
++ELF_RELOC(R_EPIPHANY_SIMM8,   7)
++ELF_RELOC(R_EPIPHANY_SIMM24,  8)
++
++/* HIGH and LOW relocations taking part of a 32 bit address and
++   depositing it into the IMM16 field of a destination.  */
++ELF_RELOC(R_EPIPHANY_HIGH,    9)
++ELF_RELOC(R_EPIPHANY_LOW,     10)
++
++/* 11 bit signed immediate value.  */
++ELF_RELOC(R_EPIPHANY_SIMM11,  11)
++/* 11 bit magnitude addressing displacement.  */
++ELF_RELOC(R_EPIPHANY_IMM11,   12)
++
++/* 8 bit immediate for MOV.S R,IMM8.  */
++ELF_RELOC(R_EPIPHANY_IMM8,    13)
++
+diff -Naur llvm-3.9.1.src.orig/lib/Object/ELF.cpp llvm-3.9.1.src/lib/Object/ELF.cpp
+--- llvm-3.9.1.src.orig/lib/Object/ELF.cpp	2016-07-16 01:27:55.000000000 +0300
++++ llvm-3.9.1.src/lib/Object/ELF.cpp	2017-02-04 00:54:55.781860041 +0300
 @@ -118,6 +118,13 @@
        break;
      }
@@ -108,9 +113,10 @@ diff -ruNa llvm-3.9.0.src.orig/lib/Object/ELF.cpp llvm-3.9.0.src/lib/Object/ELF.
    default:
      break;
    }
-diff -ruNa llvm-3.9.0.src.orig/lib/Support/Triple.cpp llvm-3.9.0.src/lib/Support/Triple.cpp
---- llvm-3.9.0.src.orig/lib/Support/Triple.cpp	2016-07-24 13:34:15.000000000 +0300
-+++ llvm-3.9.0.src/lib/Support/Triple.cpp	2016-12-12 13:33:58.917535609 +0200
+
+diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support/Triple.cpp
+--- llvm-3.9.1.src.orig/lib/Support/Triple.cpp	2016-07-24 13:34:15.000000000 +0300
++++ llvm-3.9.1.src/lib/Support/Triple.cpp	2017-02-04 00:54:55.792860041 +0300
 @@ -28,6 +28,7 @@
    case avr:            return "avr";
    case bpfel:          return "bpfel";
@@ -176,9 +182,10 @@ diff -ruNa llvm-3.9.0.src.orig/lib/Support/Triple.cpp llvm-3.9.0.src/lib/Support
    case Triple::kalimba:
    case Triple::lanai:
    case Triple::msp430:
-diff -ruNa llvm-3.9.0.src.orig/lib/Target/LLVMBuild.txt llvm-3.9.0.src/lib/Target/LLVMBuild.txt
---- llvm-3.9.0.src.orig/lib/Target/LLVMBuild.txt	2016-05-05 17:35:40.000000000 +0300
-+++ llvm-3.9.0.src/lib/Target/LLVMBuild.txt	2016-12-09 14:37:25.672642018 +0200
+
+diff -Naur llvm-3.9.1.src.orig/lib/Target/LLVMBuild.txt llvm-3.9.1.src/lib/Target/LLVMBuild.txt
+--- llvm-3.9.1.src.orig/lib/Target/LLVMBuild.txt	2016-05-05 17:35:40.000000000 +0300
++++ llvm-3.9.1.src/lib/Target/LLVMBuild.txt	2017-02-04 00:54:55.801860041 +0300
 @@ -24,6 +24,7 @@
   AArch64
   AVR

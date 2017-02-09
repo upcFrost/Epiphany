@@ -57,10 +57,6 @@ EpiphanySubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS,
                                                    const TargetMachine &TM) {
   // Get CPU name string
   std::string CPUName = selectEpiphanyCPU(TargetTriple, CPU);
-  // E16 doesn't have built-in CMP function
-  if (isE16()) {
-    HasCmp = false;
-  }
   
   // Parse features string
   ParseSubtargetFeatures(CPUName, FS);

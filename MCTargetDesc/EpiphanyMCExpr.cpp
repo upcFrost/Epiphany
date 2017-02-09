@@ -48,57 +48,16 @@ void EpiphanyMCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
   case CEK_Special:
     llvm_unreachable("CEK_None and CEK_Special are invalid");
     break;
-  case CEK_CALL_HI16:
-    OS << "%call_hi";
+  case CEK_HIGH:
+    OS << "%high";
     break;
-  case CEK_CALL_LO16:
-    OS << "%call_lo";
-    break;
-  case CEK_DTP_HI:
-    OS << "%dtp_hi";
-    break;
-  case CEK_DTP_LO:
-    OS << "%dtp_lo";
-    break;
-  case CEK_GOT:
-    OS << "%got";
-    break;
-  case CEK_GOTTPREL:
-    OS << "%gottprel";
-    break;
-  case CEK_GOT_CALL:
-    OS << "%call16";
-    break;
-  case CEK_GOT_DISP:
-    OS << "%got_disp";
-    break;
-  case CEK_GOT_HI16:
-    OS << "%got_hi";
-    break;
-  case CEK_GOT_LO16:
-    OS << "%got_lo";
+  case CEK_LOW:
+    OS << "%low";
     break;
   case CEK_GPREL:
-    OS << "%gp_rel";
     break;
-  case CEK_ABS_HI:
-    OS << "%hi";
-    break;
-  case CEK_ABS_LO:
-    OS << "%lo";
-    break;
-  case CEK_TLSGD:
-    OS << "%tlsgd";
-    break;
-  case CEK_TLSLDM:
-    OS << "%tlsldm";
-    break;
-  case CEK_TP_HI:
-    OS << "%tp_hi";
-    break;
-  case CEK_TP_LO:
-    OS << "%tp_lo";
-    break;
+  default:
+    llvm_unreachable("Unknown kind: " + Kind);
   }
 
   OS << '(';
@@ -126,8 +85,9 @@ void EpiphanyMCExpr::fixELFSymbolsInTLSFixups(MCAssembler &Asm) const {
   case CEK_Special:
     llvm_unreachable("CEK_None and CEK_Special are invalid");
     break;
-  case CEK_CALL_HI16:
-  case CEK_CALL_LO16:
+  case CEK_HIGH:
+  case CEK_LOW:
+  case CEK_GPREL:
     break;
   }
 }

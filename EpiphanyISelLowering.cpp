@@ -14,6 +14,7 @@
 
 #include "EpiphanyISelLowering.h"
 
+#include "MCTargetDesc/EpiphanyBaseInfo.h"
 #include "MCTargetDesc/EpiphanyAddressingModes.h"
 #include "EpiphanyMachineFunction.h"
 #include "EpiphanyTargetMachine.h"
@@ -47,6 +48,7 @@ const char *EpiphanyTargetLowering::getTargetNodeName(unsigned Opcode) const {
     case EpiphanyISD::RTI:            return "EpiphanyISD::RTI";
     case EpiphanyISD::RTS:            return "EpiphanyISD::RTS";
     case EpiphanyISD::MOV:            return "EpiphanyISD::MOV";
+    case EpiphanyISD::MOVT:           return "EpiphanyISD::MOVT";
     case EpiphanyISD::STORE:          return "EpiphanyISD::STORE";
     case EpiphanyISD::LOAD:           return "EpiphanyISD::LOAD";
 
@@ -92,7 +94,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SMUL_LOHI, MVT::i32,  Expand);
 
     // Custom operations, see below
-    setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
+    setOperationAction(ISD::GlobalAddress,  MVT::i32, Custom);
+    setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
   }
 
 SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
@@ -101,6 +104,8 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     case ISD::GlobalAddress:
       return LowerGlobalAddress(Op, DAG);
       break;
+    case ISD::ExternalSymbol:
+      return LowerExternalSymbol(Op, DAG);
   }
   return SDValue();
 }
@@ -120,8 +125,25 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   auto PTY = getPointerTy(DAG.getDataLayout());
 
   // For now let's think that it's all 32bit 
-  SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
-  return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
+  if (GV->hasInternalLinkage() || GV->hasLocalLinkage()) {
+    SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
+    return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
+  } else {
+    SDValue AddrLow  = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_LOW);
+    SDValue AddrHigh = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_HIGH);
+    SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+    return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
+  }
+}
+
+SDValue EpiphanyTargetLowering::LowerExternalSymbol(SDValue Op,
+    SelectionDAG &DAG) const {
+  SDLoc dl(Op);
+  const char *Sym = cast<ExternalSymbolSDNode>(Op)->getSymbol();
+  auto PtrVT = getPointerTy(DAG.getDataLayout());
+  SDValue Result = DAG.getTargetExternalSymbol(Sym, PtrVT);
+
+  return DAG.getNode(EpiphanyISD::MOV, dl, PtrVT, Result);
 }
 
 //===----------------------------------------------------------------------===//
@@ -398,12 +420,22 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
   // The linker is responsible for inserting veneers when necessary to put a
   // function call destination in range, so we don't need to bother with a
   // wrapper here.
+  // For internal linkage we can use BranchAndLink without regs, while for external it'd be better to use JALR
+  EVT PTY = getPointerTy(DAG.getDataLayout());
   if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
     const GlobalValue *GV = G->getGlobal();
-    Callee = DAG.getTargetGlobalAddress(GV, DL, getPointerTy(DAG.getDataLayout()));
+    DEBUG(dbgs() << "\nGV linkage " << GV->getLinkage() << "\n") ;
+    if (GV->hasInternalLinkage() || GV->hasLocalLinkage()) {
+      Callee = DAG.getTargetGlobalAddress(GV, DL, PTY);
+    } else {
+      SDValue AddrLow  = DAG.getTargetGlobalAddress(GV, DL, PTY, 0, EpiphanyII::MO_LOW);
+      SDValue AddrHigh = DAG.getTargetGlobalAddress(GV, DL, PTY, 0, EpiphanyII::MO_HIGH);
+      Callee = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+      Callee = DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Callee, AddrHigh);
+    }
   } else if (ExternalSymbolSDNode *S = dyn_cast<ExternalSymbolSDNode>(Callee)) {
     const char *Sym = S->getSymbol();
-    Callee = DAG.getTargetExternalSymbol(Sym, getPointerTy(DAG.getDataLayout()));
+    Callee = DAG.getTargetExternalSymbol(Sym, PTY);
   }
 
   // We produce the following DAG scheme for the actual call instruction:

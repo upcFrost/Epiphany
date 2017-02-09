@@ -40,8 +40,9 @@ namespace llvm {
       RTS,
       RTI,
 
-      // Wrapper for mov instructions as there is no unconditional ISD::SET
+      // Wrapper for mov and movt instructions 
       MOV,
+      MOVT,
 
       // Store and load instruction wrappers
       STORE,
@@ -138,6 +139,7 @@ namespace llvm {
     private:
       // Lower Operand specifics
       SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
 
       //- must be exist even without function all
       SDValue LowerFormalArguments(SDValue Chain,
