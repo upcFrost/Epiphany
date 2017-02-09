@@ -9,6 +9,7 @@ diff -Naur llvm-3.9.1.src.orig/CMakeLists.txt llvm-3.9.1.src/CMakeLists.txt
    Hexagon
    Mips
    MSP430
+
 diff -Naur llvm-3.9.1.src.orig/include/llvm/ADT/Triple.h llvm-3.9.1.src/include/llvm/ADT/Triple.h
 --- llvm-3.9.1.src.orig/include/llvm/ADT/Triple.h	2016-07-24 13:34:15.000000000 +0300
 +++ llvm-3.9.1.src/include/llvm/ADT/Triple.h	2017-02-04 00:54:55.780860041 +0300
@@ -20,6 +21,7 @@ diff -Naur llvm-3.9.1.src.orig/include/llvm/ADT/Triple.h llvm-3.9.1.src/include/
      hexagon,        // Hexagon: hexagon
      mips,           // MIPS: mips, mipsallegrex
      mipsel,         // MIPSEL: mipsel, mipsallegrexel
+
 diff -Naur llvm-3.9.1.src.orig/include/llvm/Object/ELFObjectFile.h llvm-3.9.1.src/include/llvm/Object/ELFObjectFile.h
 --- llvm-3.9.1.src.orig/include/llvm/Object/ELFObjectFile.h	2016-07-16 01:27:55.000000000 +0300
 +++ llvm-3.9.1.src/include/llvm/Object/ELFObjectFile.h	2017-02-04 00:54:55.780860041 +0300
@@ -32,6 +34,7 @@ diff -Naur llvm-3.9.1.src.orig/include/llvm/Object/ELFObjectFile.h llvm-3.9.1.sr
      case ELF::EM_ARM:
        return (IsLittleEndian ? "ELF32-arm-little" : "ELF32-arm-big");
      case ELF::EM_AVR:
+
 diff -Naur llvm-3.9.1.src.orig/include/llvm/Support/ELF.h llvm-3.9.1.src/include/llvm/Support/ELF.h
 --- llvm-3.9.1.src.orig/include/llvm/Support/ELF.h	2016-07-16 01:27:55.000000000 +0300
 +++ llvm-3.9.1.src/include/llvm/Support/ELF.h	2017-02-04 00:54:55.781860041 +0300
@@ -55,6 +58,7 @@ diff -Naur llvm-3.9.1.src.orig/include/llvm/Support/ELF.h llvm-3.9.1.src/include
  // Special values for the st_other field in the symbol table entry for MIPS.
  enum {
    STO_MIPS_OPTIONAL        = 0x04,  // Symbol whose definition is optional
+
 diff -Naur llvm-3.9.1.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def llvm-3.9.1.src/include/llvm/Support/ELFRelocs/Epiphany.def
 --- llvm-3.9.1.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def	1970-01-01 03:00:00.000000000 +0300
 +++ llvm-3.9.1.src/include/llvm/Support/ELFRelocs/Epiphany.def	2017-02-05 01:33:48.406731506 +0300
@@ -109,6 +113,7 @@ diff -Naur llvm-3.9.1.src.orig/lib/Object/ELF.cpp llvm-3.9.1.src/lib/Object/ELF.
    default:
      break;
    }
+
 diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support/Triple.cpp
 --- llvm-3.9.1.src.orig/lib/Support/Triple.cpp	2016-07-24 13:34:15.000000000 +0300
 +++ llvm-3.9.1.src/lib/Support/Triple.cpp	2017-02-04 00:54:55.792860041 +0300
@@ -177,6 +182,7 @@ diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support
    case Triple::kalimba:
    case Triple::lanai:
    case Triple::msp430:
+
 diff -Naur llvm-3.9.1.src.orig/lib/Target/LLVMBuild.txt llvm-3.9.1.src/lib/Target/LLVMBuild.txt
 --- llvm-3.9.1.src.orig/lib/Target/LLVMBuild.txt	2016-05-05 17:35:40.000000000 +0300
 +++ llvm-3.9.1.src/lib/Target/LLVMBuild.txt	2017-02-04 00:54:55.801860041 +0300
