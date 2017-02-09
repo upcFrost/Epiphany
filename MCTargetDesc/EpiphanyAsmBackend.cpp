@@ -53,11 +53,13 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     case FK_Data_4:
     case Epiphany::fixup_Epiphany_LOW:
       // No adjustment for LOW
+      DEBUG(dbgs() << "LOW/32bit fixup "; dbgs().write_hex(Value); dbgs() << "\n");
       break;
     case Epiphany::fixup_Epiphany_HIGH:
       // Get the higher 16-bits. Also add 1 if bit 15 is 1.
       DEBUG(dbgs() << "HI16/GOT value before adjust "; dbgs().write_hex(Value); dbgs() << "\n");
       Value = ((Value + 0x8000) >> 16) & 0xffff;
+      DEBUG(dbgs() << "HI16/GOT value after adjust "; dbgs().write_hex(Value); dbgs() << "\n");
       break;
   }
 

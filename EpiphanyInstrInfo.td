@@ -184,15 +184,10 @@ let Defs = [STATUS] in {
 let Constraints = "$src = $Rd" in {
   def MOVTi32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set GPR32:$Rd, (or (and GPR32:$src, 0xffff), (shl immSExt16:$Imm, 16)))], 0b01011, /* MOVT = */ 1, GPR32>;
 }
-def MOVi16ri : Mov16ri<"mov", (ins imm8:$Imm), [(set GPR16:$Rd, immSExt8:$Imm)], 0b00011, GPR16>;
-def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, immSExt16:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
-def MOVf32ri : Mov32ri<"mov", (ins fpimm16:$Imm), [(set FPR32:$Rd, fpimm16:$Imm)], 0b01011, /* MOVT = */ 0, FPR32>;
-
-// Meta to use with tglobaladdr
-def MOVri : Mov32ri<"mov", (ins imm16:$Imm), [(set GPR32:$Rd, imm:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
-
-// One more for memory
-def MOViPTR : Mov32ri<"mov", (ins mem11:$Imm), [(set GPR32:$Rd, addr11:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
+def MOVi16ri : Mov16ri<"mov", (ins imm8:$Imm),    [(set GPR16:$Rd, immSExt8:$Imm)], 0b00011, GPR16>;
+def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm),   [(set GPR32:$Rd, imm:$Imm)],      0b01011, /* MOVT = */ 0, GPR32>;
+def MOVf32ri : Mov32ri<"mov", (ins fpimm16:$Imm), [(set FPR32:$Rd, fpimm16:$Imm)],  0b01011, /* MOVT = */ 0, FPR32>;
+def MOViPTR  : Mov32ri<"mov", (ins mem11:$Imm),   [(set GPR32:$Rd, addr11:$Imm)],   0b01011, /* MOVT = */ 0, GPR32>;
 
 def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
 
@@ -253,13 +248,16 @@ def : Pat<(setcc GPR32:$lhs, GPR32:$rhs, SETLE),
 //===----------------------------------------------------------------------===//
 // Move operations: Wrapper
 //===----------------------------------------------------------------------===//
-def SDT_MOV : SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>, SDTCisPtrTy<0>]>;
-def MOV     : SDNode<"EpiphanyISD::MOV", SDT_MOV>;
-def MOVi32  : Pat<(i32 (MOV tglobaladdr:$dst)), (MOVTi32ri (MOVi32ri tglobaladdr:$dst), tglobaladdr:$dst)>;
-
+def SDT_MOV  : SDTypeProfile<1, 1, [SDTCisPtrTy<0>]>;
+def SDT_MOVT : SDTypeProfile<1, 2, [SDTCisPtrTy<1>]>;
+def MOV      : SDNode<"EpiphanyISD::MOV",  SDT_MOV>;
+def MOVT     : SDNode<"EpiphanyISD::MOVT", SDT_MOVT>;
 def : Pat<(i32 (MOV tglobaladdr:$dst)),   (MOVi32ri tglobaladdr:$dst)>;
 def : Pat<(i32 (MOV texternalsym:$dst)),  (MOVi32ri texternalsym:$dst)>;
 def : Pat<(i32 (MOV tblockaddress:$dst)), (MOVi32ri tblockaddress:$dst)>;
+def : Pat<(i32 (MOVT GPR32:$Rd, tglobaladdr:$dst)),   (MOVTi32ri GPR32:$Rd, tglobaladdr:$dst)>;
+def : Pat<(i32 (MOVT GPR32:$Rd, texternalsym:$dst)),  (MOVTi32ri GPR32:$Rd, texternalsym:$dst)>;
+def : Pat<(i32 (MOVT GPR32:$Rd, tblockaddress:$dst)), (MOVTi32ri GPR32:$Rd, tblockaddress:$dst)>;
 
 //===----------------------------------------------------------------------===//
 // Branching
@@ -277,11 +275,11 @@ let isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
 
 // Branches are made combining sub (cmp replacement) and b<cond>
 let isBarrier = 0, hasDelaySlot = 0 in {
-  def BNONE32 : Branch32<(ins jmptarget:$addr), [(br bb:$addr)], COND_NONE>;
+  def BNONE32 : Branch32<(ins branchtarget:$addr), [(br bb:$addr)], COND_NONE>;
 }
 
 let isBarrier = 1, hasDelaySlot = 0, Uses = [STATUS] in {
-  def BCC32    : BranchCC32<(ins jmptarget:$addr, cc:$cc, GPR32:$Rd), []>;
+  def BCC32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR32:$Rd), []>;
 }
 
 // Patterns to use while replacing "brcc" (condition branch)
@@ -319,7 +317,7 @@ let Defs = [SP], Uses = [SP] in {
 }
 
 let isCall = 1, Defs = [LR], hasDelaySlot = 0, isBarrier = 0 in {
-  def BL32 : Branch32<(ins calltarget:$addr), [(EpiphanyCall tglobaladdr:$addr)], COND_L> {
+  def BL32 : Branch32<(ins branchlinktarget:$addr), [(EpiphanyCall tglobaladdr:$addr)], COND_L> {
     let isBranch = 1;
   }
   

@@ -87,32 +87,12 @@ void EpiphanyMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
   EmitInstruction(Binary, Size, OS);
 }
 
-//@CH8_1 {
-/// getBranch16TargetOpValue - Return binary encoding of the branch
-/// target operand. If the machine operand requires relocation,
-/// record the relocation and return zero.
-unsigned EpiphanyMCCodeEmitter::
-getBranch16TargetOpValue(const MCInst &MI, unsigned OpNo,
-    SmallVectorImpl<MCFixup> &Fixups,
-    const MCSubtargetInfo &STI) const {
-  return 0;
-}
-
 /// getBranch24TargetOpValue - Return binary encoding of the branch
 /// target operand. If the machine operand requires relocation,
 /// record the relocation and return zero.
-unsigned EpiphanyMCCodeEmitter::
-getBranch24TargetOpValue(const MCInst &MI, unsigned OpNo,
+unsigned EpiphanyMCCodeEmitter::getBranchTargetOpValue(const MCInst &MI, unsigned OpNo,
     SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &STI) const {
-  return 0;
-}
-
-/// getJumpTargetOpValue - Return binary encoding of the jump target operand.
-/// If the machine operand requires relocation, record the relocation and return zero.
-//@getJumpTargetOpValue {
-unsigned EpiphanyMCCodeEmitter::getJumpTargetOpValue(const MCInst &MI, unsigned OpNo,
-    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   const MCOperand &MO = MI.getOperand(OpNo);
 
   // If destination is already resolved into immediate - nothing to do
@@ -129,11 +109,18 @@ unsigned EpiphanyMCCodeEmitter::getJumpTargetOpValue(const MCInst &MI, unsigned 
   Fixups.push_back(MCFixup::create(0, Expr, FixupKind));
   return 0;
 }
+
+/// getJumpTargetOpValue - Return binary encoding of the jump target operand.
+/// If the machine operand requires relocation, record the relocation and return zero.
+//@getJumpTargetOpValue {
+unsigned EpiphanyMCCodeEmitter::getJumpTargetOpValue(const MCInst &MI, unsigned OpNo,
+    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
+  return 0;
+}
 //@CH8_1 }
 
 //@getExprOpValue {
-unsigned EpiphanyMCCodeEmitter::
-getExprOpValue(const MCExpr *Expr,SmallVectorImpl<MCFixup> &Fixups,
+unsigned EpiphanyMCCodeEmitter::getExprOpValue(const MCExpr *Expr,SmallVectorImpl<MCFixup> &Fixups,
     const MCSubtargetInfo &STI) const {
   //@getExprOpValue body {
   int64_t Res;
@@ -159,6 +146,15 @@ getExprOpValue(const MCExpr *Expr,SmallVectorImpl<MCFixup> &Fixups,
     switch (EpiphanyExpr->getKind()) {
       default: 
         llvm_unreachable("Unsupported fixup kind for target expression!");
+        break;
+      case EpiphanyMCExpr::CEK_HIGH:
+        FixupKind = Epiphany::fixup_Epiphany_HIGH;
+        break;
+      case EpiphanyMCExpr::CEK_LOW:
+        FixupKind = Epiphany::fixup_Epiphany_LOW;
+        break;
+      case EpiphanyMCExpr::CEK_GPREL:
+        FixupKind = Epiphany::fixup_Epiphany_SIMM24;
         break;
     } // switch
     Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind(FixupKind)));

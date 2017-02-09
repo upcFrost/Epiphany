@@ -40,8 +40,9 @@ namespace llvm {
       RTS,
       RTI,
 
-      // Wrapper for mov instructions as there is no unconditional ISD::SET
+      // Wrapper for mov and movt instructions 
       MOV,
+      MOVT,
 
       // Store and load instruction wrappers
       STORE,

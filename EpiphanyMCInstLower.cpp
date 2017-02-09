@@ -49,6 +49,22 @@ MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
     unsigned Offset) const {
   const MCSymbol *Symbol;
   MCSymbolRefExpr::VariantKind Kind = MCSymbolRefExpr::VK_None;
+  EpiphanyMCExpr::EpiphanyExprKind TargetKind = EpiphanyMCExpr::CEK_None;
+  switch (MO.getTargetFlags()) {
+    default:
+      llvm_unreachable("Invalid target flags");
+    case EpiphanyII::MO_NO_FLAG:
+      break;
+    case EpiphanyII::MO_HIGH:
+      TargetKind = EpiphanyMCExpr::CEK_HIGH;
+      break;
+    case EpiphanyII::MO_LOW:
+      TargetKind = EpiphanyMCExpr::CEK_LOW;
+      break;
+    case EpiphanyII::MO_GPREL:
+      TargetKind = EpiphanyMCExpr::CEK_GPREL;
+      break;
+  }
 
   switch (MO.getType()) {
     default: 
@@ -94,6 +110,11 @@ MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
     assert(Offset > 0);
     Expr = MCBinaryExpr::createAdd(Expr, MCConstantExpr::create(Offset, *Ctx), *Ctx);
   }
+
+  if (TargetKind != EpiphanyMCExpr::CEK_None) {
+    Expr = EpiphanyMCExpr::create(TargetKind, Expr, *Ctx);
+  }
+
   return MCOperand::createExpr(Expr);
 
 }
