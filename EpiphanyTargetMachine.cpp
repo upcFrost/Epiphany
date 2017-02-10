@@ -96,7 +96,9 @@ public:
     return getTM<EpiphanyTargetMachine>();
   }
 
+  bool addILPOpts() override;
   bool addInstSelector() override;
+  void addPreRegAlloc() override;
   void addPreSched2() override;
 
   const EpiphanySubtarget &getEpiphanySubtarget() const {
@@ -109,9 +111,20 @@ TargetPassConfig *EpiphanyTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new EpiphanyPassConfig(this, PM);
 }
 
+bool EpiphanyPassConfig::addILPOpts() {
+  addPass(&EarlyIfConverterID);
+  //if (EnableMachineCombinerPass)
+    //addPass(&MachineCombinerID);
+  return true;
+}
+
 bool EpiphanyPassConfig::addInstSelector() {
   addPass(new EpiphanyDAGToDAGISel(getEpiphanyTargetMachine(), getOptLevel()));
   return false;
+}
+
+void EpiphanyPassConfig::addPreRegAlloc() {
+  addPass(&LiveVariablesID, false);
 }
 
 void EpiphanyPassConfig::addPreSched2() {

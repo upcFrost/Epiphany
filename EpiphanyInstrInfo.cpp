@@ -23,6 +23,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "epiphany-instrinfo"
+
 #define GET_INSTRINFO_CTOR_DTOR
 #include "EpiphanyGenInstrInfo.inc"
 
@@ -123,6 +125,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
 
       // Delete the JMP if it's equivalent to a fall-through.
       if (MBB.isLayoutSuccessor(I->getOperand(0).getMBB())) {
+        DEBUG(dbgs()<< "\nErasing the jump to successor block\n";);
         TBB = nullptr;
         I->eraseFromParent();
         I = MBB.end();
@@ -293,6 +296,7 @@ unsigned EpiphanyInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
     Epiphany::LDRi16_r32, Epiphany::LDRi16u_r32, 
     Epiphany::LDRi32_r32, Epiphany::LDRf32
   };
+  DEBUG(dbgs() << "\nisLoadToStackSlot for "; MI.print(dbgs()));
   // Check if current opcode is one of those
   bool found = (std::find(std::begin(inst), std::end(inst), MI.getOpcode()) != std::end(inst));
   // If true, check operands
@@ -316,6 +320,7 @@ unsigned EpiphanyInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
     Epiphany::STRi8_r32,  Epiphany::STRi16_r32,
     Epiphany::STRi32_r32, Epiphany::STRf32
   };
+  DEBUG(dbgs() << "\nisStoreToStackSlot for "; MI.print(dbgs()));
   // Check if current opcode is one of those
   bool found = (std::find(std::begin(inst), std::end(inst), MI.getOpcode()) != std::end(inst));
   // If true, check operands

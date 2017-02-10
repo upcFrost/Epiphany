@@ -110,11 +110,9 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
         E = CSI.end(); I != E; ++I) {
       int64_t Offset = MFI->getObjectOffset(I->getFrameIdx());
       unsigned Reg = I->getReg();
-      {
-        // Reg is in CPURegs.
-        CFIIndex = MMI.addFrameInst(MCCFIInstruction::createOffset(nullptr, MRI->getDwarfRegNum(Reg, 1), Offset));
-        BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
-      }
+      // Reg is in CPURegs.
+      CFIIndex = MMI.addFrameInst(MCCFIInstruction::createOffset(nullptr, MRI->getDwarfRegNum(Reg, true), Offset));
+      BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
     }
   }
 

@@ -95,12 +95,18 @@ def HI16 : SDNodeXForm<imm, [{
 // Load/store instructions
 //===----------------------------------------------------------------------===//
 multiclass LoadM<PatFrag LoadType, LS_size LoadSize> {
-  def _r16 : Load16<0, GPR16, LoadType, LoadSize>;
-  def _r32 : Load32<0, GPR32, LoadType, LoadSize>;
+  def _r16 : LoadDisp16<0, GPR16, LoadType, LoadSize>;
+  def _r32 : LoadDisp32<0, GPR32, LoadType, LoadSize>;
+  def _idx_add_r16 : LoadIdx16<0, GPR16, LoadType, LoadSize, IndexAdd>;
+  def _idx_add_r32 : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexAdd>;
+  def _idx_sub_r32 : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexSub>;
 }
 multiclass StoreM<PatFrag StoreType, LS_size StoreSize> {
-  def _r16 : Store16<0, GPR16, StoreType, StoreSize>;
-  def _r32 : Store32<0, GPR32, StoreType, StoreSize>;
+  def _r16 : StoreDisp16<0, GPR16, StoreType, StoreSize>;
+  def _r32 : StoreDisp32<0, GPR32, StoreType, StoreSize>;
+  def _idx_add_r16 : StoreIdx16<0, GPR16, StoreType, StoreSize, IndexAdd>;
+  def _idx_add_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexAdd>;
+  def _idx_sub_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexSub>;
 }
 
 defm LDRi8   : LoadM<AlignedLoad<sextloadi8>,      LS_byte>;
@@ -112,8 +118,8 @@ defm STRi8   : StoreM<AlignedStore<truncstorei8>,  LS_byte>;
 defm STRi16  : StoreM<AlignedStore<truncstorei16>, LS_hword>;
 defm STRi32  : StoreM<AlignedStore<store>,         LS_word>;
 
-def LDRf32   : Load32<0, FPR32, AlignedLoad<load>,    LS_word>;
-def STRf32   : Store32<0, FPR32, AlignedStore<store>, LS_word>;
+def LDRf32   : LoadDisp32<0, FPR32, AlignedLoad<load>,    LS_word>;
+def STRf32   : StoreDisp32<0, FPR32, AlignedStore<store>, LS_word>;
 
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with registers
