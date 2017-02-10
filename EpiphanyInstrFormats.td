@@ -96,7 +96,7 @@ class Normal32<dag outs, dag ins, string asm, list<dag> pattern, InstrItinClass 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 class Interrupt<bits<10> opcode, list<dag> pattern, string asm>
-    : Normal32<(outs), (ins), asm, pattern, NoItinerary> {
+    : Normal32<(outs), (ins), asm, pattern, ControlItin> {
   let Inst{9-0} = opcode;
 }
 
@@ -251,7 +251,7 @@ def addr11 : ComplexPattern<iPTR, 2, "SelectAddr<false>", [frameindex], [SDNPWan
 
 let canFoldAsLoad = 1 in
 class Load16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize>
-    : LS16_general<(outs RegClass:$Rd), (ins mem3:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr3:$addr))], 0b0100, LoadBit, LoadSize, NoItinerary> {
+    : LS16_general<(outs RegClass:$Rd), (ins mem3:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr3:$addr))], 0b0100, LoadBit, LoadSize, LoadItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -261,7 +261,7 @@ class Load16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadS
 }
 
 class Store16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize>
-    : LS16_general<(outs), (ins RegClass:$Rd, mem3:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr3:$addr)], 0b0100, StoreBit, StoreSize, NoItinerary> {
+    : LS16_general<(outs), (ins RegClass:$Rd, mem3:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr3:$addr)], 0b0100, StoreBit, StoreSize, StoreItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -273,7 +273,7 @@ class Store16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size Sto
 
 let canFoldAsLoad = 1 in
 class Load32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize>
-    : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr11:$addr))], 0b1100, LoadBit, LoadSize, NoItinerary> {
+    : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr11:$addr))], 0b1100, LoadBit, LoadSize, LoadItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -288,7 +288,7 @@ class Load32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadS
 
 
 class Store32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize>
-    : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr11:$addr)], 0b1100, StoreBit, StoreSize, NoItinerary> {
+    : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr11:$addr)], 0b1100, StoreBit, StoreSize, StoreItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -346,11 +346,11 @@ class Math32rr<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode,
 
 class SimpleMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
   Math16rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, NoItinerary> {}
+          [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, IaluItin> {}
 
 class SimpleMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
   Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"),
-          [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, NoItinerary> {
+          [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, IaluItin> {
   let Inst{19-16} = 0b1010;
 }
 
@@ -360,11 +360,11 @@ class SimpleMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterCl
 
 class ComplexMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
   Math16rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"), 
-           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, NoItinerary> {}
+           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, Ialu2Itin> {}
 
 class ComplexMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
   Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"), 
-           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, NoItinerary> {
+           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, Ialu2Itin> {
   let Inst{19-16} = 0b0111;
 }
 
@@ -434,16 +434,16 @@ class Math32ri<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode,
 
 class IntMath16ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
     : Math16ri<(outs GPR16:$Rd), (ins GPR16:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
-          [(set GPR16:$Rd, (OpNode GPR16:$Rn, imm_type:$Imm))], opcode, NoItinerary> {}
+          [(set GPR16:$Rd, (OpNode GPR16:$Rn, imm_type:$Imm))], opcode, IaluItin> {}
 
 class IntMath32ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> 
     : Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
-          [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], opcode, NoItinerary> {
+          [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], opcode, IaluItin> {
 }
 
 class ShiftMath16ri<bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
     : Normal16<(outs GPR16:$Rd), (ins GPR16:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"), 
-            [(set GPR16:$Rd, (OpNode GPR16:$Rn, imm_type:$Imm))], NoItinerary> {
+            [(set GPR16:$Rd, (OpNode GPR16:$Rn, imm_type:$Imm))], IaluItin> {
   bits<3> Rd;
   bits<3> Rn;
   bits<5> Imm;
@@ -456,7 +456,7 @@ class ShiftMath16ri<bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od,
 
 class ShiftMath32ri<bits<4> leftcode, bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
     : Normal32<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"), 
-            [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], NoItinerary> {
+            [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], IaluItin> {
   bits<6> Rd;
   bits<6> Rn;
   bits<5> Imm;
@@ -484,7 +484,7 @@ class ShiftMath32ri<bits<4> leftcode, bits<5> opcode, string instr_asm, SDNode O
 
 class Mov16ri<string instr_asm, dag ins, list<dag> pattern, bits<5> opcode, RegisterClass RegClass>
     : Normal16<(outs RegClass:$Rd), ins, !strconcat(instr_asm, "\t$Rd, $Imm"), 
-             pattern, NoItinerary> {
+             pattern, IaluItin> {
   bits<8> Imm;
   bits<3> Rd;
   
@@ -495,7 +495,7 @@ class Mov16ri<string instr_asm, dag ins, list<dag> pattern, bits<5> opcode, Regi
 
 class Mov32ri<string instr_asm, dag ins, list<dag> pattern, bits<5> opcode, bits<1> MOVT, RegisterClass RegClass>
     : Normal32<(outs RegClass:$Rd), ins, !strconcat(instr_asm, "\t$Rd, $Imm"), 
-             pattern, NoItinerary> {
+             pattern, IaluItin> {
   bits<16> Imm;
   bits<6> Rd;
   
@@ -535,7 +535,7 @@ def COND_L    : ConditionCode<0xF, "l">;
 
 class Mov16rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterClass RegClass>
     : Normal16<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rd, $Rn"),
-             pattern, NoItinerary> {
+             pattern, IaluItin> {
     bits<3> Rd;
     bits<3> Rn;
     
@@ -552,7 +552,7 @@ class Mov16rr<string instr_asm, list<dag> pattern, ConditionCode cond, RegisterC
 
 class Mov32rr<string instr_asm, list<dag> pattern, RegisterClass RegClass>
     : Normal32<(outs RegClass:$Rd), (ins RegClass:$Rn), !strconcat(instr_asm, "\t$Rd, $Rn"),
-             pattern, NoItinerary> {
+             pattern, IaluItin> {
     bits<6> Rd;
     bits<6> Rn;
     
@@ -571,7 +571,7 @@ class Mov32rr<string instr_asm, list<dag> pattern, RegisterClass RegClass>
 }
 
 class MovCond32rr<dag outs, dag ins, list<dag> pattern>
-    : Normal32<outs, ins, !strconcat("mov$cc", "\t$Rd, $Rn"), pattern, NoItinerary> {
+    : Normal32<outs, ins, !strconcat("mov$cc", "\t$Rd, $Rn"), pattern, IaluItin> {
     bits<6> Rd;
     bits<6> Rn;
     bits<4> cc;
@@ -602,7 +602,7 @@ def SpecTo   : SpecRegFromTo<0>;
 def SpecFrom : SpecRegFromTo<1>;
 
 class MovSpecial<string instr_asm, dag outs, dag ins, list<dag> pattern, SpecRegClass regclass, SpecRegFromTo FromTo>
-    : Normal32<outs, ins, !strconcat(instr_asm, "\t$Rd, $Rn"), pattern, NoItinerary> {
+    : Normal32<outs, ins, !strconcat(instr_asm, "\t$Rd, $Rn"), pattern, ControlItin> {
     bits<6> Rd;
     bits<6> Rn;
     
@@ -648,8 +648,7 @@ def cc : Operand<i8> {
 }
 
 class JumpReg16<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionCode cond>
-    : Normal16<(outs), (ins GPR16:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rn"),
-             pattern, NoItinerary> {
+    : Normal16<(outs), (ins GPR16:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rn"), pattern, BranchItin> {
   bits<3> Rn;
 
   let Inst{12-10} = Rn{2-0};
@@ -660,8 +659,7 @@ class JumpReg16<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionC
 }
 
 class JumpReg32<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionCode cond>
-    : Normal32<(outs), (ins GPR32:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rn"),
-             pattern, NoItinerary> {
+    : Normal32<(outs), (ins GPR32:$Rn), !strconcat(instr_asm, cond.Asm, "\t$Rn"), pattern, BranchItin> {
   bits<6> Rn;
 
   let Inst{28-26} = Rn{5-3};
@@ -674,8 +672,7 @@ class JumpReg32<string instr_asm, bits<10> opcode, list<dag> pattern, ConditionC
 }
 
 class Branch16<list<dag> pattern>
-    : Normal16<(outs), (ins branchtarget:$addr), !strconcat("b", "\t$addr"),
-             pattern, NoItinerary> {
+    : Normal16<(outs), (ins branchtarget:$addr), !strconcat("b", "\t$addr"), pattern, BranchItin> {
   bits<8> addr;
   let Inst{15-8}   = addr;
   let Inst{7-4}    = COND_NONE.Code;
@@ -687,8 +684,7 @@ class Branch16<list<dag> pattern>
 }
 
 class Branch32<dag ins, list<dag> pattern, ConditionCode cond>
-    : Normal32<(outs), ins, !strconcat("b", cond.Asm, "\t$addr"),
-             pattern, NoItinerary> {
+    : Normal32<(outs), ins, !strconcat("b", cond.Asm, "\t$addr"), pattern, BranchItin> {
   bits<24> addr;
 
   let Inst{31-8}   = addr;
@@ -701,7 +697,7 @@ class Branch32<dag ins, list<dag> pattern, ConditionCode cond>
 }
 
 class BranchCC16<ConditionCode cond>
-    : Normal16<(outs), (ins GPR16:$Rd, GPR16:$Rn, branchtarget:$addr), !strconcat("b", cond.Asm, "\t$addr"), [], NoItinerary> {
+    : Normal16<(outs), (ins GPR16:$Rd, GPR16:$Rn, branchtarget:$addr), !strconcat("b", cond.Asm, "\t$addr"), [], BranchItin> {
   bits<8> addr;
   let Inst{15-8}   = addr;
   let Inst{7-4}    = cond.Code;
@@ -713,7 +709,7 @@ class BranchCC16<ConditionCode cond>
 }
 
 class BranchCC32<dag ins, list<dag> pattern>
-    : Normal32<(outs), ins, !strconcat("b$cc", "\t$addr"), pattern, NoItinerary> {
+    : Normal32<(outs), ins, !strconcat("b$cc", "\t$addr"), pattern, BranchItin> {
   bits<24> addr;
   bits<4>  cc;
 
