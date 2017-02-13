@@ -97,9 +97,13 @@ def HI16 : SDNodeXForm<imm, [{
 multiclass LoadM<PatFrag LoadType, LS_size LoadSize> {
   def _r16 : LoadDisp16<0, GPR16, LoadType, LoadSize>;
   def _r32 : LoadDisp32<0, GPR32, LoadType, LoadSize>;
-  def _idx_add_r16 : LoadIdx16<0, GPR16, LoadType, LoadSize, IndexAdd>;
-  def _idx_add_r32 : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexAdd>;
-  def _idx_sub_r32 : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexSub>;
+  def _idx_add_r16  : LoadIdx16<0, GPR16, LoadType, LoadSize, IndexAdd>;
+  def _idx_add_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexAdd>;
+  def _idx_sub_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexSub>;
+  def _pm_add_r16   : LoadPm16<0, GPR16, LoadType, LoadSize, IndexAdd>;
+  def _pm_add_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexAdd>;
+  def _pm_sub_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexSub>;
+  def _pmd_r32  : LoadPmd32<0, GPR32, LoadType, LoadSize>;
 }
 multiclass StoreM<PatFrag StoreType, LS_size StoreSize> {
   def _r16 : StoreDisp16<0, GPR16, StoreType, StoreSize>;
@@ -107,6 +111,10 @@ multiclass StoreM<PatFrag StoreType, LS_size StoreSize> {
   def _idx_add_r16 : StoreIdx16<0, GPR16, StoreType, StoreSize, IndexAdd>;
   def _idx_add_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexAdd>;
   def _idx_sub_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexSub>;
+  def _pm_add_r16  : StorePm16<0, GPR16, StoreType, StoreSize, IndexAdd>;
+  def _pm_add_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexAdd>;
+  def _pm_sub_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexSub>;
+  def _pmd_r32  : StorePmd32<0, GPR32, StoreType, StoreSize>;
 }
 
 defm LDRi8   : LoadM<AlignedLoad<sextloadi8>,      LS_byte>;
@@ -130,14 +138,16 @@ multiclass SimpleMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNo
 }
 
 let Defs = [STATUS] in {
-  defm ADDrr : SimpleMath<0b0011010, 0b0011111, "add", addc>;
-  defm SUBrr : SimpleMath<0b0111010, 0b0111111, "sub", subc>;
-  defm ANDrr : SimpleMath<0b1011010, 0b1011111, "and", and >;
-  defm ORRrr : SimpleMath<0b1111010, 0b1111111, "orr", or  >;
-  defm EORrr : SimpleMath<0b0001010, 0b0001111, "eor", xor >;
-  defm ASRrr : SimpleMath<0b1101010, 0b1101111, "asr", sra >;
-  defm LSRrr : SimpleMath<0b1001010, 0b1001111, "lsr", srl >;
-  defm LSLrr : SimpleMath<0b0101010, 0b0101111, "lsl", shl >;
+  defm ADDrr  : SimpleMath<0b0011010, 0b0011111, "add", add>;
+  defm SUBrr  : SimpleMath<0b0111010, 0b0111111, "sub", sub>;
+  defm ADDCrr : SimpleMath<0b0011010, 0b0011111, "add", addc>;
+  defm SUBCrr : SimpleMath<0b0111010, 0b0111111, "sub", subc>;
+  defm ANDrr  : SimpleMath<0b1011010, 0b1011111, "and", and >;
+  defm ORRrr  : SimpleMath<0b1111010, 0b1111111, "orr", or  >;
+  defm EORrr  : SimpleMath<0b0001010, 0b0001111, "eor", xor >;
+  defm ASRrr  : SimpleMath<0b1101010, 0b1101111, "asr", sra >;
+  defm LSRrr  : SimpleMath<0b1001010, 0b1001111, "lsr", srl >;
+  defm LSLrr  : SimpleMath<0b0101010, 0b0101111, "lsl", shl >;
 }
 
 // Complex math: i32/f32
@@ -147,9 +157,10 @@ multiclass ComplexMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDN
   def _f32_r32 : ComplexMath32rr<opcode32, !strconcat("f", instr_asm), OpNodeF, FPR32>;
 }
 
+// TODO: Handle arithmetics flag
 let Defs = [STATUS] in {
-  defm ADDrr : ComplexMath<0b0000111, 0b0011111, "add", add, fadd>;
-  defm SUBrr : ComplexMath<0b0010111, 0b0111111, "sub", sub, fsub>;
+  /*defm ADDrr : ComplexMath<0b0000111, 0b0011111, "add", add, fadd>;*/
+  /*defm SUBrr : ComplexMath<0b0010111, 0b0111111, "sub", sub, fsub>;*/
   defm MULrr : ComplexMath<0b0100111, 0b0101111, "mul", mul, fmul>;
 }
 

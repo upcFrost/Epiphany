@@ -211,13 +211,15 @@ def LS_hword : LS_size<0b01, "h">;
 def LS_word  : LS_size<0b10, "">;
 def LS_dword : LS_size<0b11, "d">;
 
-class LS_addsub<bits<1> opcode, string asm> {
-  bits<1> Value = opcode;
+class IndexAddSub<SDNode addsub, bits<1> opcode, string asm> {
+  SDNode Op = addsub;
+  bits<1> Opcode = opcode;
   string Asm = asm;
 }
+def IndexAdd : IndexAddSub<add, 0, "+">;
+def IndexSub : IndexAddSub<sub, 1, "-">;
 
-def LS_add : LS_addsub<0, "+">;
-def LS_sub : LS_addsub<1, "-">;
+//-----------General classes----------//
 
 class LS16_general<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opcode, LS_bit LS, LS_size opsize, InstrItinClass itin>
     : Normal16<outs, ins, asm, pattern, itin> {
@@ -248,7 +250,6 @@ class LS32_general<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opc
 // Memory Load/Store
 def addr3  : ComplexPattern<iPTR, 2, "SelectAddr</* is16bit = */true>",  [frameindex], [SDNPWantParent]>;
 def addr11 : ComplexPattern<iPTR, 2, "SelectAddr</* is16bit = */false>", [frameindex], [SDNPWantParent]>;
-
 
 //-----------Displacement (Rd <-> (Rn + imm)) ----------//
 
@@ -304,16 +305,8 @@ class StoreDisp32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size
 
 
 //-----------Index (Rd <-> (Rn + Rm)) ----------//
-class IndexAddSub<SDNode addsub, bits<1> opcode, string asm> {
-  SDNode Op = addsub;
-  bits<1> Opcode = opcode;
-  string Asm = asm;
-}
-def IndexAdd : IndexAddSub<addc, 0, "+">;
-def IndexSub : IndexAddSub<subc, 1, "-">;
-
 class LoadIdx16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub>
-    : LS16_general<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
+    : LS16_general<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$Rn,", AddSub.Asm, "$Rm]"),
                    [(set RegClass:$Rd, (LoadType (AddSub.Op RegClass:$Rn, RegClass:$Rm)))], 0b0001, LoadBit, LoadSize, LoadItin> {
   bits<3> Rn;
   bits<3> Rm;
@@ -325,7 +318,7 @@ class LoadIdx16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Lo
 }
 
 class StoreIdx16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub>
-    : LS16_general<(outs), (ins RegClass:$Rd, RegClass:$Rn, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
+    : LS16_general<(outs), (ins RegClass:$Rd, RegClass:$Rn, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, [$Rn,", AddSub.Asm, "$Rm]"),
                    [(StoreType RegClass:$Rd, (AddSub.Op RegClass:$Rn, RegClass:$Rm))], 0b0001, StoreBit, StoreSize, StoreItin> {
   bits<3> Rn;
   bits<3> Rm;
@@ -336,7 +329,7 @@ class StoreIdx16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size 
 }
 
 class LoadIdx32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub>
-    : LS32_general<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
+    : LS32_general<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$Rn,", AddSub.Asm, "$Rm]"), 
                    [(set RegClass:$Rd, (LoadType (AddSub.Op RegClass:$Rn, RegClass:$Rm)))], 0b1001, LoadBit, LoadSize, LoadItin> {
   bits<6> Rn;
   bits<6> Rm;
@@ -352,7 +345,7 @@ class LoadIdx32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Lo
 }
 
 class StoreIdx32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub>
-    : LS32_general<(outs), (ins RegClass:$Rd, RegClass:$Rn, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
+    : LS32_general<(outs), (ins RegClass:$Rd, RegClass:$Rn, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, [$Rn,", AddSub.Asm, "$Rm]"), 
                    [(StoreType RegClass:$Rd, (AddSub.Op RegClass:$Rn, RegClass:$Rm))], 0b1001, StoreBit, StoreSize, StoreItin> {
   bits<6> Rn;
   bits<6> Rm;
@@ -363,6 +356,99 @@ class StoreIdx32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size 
   let Inst{20}    = AddSub.Opcode;
   let Inst{12-10} = Rn{2-0};
   let Inst{9-7}   = Rm{2-0};
+  let isPseudo    = Pseudo;
+}
+
+//----------- Postmodify (Rd <-> [Rn] -> Rd + Rm) ----------//
+// TODO: Add patterns
+class LoadPm16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub>
+    : LS16_general<(outs RegClass:$Rd, RegClass:$Rn), (ins RegClass:$base, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$Rn],", AddSub.Asm, "$Rm"), 
+                   [], 0b0101, LoadBit, LoadSize, LoadItin> {
+  bits<3> Rn;
+  bits<3> Rm;
+
+  let Inst{12-10} = Rn;
+  let Inst{9-7}   = Rm;
+  let isPseudo    = Pseudo;
+  let canFoldAsLoad = 1;
+  let Constraints = "$base = $Rn";
+}
+
+class StorePm16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub>
+    : LS16_general<(outs RegClass:$Rn), (ins RegClass:$Rd, RegClass:$base, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
+                   [], 0b0101, StoreBit, StoreSize, StoreItin> {
+  bits<3> Rn;
+  bits<3> Rm;
+
+  let Inst{12-10} = Rn;
+  let Inst{9-7}   = Rm;
+  let isPseudo    = Pseudo;
+  let Constraints = "$base = $Rn";
+}
+
+class LoadPm32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub>
+    : LS32_general<(outs RegClass:$Rd, RegClass:$Rn), (ins RegClass:$base, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
+                   [], 0b1101, LoadBit, LoadSize, LoadItin> {
+  bits<6> Rn;
+  bits<6> Rm;
+
+  let Inst{28-26} = Rn{5-3};
+  let Inst{25-23} = Rm{5-3};
+  let Inst{22-21} = 0;
+  let Inst{20}    = AddSub.Opcode;
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Rm{2-0};
+  let isPseudo    = Pseudo;
+  let canFoldAsLoad = 1;
+  let Constraints = "$base = $Rn";
+}
+
+class StorePm32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub>
+    : LS32_general<(outs RegClass:$Rn), (ins RegClass:$Rd, RegClass:$base, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
+                   [], 0b1101, StoreBit, StoreSize, StoreItin> {
+  bits<6> Rn;
+  bits<6> Rm;
+
+  let Inst{28-26} = Rn{5-3};
+  let Inst{25-23} = Rm{5-3};
+  let Inst{22-21} = 0;
+  let Inst{20}    = AddSub.Opcode;
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Rm{2-0};
+  let isPseudo    = Pseudo;
+  let Constraints = "$base = $Rn";
+}
+
+//----------- Postmodify-Disp (Rd <-> [Rn] -> Rd + imm) ----------//
+// TODO: Add patterns
+class LoadPmd32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize>
+    : LS32_general<(outs RegClass:$Rd, RegClass:$Rn), (ins RegClass:$base, simm12:$imm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$Rn],$imm"), [], 0b1100, LoadBit, LoadSize, LoadItin> {
+  bits<6> Rn;
+  bits<12> imm;
+
+  let Inst{28-26} = Rn{5-3};
+  let Inst{25}    = 0b1;
+  let Inst{24}    = imm{11};    // imm sign bit
+  let Inst{23-16} = imm{10-3};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{7-9}   = imm{2-0};
+  let isPseudo    = Pseudo;
+  let Constraints = "$base = $Rn";
+  let canFoldAsLoad = 1;
+}
+
+class StorePmd32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize>
+    : LS32_general<(outs RegClass:$Rn), (ins RegClass:$Rd, RegClass:$base, simm12:$imm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, [$Rn],$imm"), [], 0b1100, StoreBit, StoreSize, StoreItin> {
+  bits<6> Rn;
+  bits<12> imm;
+
+  let Inst{28-26} = Rn{5-3};
+  let Inst{25}    = 0b1;
+  let Inst{24}    = imm{11};    // imm sign bit
+  let Inst{23-16} = imm{10-3};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{7-9}   = imm{2-0};
+  let Constraints = "$base = $Rn";
   let isPseudo    = Pseudo;
 }
 

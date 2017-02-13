@@ -54,6 +54,7 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
   EpiphanyABIInfo ABI = STI.getABI();
   unsigned SP = Epiphany::SP;
   unsigned FP = Epiphany::FP;
+  //unsigned STRi32_pmd_r32 = Epiphany::STRi32_pmd_r32;
   unsigned STRi32_r32 = Epiphany::STRi32_r32;
   unsigned MOVi32rr = Epiphany::MOVi32rr;
   const TargetRegisterClass *RC = &Epiphany::GPR32RegClass;
@@ -71,8 +72,8 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
 
   // if framepointer enabled, set it to point to the stack pointer.
   if (hasFP(MF)) {
-    // TODO: Offset 0 for the SP is fixed for now. This is not correct, but at least for testing. 
-    // offset is added later
+    // TODO: Should use STR/POSTMODIFY
+    //  BuildMI(MBB, MBBI, DL, TII.get(STRi32_pmd_r32), SP).addReg(FP).addReg(SP).addImm(-StackSize).setMIFlag(MachineInstr::FrameSetup);
     //
     // Save old FP to stack
     BuildMI(MBB, MBBI, DL, TII.get(STRi32_r32), FP).addReg(SP).addImm(0).setMIFlag(MachineInstr::FrameSetup);
@@ -106,11 +107,12 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
 
     // Iterate over list of callee-saved registers and emit .cfi_offset
     // directives.
-    for (std::vector<CalleeSavedInfo>::const_iterator I = CSI.begin(),
-        E = CSI.end(); I != E; ++I) {
+    DEBUG(dbgs() << "\nCallee-saved regs spilled in prologue\n");
+    for (std::vector<CalleeSavedInfo>::const_iterator I = CSI.begin(), E = CSI.end(); I != E; ++I) {
       int64_t Offset = MFI->getObjectOffset(I->getFrameIdx());
       unsigned Reg = I->getReg();
       // Reg is in CPURegs.
+      DEBUG(dbgs() << Reg << "\n");
       CFIIndex = MMI.addFrameInst(MCCFIInstruction::createOffset(nullptr, MRI->getDwarfRegNum(Reg, true), Offset));
       BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
     }
@@ -171,8 +173,9 @@ void EpiphanyFrameLowering::determineCalleeSaves(MachineFunction &MF,
   EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
   MachineRegisterInfo& MRI = MF.getRegInfo();
 
-  if (MF.getFrameInfo()->hasCalls())
+  if (MF.getFrameInfo()->hasCalls()) {
     setAliasRegs(MF, SavedRegs, Epiphany::LR);
+  }
 
   return;
 }
@@ -188,26 +191,37 @@ bool EpiphanyFrameLowering::hasReservedCallFrame(const MachineFunction &MF) cons
     !MFI->hasVarSizedObjects();
 }
 
+// Spill callee-saved regs to stack
 bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MI, const std::vector<CalleeSavedInfo> &CSI, const TargetRegisterInfo *TRI) const {
   MachineFunction *MF = MBB.getParent();
-  MachineBasicBlock *EntryBlock = &MF->front();
   const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
 
-  for (unsigned i = 0, e = CSI.size(); i != e; ++i) {
+  // Debug output
+  DebugLoc DL;
+  if (MI != MBB.end()) {
+    DL = MI->getDebugLoc();
+  }
+
+  DEBUG(dbgs() << "\nCallee-saved regs in the current block:\n";
+    for (auto I = CSI.begin(), E = CSI.end(); I != E; ++I) {
+      TRI->dumpReg(I->getReg());
+    });
+
+  for (auto I = CSI.begin(), E = CSI.end(); I != E; ++I) {
     // Add the callee-saved register as live-in.
     // It's killed at the spill, unless the register is LR and return address
     // is taken.
-    unsigned Reg = CSI[i].getReg();
+    unsigned Reg = I->getReg();
     bool IsRAAndRetAddrIsTaken = (Reg == Epiphany::LR) && MF->getFrameInfo()->isReturnAddressTaken();
     if (!IsRAAndRetAddrIsTaken) {
-      EntryBlock->addLiveIn(Reg);
+      MBB.addLiveIn(Reg);
     }
 
     // Insert the spill to the stack frame.
     bool IsKill = !IsRAAndRetAddrIsTaken;
     const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-    TII.storeRegToStackSlot(*EntryBlock, MI, Reg, IsKill, CSI[i].getFrameIdx(), RC, TRI);
+    TII.storeRegToStackSlot(MBB, MI, Reg, IsKill, I->getFrameIdx(), RC, TRI);
   }
 
   return true;

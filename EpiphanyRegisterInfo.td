@@ -114,10 +114,8 @@ def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
   (sequence "R%u", 16, 27),
   // Reserved
   R28, R29, R30, ZERO,
-  // Callee-saved GPR
-  (sequence "R%u", 32, 43),
   // Caller-saved GPR
-  (sequence "R%u", 44, 63))>;
+  (sequence "R%u", 32, 63))>;
 
 def FPR32 : RegisterClass<"Epiphany", [f32], 32, (add GPR32)>;
 

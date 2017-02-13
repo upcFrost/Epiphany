@@ -89,6 +89,13 @@ namespace llvm {
         const DebugLoc &DL) const override;
     bool ReverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
 
+    // Misc
+    void insertNoop(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI) const override;
+    /// Test if the given instruction should be considered a scheduling boundary.
+    /// This primarily includes labels and terminators.
+    bool isSchedulingBoundary(const MachineInstr &MI,
+        const MachineBasicBlock *MBB, const MachineFunction &MF) const override;
+
     private:
     void expandRTS(MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const;
 

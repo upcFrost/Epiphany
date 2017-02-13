@@ -278,6 +278,54 @@ bool EpiphanyInstrInfo::ReverseBranchCondition(SmallVectorImpl<MachineOperand> &
   return false;
 }
 
+//-------------------------------------------------------------------
+// Misc
+//-------------------------------------------------------------------
+void EpiphanyInstrInfo::insertNoop(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI) const {
+  DebugLoc DL;
+  BuildMI(MBB, MI, DL, get(Epiphany::NOP));
+}
+
+/// Test if the given instruction should be considered a scheduling boundary.
+/// This primarily includes labels and terminators.
+// Borrowed from Hexagon code
+bool EpiphanyInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
+    const MachineBasicBlock *MBB, const MachineFunction &MF) const {
+  // Debug info is never a scheduling boundary. It's necessary to be explicit
+  // due to the special treatment of IT instructions below, otherwise a
+  // dbg_value followed by an IT will result in the IT instruction being
+  // considered a scheduling hazard, which is wrong. It should be the actual
+  // instruction preceding the dbg_value instruction(s), just like it is
+  // when debug info is not present.
+  if (MI.isDebugValue())
+    return false;
+
+  // Throwing call is a boundary.
+  if (MI.isCall()) {
+    // If any of the block's successors is a landing pad, this could be a
+    // throwing call.
+    for (auto I : MBB->successors())
+      if (I->isEHPad())
+        return true;
+  }
+
+  // Don't mess around with no return calls.
+  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::JR16, Epiphany::JR32};
+  bool isNoReturn = std::find(std::begin(uncond), std::end(uncond), MI.getOpcode()) != std::end(uncond);
+  if (isNoReturn)
+    return true;
+
+  // Terminators and labels can't be scheduled around.
+  if (MI.getDesc().isTerminator() || MI.isPosition())
+    return true;
+
+  if (MI.isInlineAsm())
+    return true;
+
+  return false;
+
+}
+
 
 //-------------------------------------------------------------------
 // Load/Store
@@ -404,21 +452,21 @@ void EpiphanyInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
     MachineBasicBlock::iterator I) const {
   DebugLoc DL = I != MBB.end() ? I->getDebugLoc() : DebugLoc();
   unsigned A1 = Epiphany::A1;
-  unsigned ADD = Epiphany::ADD32ri;
-  unsigned IADD = Epiphany::ADDrr_i32_r32;
+  unsigned ADDri = Epiphany::ADD32ri;
+  unsigned ADDrr = Epiphany::ADDrr_r32;
   unsigned MOVi32ri = Epiphany::MOVi32ri;
   unsigned MOVTi32ri = Epiphany::MOVTi32ri;
 
   if (isInt<11>(Amount)) {
     // add sp, sp, amount
-    BuildMI(MBB, I, DL, get(ADD), SP).addReg(SP).addImm(Amount);
+    BuildMI(MBB, I, DL, get(ADDri), SP).addReg(SP).addImm(Amount);
   } else { // Expand immediate that doesn't fit in 11-bit.
     // Set lower 16 bits
     BuildMI(MBB, I, DL, get(MOVi32ri), A1).addImm(Amount & 0xffff);
     // Set upper 16 bits
     BuildMI(MBB, I, DL, get(MOVTi32ri), A1).addReg(A1).addImm(Amount >> 16);
     // iadd sp, sp, amount
-    BuildMI(MBB, I, DL, get(IADD), SP).addReg(SP).addReg(A1, RegState::Kill);
+    BuildMI(MBB, I, DL, get(ADDrr), SP).addReg(SP).addReg(A1, RegState::Kill);
   }
 }
 
