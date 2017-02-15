@@ -54,7 +54,7 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
   EpiphanyABIInfo ABI = STI.getABI();
   unsigned SP = Epiphany::SP;
   unsigned FP = Epiphany::FP;
-  //unsigned STRi32_pmd_r32 = Epiphany::STRi32_pmd_r32;
+  unsigned STRi32_pmd_r32 = Epiphany::STRi32_pmd_r32;
   unsigned STRi32_r32 = Epiphany::STRi32_r32;
   unsigned MOVi32rr = Epiphany::MOVi32rr;
   const TargetRegisterClass *RC = &Epiphany::GPR32RegClass;
@@ -72,15 +72,8 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
 
   // if framepointer enabled, set it to point to the stack pointer.
   if (hasFP(MF)) {
-    // TODO: Should use STR/POSTMODIFY
-    //  BuildMI(MBB, MBBI, DL, TII.get(STRi32_pmd_r32), SP).addReg(FP).addReg(SP).addImm(-StackSize).setMIFlag(MachineInstr::FrameSetup);
-    //
     // Save old FP to stack
-    BuildMI(MBB, MBBI, DL, TII.get(STRi32_r32), FP).addReg(SP).addImm(0).setMIFlag(MachineInstr::FrameSetup);
-
-    // Adding offset
-    // TODO: Should be merged in STR/POSTMODIFY
-    TII.adjustStackPtr(SP, -StackSize, MBB, MBBI);
+    BuildMI(MBB, MBBI, DL, TII.get(STRi32_pmd_r32), SP).addReg(FP).addReg(SP).addImm(-StackSize).setMIFlag(MachineInstr::FrameSetup);
 
     // Move new SP to FP
     BuildMI(MBB, MBBI, DL, TII.get(MOVi32rr), FP).addReg(SP).setMIFlag(MachineInstr::FrameSetup);

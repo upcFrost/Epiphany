@@ -216,6 +216,8 @@ unsigned EpiphanyMCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo,
   // Get value shift for load/store instructions
   unsigned RegBits = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI) << 16;
   unsigned OffBits = getMachineOpValue(MI, MI.getOperand(OpNo+1), Fixups, STI) >> getShift(MI.getOpcode());
+  // Value should be always greater than 0, sign is regulated by bit 11
+  OffBits = (OffBits >> 11) == 0 ? OffBits : (OffBits^0xFFFF) + 1 | (1 << 11);
 
   return (OffBits & 0xFFFF) | RegBits;
 }

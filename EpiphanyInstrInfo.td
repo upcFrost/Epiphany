@@ -138,8 +138,8 @@ multiclass SimpleMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNo
 }
 
 let Defs = [STATUS] in {
-  defm ADDrr  : SimpleMath<0b0011010, 0b0011111, "add", add>;
-  defm SUBrr  : SimpleMath<0b0111010, 0b0111111, "sub", sub>;
+  defm ADDrr  : SimpleMath<0b0011010, 0b0011111, "add", add >;
+  defm SUBrr  : SimpleMath<0b0111010, 0b0111111, "sub", sub >;
   defm ADDCrr : SimpleMath<0b0011010, 0b0011111, "add", addc>;
   defm SUBCrr : SimpleMath<0b0111010, 0b0111111, "sub", subc>;
   defm ANDrr  : SimpleMath<0b1011010, 0b1011111, "and", and >;

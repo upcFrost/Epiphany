@@ -88,7 +88,9 @@ let Namespace = "Epiphany" in {
 //===----------------------------------------------------------------------===//
 
 // General purpose (first 7 only)
-def GPR16 : RegisterClass<"Epiphany", [i32], 32, (add (sequence "R%u", 0, 7))>;
+// It should be first 7, but i'd prefer not to use R4-R7 as they're callee-saved
+// And this code size benefit will be discarded by the store/load
+def GPR16 : RegisterClass<"Epiphany", [i32], 32, (add (sequence "R%u", 0, 3))>;
 
 // General purpose (all)
 def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
@@ -115,7 +117,12 @@ def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
   // Reserved
   R28, R29, R30, ZERO,
   // Caller-saved GPR
-  (sequence "R%u", 32, 63))>;
+  (sequence "R%u", 32, 63))> {
+  
+  // Reordering - putting callee-saved regs to the end of the list
+  let AltOrders = [(add (sub GPR32, R4, R5, R6, R7, R8), R4, R5, R6, R7, R8)];
+  let AltOrderSelect = [{ return 1; }];
+}
 
 def FPR32 : RegisterClass<"Epiphany", [f32], 32, (add GPR32)>;
 
