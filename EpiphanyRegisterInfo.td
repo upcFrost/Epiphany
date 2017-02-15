@@ -45,6 +45,7 @@ let Namespace = "Epiphany" in {
   def SB    : Bank0Reg<9,  "SB">,  DwarfRegAlias<R9>;
   def SL    : Bank0Reg<10, "SL">,  DwarfRegAlias<R10>;
   def V8    : Bank0Reg<11, "V8">,  DwarfRegAlias<R11>;
+  def IP    : Bank0Reg<12, "IP">,  DwarfRegAlias<R12>;
   def SP    : Bank0Reg<13, "SP">,  DwarfRegAlias<R13>;
   def LR    : Bank0Reg<14, "LR">,  DwarfRegAlias<R14>;
   def FP    : Bank0Reg<15, "FP">,  DwarfRegAlias<R15>;
@@ -105,7 +106,7 @@ def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
   // Frame pointer
   FP,
   // Intra-procedure call scratch reg
-  R12,
+  IP,
   // Stack pointer
   SP,
   // Callee-saved link register

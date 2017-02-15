@@ -451,7 +451,7 @@ void EpiphanyInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
     MachineBasicBlock &MBB,
     MachineBasicBlock::iterator I) const {
   DebugLoc DL = I != MBB.end() ? I->getDebugLoc() : DebugLoc();
-  unsigned A1 = Epiphany::A1;
+  unsigned IP = Epiphany::IP;
   unsigned ADDri = Epiphany::ADD32ri;
   unsigned ADDrr = Epiphany::ADDrr_r32;
   unsigned MOVi32ri = Epiphany::MOVi32ri;
@@ -462,11 +462,11 @@ void EpiphanyInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
     BuildMI(MBB, I, DL, get(ADDri), SP).addReg(SP).addImm(Amount);
   } else { // Expand immediate that doesn't fit in 11-bit.
     // Set lower 16 bits
-    BuildMI(MBB, I, DL, get(MOVi32ri), A1).addImm(Amount & 0xffff);
+    BuildMI(MBB, I, DL, get(MOVi32ri), IP).addImm(Amount & 0xffff);
     // Set upper 16 bits
-    BuildMI(MBB, I, DL, get(MOVTi32ri), A1).addReg(A1).addImm(Amount >> 16);
+    BuildMI(MBB, I, DL, get(MOVTi32ri), IP).addReg(IP).addImm(Amount >> 16);
     // iadd sp, sp, amount
-    BuildMI(MBB, I, DL, get(ADDrr), SP).addReg(SP).addReg(A1, RegState::Kill);
+    BuildMI(MBB, I, DL, get(ADDrr), SP).addReg(SP).addReg(IP, RegState::Kill);
   }
 }
 

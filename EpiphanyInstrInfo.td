@@ -118,9 +118,11 @@ multiclass StoreM<PatFrag StoreType, LS_size StoreSize> {
 }
 
 defm LDRi8   : LoadM<AlignedLoad<sextloadi8>,      LS_byte>;
-defm LDRi8u  : LoadM<AlignedLoad<zextloadi8>,      LS_byte>;
+defm LDRi8u  : LoadM<AlignedLoad<extloadi8>,       LS_byte>;
+defm LDRi8z  : LoadM<AlignedLoad<zextloadi8>,      LS_byte>;
 defm LDRi16  : LoadM<AlignedLoad<sextloadi16>,     LS_hword>;
-defm LDRi16u : LoadM<AlignedLoad<zextloadi16>,     LS_hword>;
+defm LDRi16u : LoadM<AlignedLoad<extloadi16>,      LS_hword>;
+defm LDRi16z : LoadM<AlignedLoad<zextloadi16>,     LS_hword>;
 defm LDRi32  : LoadM<AlignedLoad<load>,            LS_word>;
 defm STRi8   : StoreM<AlignedStore<truncstorei8>,  LS_byte>;
 defm STRi16  : StoreM<AlignedStore<truncstorei16>, LS_hword>;

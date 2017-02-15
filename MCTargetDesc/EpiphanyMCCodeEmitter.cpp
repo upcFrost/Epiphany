@@ -192,11 +192,39 @@ static unsigned getShift(unsigned int OpCode) {
       case Epiphany::STRi16_r16:
       case Epiphany::LDRi16_r32:
       case Epiphany::STRi16_r32:
+      case Epiphany::LDRi16_idx_add_r16:
+      case Epiphany::STRi16_idx_add_r16:
+      case Epiphany::LDRi16_idx_add_r32:
+      case Epiphany::STRi16_idx_add_r32:
+      case Epiphany::LDRi16_idx_sub_r32:
+      case Epiphany::STRi16_idx_sub_r32:
+      case Epiphany::LDRi16_pm_add_r16:
+      case Epiphany::STRi16_pm_add_r16:
+      case Epiphany::LDRi16_pm_add_r32:
+      case Epiphany::STRi16_pm_add_r32:
+      case Epiphany::LDRi16_pm_sub_r32:
+      case Epiphany::STRi16_pm_sub_r32:
+      case Epiphany::LDRi16_pmd_r32:
+      case Epiphany::STRi16_pmd_r32:
         Shift = 1;
       case Epiphany::LDRi32_r16:
       case Epiphany::STRi32_r16:
       case Epiphany::LDRi32_r32:
       case Epiphany::STRi32_r32:
+      case Epiphany::LDRi32_idx_add_r16:
+      case Epiphany::STRi32_idx_add_r16:
+      case Epiphany::LDRi32_idx_add_r32:
+      case Epiphany::STRi32_idx_add_r32:
+      case Epiphany::LDRi32_idx_sub_r32:
+      case Epiphany::STRi32_idx_sub_r32:
+      case Epiphany::LDRi32_pm_add_r16:
+      case Epiphany::STRi32_pm_add_r16:
+      case Epiphany::LDRi32_pm_add_r32:
+      case Epiphany::STRi32_pm_add_r32:
+      case Epiphany::LDRi32_pm_sub_r32:
+      case Epiphany::STRi32_pm_sub_r32:
+      case Epiphany::LDRi32_pmd_r32:
+      case Epiphany::STRi32_pmd_r32:
         Shift = 2;
     }
 
