@@ -206,8 +206,9 @@ let Constraints = "$src = $Rd" in {
 def MOVi16ri : Mov16ri<"mov", (ins imm8:$Imm),    [(set GPR16:$Rd, immSExt8:$Imm)], 0b00011, GPR16>;
 def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm),   [(set GPR32:$Rd, imm:$Imm)],      0b01011, /* MOVT = */ 0, GPR32>;
 def MOVf32ri : Mov32ri<"mov", (ins fpimm16:$Imm), [(set FPR32:$Rd, fpimm16:$Imm)],  0b01011, /* MOVT = */ 0, FPR32>;
-def MOViPTR  : Mov32ri<"mov", (ins mem11:$Imm),   [(set GPR32:$Rd, addr11:$Imm)],   0b01011, /* MOVT = */ 0, GPR32>;
 
+// Special instruction to move memory pointer to the reg
+def MOViPTR  : AddrMath32ri<(outs GPR32:$Rd), (ins mem11:$imm), "add \t$Rd, $imm", [(set GPR32:$Rd, addr11:$imm)],   0b0011011, IaluItin>;
 def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
 
 //===----------------------------------------------------------------------===//

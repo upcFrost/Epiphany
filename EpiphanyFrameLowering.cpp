@@ -228,6 +228,23 @@ bool EpiphanyFrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
   const TargetRegisterInfo *TRI = STI.getRegisterInfo();
 
+  DEBUG(
+      const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
+      dbgs() << "\nMax alignment = " << MFI->getMaxAlignment() << "\n";
+      dbgs() << "Current alignment = " << TFI->getStackAlignment() << "\n";
+      if (MF.getTarget().Options.DisableFramePointerElim(MF)) {
+        dbgs() << "\nHas FP: DisableFramePointerElim set\n";
+      }
+      if (TRI->needsStackRealignment(MF)) {
+        dbgs() << "\nHas FP: Stack realign needed\n";
+      }
+      if (MFI->hasVarSizedObjects()) {
+        dbgs() << "\nHas FP: Has var sized objects\n";
+      }
+      if (MFI->isFrameAddressTaken()) {
+        dbgs() << "\nHas FP: Frame address taken\n";
+      });
+
   return (MF.getTarget().Options.DisableFramePointerElim(MF) || 
       TRI->needsStackRealignment(MF) ||
       MFI->hasVarSizedObjects() ||

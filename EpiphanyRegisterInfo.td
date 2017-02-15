@@ -89,9 +89,7 @@ let Namespace = "Epiphany" in {
 //===----------------------------------------------------------------------===//
 
 // General purpose (first 7 only)
-// It should be first 7, but i'd prefer not to use R4-R7 as they're callee-saved
-// And this code size benefit will be discarded by the store/load
-def GPR16 : RegisterClass<"Epiphany", [i32], 32, (add (sequence "R%u", 0, 3))>;
+def GPR16 : RegisterClass<"Epiphany", [i32], 32, (add (sequence "R%u", 0, 7))>;
 
 // General purpose (all)
 def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add

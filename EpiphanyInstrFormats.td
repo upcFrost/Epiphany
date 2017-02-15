@@ -583,6 +583,24 @@ class Math32ri<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode,
   let isReMaterializable = 1;
 }
 
+// Special class to handle indirect addresses (usually just adding up FP and offset)
+class AddrMath32ri<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
+    : Normal32<outs, ins, asm, pattern, itin> {
+  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
+  bits<22> imm;
+  bits<6>  Rd;
+
+  let Inst{31-29} = Rd{5-3};
+  let Inst{28-26} = imm{21-19}; // Rn{5-3};
+  let Inst{23-16} = imm{10-3};
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = imm{18-16}; // Rn{2-0};
+  let Inst{9-7}   = imm{2-0};
+  let Inst{6-0}   = opcode;
+  
+  let isReMaterializable = 1;
+}
+
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with immediates: Integer
 //===----------------------------------------------------------------------===//
@@ -593,8 +611,7 @@ class IntMath16ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, P
 
 class IntMath32ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> 
     : Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
-          [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], opcode, IaluItin> {
-}
+          [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], opcode, IaluItin> {}
 
 class ShiftMath16ri<bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
     : Normal16<(outs GPR16:$Rd), (ins GPR16:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"), 
