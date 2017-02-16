@@ -125,15 +125,15 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   auto PTY = getPointerTy(DAG.getDataLayout());
 
   // For now let's think that it's all 32bit 
-  if (GV->hasInternalLinkage() || GV->hasLocalLinkage()) {
-    SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
-    return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
-  } else {
+/*  if (GV->hasInternalLinkage() || GV->hasLocalLinkage()) {*/
+    //SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
+    //return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
+  /*} else {*/
     SDValue AddrLow  = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_LOW);
     SDValue AddrHigh = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_HIGH);
     SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
     return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
-  }
+  //}
 }
 
 SDValue EpiphanyTargetLowering::LowerExternalSymbol(SDValue Op,

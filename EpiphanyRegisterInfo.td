@@ -109,8 +109,6 @@ def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
   SP,
   // Callee-saved link register
   LR,
-  // Callee-saved GPR
-  R15,
   // Caller-saved GPR
   (sequence "R%u", 16, 27),
   // Reserved
