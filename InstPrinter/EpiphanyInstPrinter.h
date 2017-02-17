@@ -48,6 +48,7 @@ namespace llvm {
     void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
     void printUnsignedImm(const MCInst *MI, unsigned OpNo, raw_ostream &O);
     void printMemOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
+    void printPostModifyOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
     void printCondCode(const MCInst *MI, unsigned OpNo, raw_ostream &O);
   };
 }

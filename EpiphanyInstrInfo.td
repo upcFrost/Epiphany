@@ -95,25 +95,41 @@ def HI16 : SDNodeXForm<imm, [{
 // Load/store instructions
 //===----------------------------------------------------------------------===//
 multiclass LoadM<PatFrag LoadType, LS_size LoadSize> {
-  def _r16 : Load16<0, GPR16, LoadType, LoadSize>;
-  def _r32 : Load32<0, GPR32, LoadType, LoadSize>;
+  def _r16 : LoadDisp16<0, GPR16, LoadType, LoadSize>;
+  def _r32 : LoadDisp32<0, GPR32, LoadType, LoadSize>;
+  def _idx_add_r16  : LoadIdx16<0, GPR16, LoadType, LoadSize, IndexAdd>;
+  def _idx_add_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexAdd>;
+  def _idx_sub_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexSub>;
+  def _pm_add_r16   : LoadPm16<0, GPR16, LoadType, LoadSize, IndexAdd>;
+  def _pm_add_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexAdd>;
+  def _pm_sub_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexSub>;
+  def _pmd_r32  : LoadPmd32<0, GPR32, LoadType, LoadSize>;
 }
 multiclass StoreM<PatFrag StoreType, LS_size StoreSize> {
-  def _r16 : Store16<0, GPR16, StoreType, StoreSize>;
-  def _r32 : Store32<0, GPR32, StoreType, StoreSize>;
+  def _r16 : StoreDisp16<0, GPR16, StoreType, StoreSize>;
+  def _r32 : StoreDisp32<0, GPR32, StoreType, StoreSize>;
+  def _idx_add_r16 : StoreIdx16<0, GPR16, StoreType, StoreSize, IndexAdd>;
+  def _idx_add_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexAdd>;
+  def _idx_sub_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexSub>;
+  def _pm_add_r16  : StorePm16<0, GPR16, StoreType, StoreSize, IndexAdd>;
+  def _pm_add_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexAdd>;
+  def _pm_sub_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexSub>;
+  def _pmd_r32  : StorePmd32<0, GPR32, StoreType, StoreSize>;
 }
 
 defm LDRi8   : LoadM<AlignedLoad<sextloadi8>,      LS_byte>;
-defm LDRi8u  : LoadM<AlignedLoad<zextloadi8>,      LS_byte>;
+defm LDRi8u  : LoadM<AlignedLoad<extloadi8>,       LS_byte>;
+defm LDRi8z  : LoadM<AlignedLoad<zextloadi8>,      LS_byte>;
 defm LDRi16  : LoadM<AlignedLoad<sextloadi16>,     LS_hword>;
-defm LDRi16u : LoadM<AlignedLoad<zextloadi16>,     LS_hword>;
+defm LDRi16u : LoadM<AlignedLoad<extloadi16>,      LS_hword>;
+defm LDRi16z : LoadM<AlignedLoad<zextloadi16>,     LS_hword>;
 defm LDRi32  : LoadM<AlignedLoad<load>,            LS_word>;
 defm STRi8   : StoreM<AlignedStore<truncstorei8>,  LS_byte>;
 defm STRi16  : StoreM<AlignedStore<truncstorei16>, LS_hword>;
 defm STRi32  : StoreM<AlignedStore<store>,         LS_word>;
 
-def LDRf32   : Load32<0, FPR32, AlignedLoad<load>,    LS_word>;
-def STRf32   : Store32<0, FPR32, AlignedStore<store>, LS_word>;
+def LDRf32   : LoadDisp32<0, FPR32, AlignedLoad<load>,    LS_word>;
+def STRf32   : StoreDisp32<0, FPR32, AlignedStore<store>, LS_word>;
 
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with registers
@@ -124,14 +140,16 @@ multiclass SimpleMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNo
 }
 
 let Defs = [STATUS] in {
-  defm ADDrr : SimpleMath<0b0011010, 0b0011111, "add", addc>;
-  defm SUBrr : SimpleMath<0b0111010, 0b0111111, "sub", subc>;
-  defm ANDrr : SimpleMath<0b1011010, 0b1011111, "and", and >;
-  defm ORRrr : SimpleMath<0b1111010, 0b1111111, "orr", or  >;
-  defm EORrr : SimpleMath<0b0001010, 0b0001111, "eor", xor >;
-  defm ASRrr : SimpleMath<0b1101010, 0b1101111, "asr", sra >;
-  defm LSRrr : SimpleMath<0b1001010, 0b1001111, "lsr", srl >;
-  defm LSLrr : SimpleMath<0b0101010, 0b0101111, "lsl", shl >;
+  defm ADDrr  : SimpleMath<0b0011010, 0b0011111, "add", add >;
+  defm SUBrr  : SimpleMath<0b0111010, 0b0111111, "sub", sub >;
+  defm ADDCrr : SimpleMath<0b0011010, 0b0011111, "add", addc>;
+  defm SUBCrr : SimpleMath<0b0111010, 0b0111111, "sub", subc>;
+  defm ANDrr  : SimpleMath<0b1011010, 0b1011111, "and", and >;
+  defm ORRrr  : SimpleMath<0b1111010, 0b1111111, "orr", or  >;
+  defm EORrr  : SimpleMath<0b0001010, 0b0001111, "eor", xor >;
+  defm ASRrr  : SimpleMath<0b1101010, 0b1101111, "asr", sra >;
+  defm LSRrr  : SimpleMath<0b1001010, 0b1001111, "lsr", srl >;
+  defm LSLrr  : SimpleMath<0b0101010, 0b0101111, "lsl", shl >;
 }
 
 // Complex math: i32/f32
@@ -141,9 +159,10 @@ multiclass ComplexMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDN
   def _f32_r32 : ComplexMath32rr<opcode32, !strconcat("f", instr_asm), OpNodeF, FPR32>;
 }
 
+// TODO: Handle arithmetics flag
 let Defs = [STATUS] in {
-  defm ADDrr : ComplexMath<0b0000111, 0b0011111, "add", add, fadd>;
-  defm SUBrr : ComplexMath<0b0010111, 0b0111111, "sub", sub, fsub>;
+  /*defm ADDrr : ComplexMath<0b0000111, 0b0011111, "add", add, fadd>;*/
+  /*defm SUBrr : ComplexMath<0b0010111, 0b0111111, "sub", sub, fsub>;*/
   defm MULrr : ComplexMath<0b0100111, 0b0101111, "mul", mul, fmul>;
 }
 
@@ -174,8 +193,8 @@ let Defs = [STATUS] in {
 // IntToFloat and Abs
 //===----------------------------------------------------------------------===//
 let Defs = [STATUS] in {
-  def FLOAT32rr : IntToFloat32<(outs FPR32:$Rd), (ins GPR32:$Rn), "float\t$Rd, $Rn", [(set FPR32:$Rd, (sint_to_fp GPR32:$Rn))], 0b1011111, NoItinerary>;
-  def FIX32rr   : IntToFloat32<(outs GPR32:$Rd), (ins FPR32:$Rn), "fix\t$Rd, $Rn",   [(set GPR32:$Rd, (fp_to_sint FPR32:$Rn))], 0b1101111, NoItinerary>;
+  def FLOAT32rr : IntToFloat32<(outs FPR32:$Rd), (ins GPR32:$Rn), "float\t$Rd, $Rn", [(set FPR32:$Rd, (sint_to_fp GPR32:$Rn))], 0b1011111, FpuItin>;
+  def FIX32rr   : IntToFloat32<(outs GPR32:$Rd), (ins FPR32:$Rn), "fix\t$Rd, $Rn",   [(set GPR32:$Rd, (fp_to_sint FPR32:$Rn))], 0b1101111, FpuItin>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -187,8 +206,9 @@ let Constraints = "$src = $Rd" in {
 def MOVi16ri : Mov16ri<"mov", (ins imm8:$Imm),    [(set GPR16:$Rd, immSExt8:$Imm)], 0b00011, GPR16>;
 def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm),   [(set GPR32:$Rd, imm:$Imm)],      0b01011, /* MOVT = */ 0, GPR32>;
 def MOVf32ri : Mov32ri<"mov", (ins fpimm16:$Imm), [(set FPR32:$Rd, fpimm16:$Imm)],  0b01011, /* MOVT = */ 0, FPR32>;
-def MOViPTR  : Mov32ri<"mov", (ins mem11:$Imm),   [(set GPR32:$Rd, addr11:$Imm)],   0b01011, /* MOVT = */ 0, GPR32>;
 
+// Special instruction to move memory pointer to the reg
+def MOViPTR  : AddrMath32ri<(outs GPR32:$Rd), (ins mem11:$imm), "add \t$Rd, $imm", [(set GPR32:$Rd, addr11:$imm)],   0b0011011, IaluItin>;
 def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
 
 //===----------------------------------------------------------------------===//

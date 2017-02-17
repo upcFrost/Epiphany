@@ -125,15 +125,15 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   auto PTY = getPointerTy(DAG.getDataLayout());
 
   // For now let's think that it's all 32bit 
-  if (GV->hasInternalLinkage() || GV->hasLocalLinkage()) {
-    SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
-    return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
-  } else {
-    SDValue AddrLow  = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_LOW);
-    SDValue AddrHigh = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_HIGH);
-    SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
-    return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
-  }
+  /*  if (GV->hasInternalLinkage() || GV->hasLocalLinkage()) {*/
+  //SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
+  //return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
+  /*} else {*/
+  SDValue AddrLow  = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_LOW);
+  SDValue AddrHigh = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_HIGH);
+  SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+  return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
+  //}
 }
 
 SDValue EpiphanyTargetLowering::LowerExternalSymbol(SDValue Op,
@@ -172,6 +172,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
 
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;
+  DEBUG(dbgs() << "\nLowering formal arguments\n");
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
   CCInfo.AnalyzeFormalArguments(Ins, CC_Epiphany_Assign);
 
@@ -181,6 +182,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
   //FI->setVarArgsFrameIndex(MFI->CreateFixedObject(1, Offset, true));
   /*}*/
 
+  DEBUG(dbgs() << "Number of args present: " << ArgLocs.size() << "\n");
   for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
     CCValAssign &VA = ArgLocs[i];
     SDValue ArgValue;
@@ -188,7 +190,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
     // If assigned to register
     if (VA.isRegLoc()) {
       EVT RegVT = VA.getLocVT();
-      DEBUG(errs() << "\nArg " << i << " assigned to reg " << VA.getLocReg()) ;
+      DEBUG(errs() << "Arg " << i << " assigned to reg " << VA.getLocReg() << "\n") ;
 
       // Get register that was assigned
       const TargetRegisterClass *RC = getRegClassFor(RegVT.getSimpleVT());
@@ -216,6 +218,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
 
     } else { // VA.isRegLoc()
       assert(VA.isMemLoc());
+      DEBUG(dbgs() << "Arg is a memory loc\n");
       int FI = MFI->CreateFixedObject(VA.getLocVT().getSizeInBits()/8, VA.getLocMemOffset(), true);
       SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
       ArgValue = DAG.getLoad(VA.getLocVT(), DL, Chain, FIN, MachinePointerInfo::getFixedStack(MF, FI));
@@ -324,56 +327,79 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
   MachineFunction &MF = DAG.getMachineFunction();
   bool IsStructRet = !Outs.empty() && Outs[0].Flags.isSRet();
 
+  DEBUG(dbgs() << "\nLowering call\n");
+
   // Check if the call is eligible for tail optimization
   if (IsTailCall) {
+    DEBUG(dbgs() << "Optimizing as tail call\n");
     IsTailCall = IsEligibleForTailCallOptimization(Callee, CallConv, IsVarArg, IsStructRet, MF.getFunction()->hasStructRetAttr(), Outs, OutVals, Ins, DAG);
   }
 
   // Analyze return variables based on EpiphanyCallingConv.td
+  DEBUG(dbgs() << "Call has " << Outs.size() << " args\n");
+  // TODO: Maybe 16 is not that much considering the stack
   SmallVector<CCValAssign, 16> ArgLocs;
-  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), ArgLocs, *DAG.getContext());
+  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
   CCInfo.AnalyzeCallOperands(Outs, RetCC_Epiphany);
 
-  // On Epiphany (and all other architectures I'm aware of) the most this has to
-  // do is adjust the stack pointer.
-  //
+  // Adjust stack pointer
   unsigned NextStackOffset = CCInfo.getNextStackOffset();
-  unsigned StackAlignment = 16;
+  unsigned StackAlignment = Subtarget.getFrameLowering()->getStackAlignment();
   NextStackOffset = alignTo(NextStackOffset, StackAlignment);
   SDValue NextStackOffsetVal = DAG.getIntPtrConstant(NextStackOffset, DL, true);
+  DEBUG(dbgs() << "Next offset value is " << NextStackOffset << "\n");
+
+  // Emit CALLSEQ_START
   Chain = DAG.getCALLSEQ_START(Chain, NextStackOffsetVal, DL);
   SDValue StackPtr = DAG.getCopyFromReg(Chain, DL, Epiphany::SP, getPointerTy(DAG.getDataLayout()));
-  SmallVector<SDValue, 8> MemOpChains;
-  SmallVector<std::pair<unsigned, SDValue>, 8> RegsToPass;
+
+  // We can have only 4 regs to pass, but we can compensate with stack-based args
+  SmallVector<std::pair<unsigned, SDValue>, 4> RegsToPass;
+  SmallVector<SDValue, 12> MemOpChains;
 
   // Check each argument if it needs any modifications and push it into the stack
+  DEBUG(dbgs() << "After analysis, call has " << ArgLocs.size() << " args\n");
   for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
     CCValAssign &VA = ArgLocs[i];
     ISD::ArgFlagsTy Flags = Outs[i].Flags;
+    MVT ValVT = VA.getValVT(), LocVT = VA.getLocVT();
     SDValue Arg = OutVals[i];
+    DEBUG(dbgs() << "Analyzing arg: "; Arg.dump());
 
     // Callee does the actual widening, so all extensions just use an implicit
     // definition of the rest of the Loc. Aesthetically, this would be nicer as
     // an ANY_EXTEND, but that isn't valid for floating-point types and this
     // alternative works on integer types too.
     switch (VA.getLocInfo()) {
-      default: llvm_unreachable("Unknown loc info!");
+      default: 
+        llvm_unreachable("Unknown loc info!");
       case CCValAssign::Full: 
-               // Nothing to do
-               break;
+        if (VA.isRegLoc()) {
+          if ((ValVT == MVT::f32 && LocVT == MVT::i32) ||
+              (ValVT == MVT::f64 && LocVT == MVT::i64) ||
+              (ValVT == MVT::i64 && LocVT == MVT::f64))
+            Arg = DAG.getNode(ISD::BITCAST, DL, LocVT, Arg);
+          else if (ValVT == MVT::f64 && LocVT == MVT::i32) {
+            llvm_unreachable("Unimplemented yet!");
+              continue;
+          }
+        }
+        // Nothing to do
+        break;
       case CCValAssign::SExt:
       case CCValAssign::ZExt:
       case CCValAssign::AExt:
-               // Floating-point arguments only get extended/truncated if they're going
-               // in memory, so using the integer operation is acceptable here.
-               Arg = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), Arg);
-               break;
+        // Floating-point arguments only get extended/truncated if they're going
+        // in memory, so using the integer operation is acceptable here.
+        Arg = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), Arg);
+        break;
       case CCValAssign::BCvt:
-               Arg = DAG.getNode(ISD::BITCAST, DL, VA.getLocVT(), Arg);
-               break;
+        Arg = DAG.getNode(ISD::BITCAST, DL, VA.getLocVT(), Arg);
+        break;
     }
 
     if (VA.isRegLoc()) {
+      DEBUG(dbgs() << "Argument will be passed using register\n");
       // A normal register (sub-) argument. For now we just note it down because
       // we want to copy things into registers as late as possible to avoid
       // register-pressure (and possibly worse).
@@ -383,18 +409,21 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
 
     // If arg is neither Reg nor Memory - throw error
     assert(VA.isMemLoc() && "unexpected argument location");
+    DEBUG(dbgs() << "Argument will be passed using memory loc\n");
 
     // Deal with memory-stored args
     SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset(), DL, /* isTarget = */ false);
     SDValue DstAddr = DAG.getNode(ISD::ADD, DL, getPointerTy(DAG.getDataLayout()), StackPtr, PtrOff);
 
     if (Flags.isByVal()) {
+      DEBUG(dbgs() << "Argument passed by value");
       SDValue SizeNode = DAG.getConstant(Flags.getByValSize(), DL, MVT::i32);
       SDValue Cpy = DAG.getMemcpy(Chain, DL, DstAddr, Arg, SizeNode, Flags.getByValAlign(), 
           /*isVolatile = */ false, /*alwaysInline = */ false, /*isTailCall = */ false,
           MachinePointerInfo(), MachinePointerInfo());
       MemOpChains.push_back(Cpy);
     } else {
+      DEBUG(dbgs() << "Argument passed in stack");
       // Normal stack argument, put it where it's needed.
       SDValue Store = DAG.getStore(Chain, DL, Arg, DstAddr, MachinePointerInfo());
       MemOpChains.push_back(Store);
@@ -423,17 +452,14 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
   // For internal linkage we can use BranchAndLink without regs, while for external it'd be better to use JALR
   EVT PTY = getPointerTy(DAG.getDataLayout());
   if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
+    DEBUG(dbgs() << "\nArgument is a global value");
     const GlobalValue *GV = G->getGlobal();
-    DEBUG(dbgs() << "\nGV linkage " << GV->getLinkage() << "\n") ;
-    if (GV->hasInternalLinkage() || GV->hasLocalLinkage()) {
-      Callee = DAG.getTargetGlobalAddress(GV, DL, PTY);
-    } else {
-      SDValue AddrLow  = DAG.getTargetGlobalAddress(GV, DL, PTY, 0, EpiphanyII::MO_LOW);
-      SDValue AddrHigh = DAG.getTargetGlobalAddress(GV, DL, PTY, 0, EpiphanyII::MO_HIGH);
-      Callee = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
-      Callee = DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Callee, AddrHigh);
-    }
+    SDValue AddrLow  = DAG.getTargetGlobalAddress(GV, DL, PTY, 0, EpiphanyII::MO_LOW);
+    SDValue AddrHigh = DAG.getTargetGlobalAddress(GV, DL, PTY, 0, EpiphanyII::MO_HIGH);
+    Callee = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+    Callee = DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Callee, AddrHigh);
   } else if (ExternalSymbolSDNode *S = dyn_cast<ExternalSymbolSDNode>(Callee)) {
+    DEBUG(dbgs() << "\nArgument is an external symbol");
     const char *Sym = S->getSymbol();
     Callee = DAG.getTargetExternalSymbol(Sym, PTY);
   }
@@ -474,6 +500,8 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
   Chain = DAG.getCALLSEQ_END(Chain, NextStackOffsetVal, 
       DAG.getIntPtrConstant(CalleePopBytes, DL, /* isTarget = */ true), InFlag, DL);
   InFlag = Chain.getValue(1);
+
+  DEBUG(dbgs() << "\n");
 
   return LowerCallResult(Chain, InFlag, CallConv, IsVarArg, Ins, DL, DAG, InVals);
 }

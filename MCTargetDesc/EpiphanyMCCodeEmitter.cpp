@@ -192,11 +192,39 @@ static unsigned getShift(unsigned int OpCode) {
       case Epiphany::STRi16_r16:
       case Epiphany::LDRi16_r32:
       case Epiphany::STRi16_r32:
+      case Epiphany::LDRi16_idx_add_r16:
+      case Epiphany::STRi16_idx_add_r16:
+      case Epiphany::LDRi16_idx_add_r32:
+      case Epiphany::STRi16_idx_add_r32:
+      case Epiphany::LDRi16_idx_sub_r32:
+      case Epiphany::STRi16_idx_sub_r32:
+      case Epiphany::LDRi16_pm_add_r16:
+      case Epiphany::STRi16_pm_add_r16:
+      case Epiphany::LDRi16_pm_add_r32:
+      case Epiphany::STRi16_pm_add_r32:
+      case Epiphany::LDRi16_pm_sub_r32:
+      case Epiphany::STRi16_pm_sub_r32:
+      case Epiphany::LDRi16_pmd_r32:
+      case Epiphany::STRi16_pmd_r32:
         Shift = 1;
       case Epiphany::LDRi32_r16:
       case Epiphany::STRi32_r16:
       case Epiphany::LDRi32_r32:
       case Epiphany::STRi32_r32:
+      case Epiphany::LDRi32_idx_add_r16:
+      case Epiphany::STRi32_idx_add_r16:
+      case Epiphany::LDRi32_idx_add_r32:
+      case Epiphany::STRi32_idx_add_r32:
+      case Epiphany::LDRi32_idx_sub_r32:
+      case Epiphany::STRi32_idx_sub_r32:
+      case Epiphany::LDRi32_pm_add_r16:
+      case Epiphany::STRi32_pm_add_r16:
+      case Epiphany::LDRi32_pm_add_r32:
+      case Epiphany::STRi32_pm_add_r32:
+      case Epiphany::LDRi32_pm_sub_r32:
+      case Epiphany::STRi32_pm_sub_r32:
+      case Epiphany::LDRi32_pmd_r32:
+      case Epiphany::STRi32_pmd_r32:
         Shift = 2;
     }
 
@@ -216,6 +244,8 @@ unsigned EpiphanyMCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo,
   // Get value shift for load/store instructions
   unsigned RegBits = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI) << 16;
   unsigned OffBits = getMachineOpValue(MI, MI.getOperand(OpNo+1), Fixups, STI) >> getShift(MI.getOpcode());
+  // Value should be always greater than 0, sign is regulated by bit 11
+  OffBits = (OffBits >> 11) == 0 ? OffBits : (OffBits^0xFFFF) + 1 | (1 << 11);
 
   return (OffBits & 0xFFFF) | RegBits;
 }

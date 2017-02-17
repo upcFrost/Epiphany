@@ -98,6 +98,13 @@ void EpiphanyInstPrinter::printMemOperand(const MCInst *MI, unsigned opNum, raw_
   O << "]";
 }
 
+void EpiphanyInstPrinter::printPostModifyOperand(const MCInst *MI, unsigned opNum, raw_ostream &O) {
+  O << "[";
+  printOperand(MI, opNum, O);
+  O << "],";
+  printOperand(MI, opNum+1, O);
+}
+
 void EpiphanyInstPrinter::printCondCode(const MCInst *MI, unsigned OpNo,
     raw_ostream &O) {
   unsigned CC = MI->getOperand(OpNo).getImm();

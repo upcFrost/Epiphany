@@ -40,8 +40,7 @@ EpiphanyRegisterInfo::EpiphanyRegisterInfo(const EpiphanySubtarget &ST)
 	//===----------------------------------------------------------------------===//
 	/// Epiphany Callee Saved Registers
 	// In EpiphanyCallConv.td,
-	// def CSR32 : CalleeSavedRegs<(add V1, V2, V3, V4, V5, SB, SL, FP, LR, R15,
-	//                             (sequence "R%u", 32, 43))>;
+	// def CSR32 : CalleeSavedRegs<(add V1, V2, V3, V4, V5, SB, SL, FP, LR, R15)>;
 	// llc create CSR32_SaveList and CSR32_RegMask from above defined.
 	const MCPhysReg *
 	EpiphanyRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {

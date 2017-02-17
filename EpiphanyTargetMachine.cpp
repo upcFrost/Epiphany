@@ -51,7 +51,7 @@ static std::string computeDataLayout(const Triple &TT, StringRef CPU,
 
   // Minimal alignment for E16 is half-word (2 bytes), so natual alignment is ok
   // for all except i8
-  Ret += "-i8:8:16-i16:16-i64:64";
+  Ret += "-i8:8:16-i16:16-i32:32-i64:64";
   
   // 32 and 64 bit floats should have natural alignment
   Ret += "-f32:32-f64:64";
@@ -96,7 +96,9 @@ public:
     return getTM<EpiphanyTargetMachine>();
   }
 
+  bool addILPOpts() override;
   bool addInstSelector() override;
+  void addPreRegAlloc() override;
   void addPreSched2() override;
 
   const EpiphanySubtarget &getEpiphanySubtarget() const {
@@ -109,9 +111,20 @@ TargetPassConfig *EpiphanyTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new EpiphanyPassConfig(this, PM);
 }
 
+bool EpiphanyPassConfig::addILPOpts() {
+  addPass(&EarlyIfConverterID);
+  //if (EnableMachineCombinerPass)
+    //addPass(&MachineCombinerID);
+  return true;
+}
+
 bool EpiphanyPassConfig::addInstSelector() {
   addPass(new EpiphanyDAGToDAGISel(getEpiphanyTargetMachine(), getOptLevel()));
   return false;
+}
+
+void EpiphanyPassConfig::addPreRegAlloc() {
+  addPass(&LiveVariablesID, false);
 }
 
 void EpiphanyPassConfig::addPreSched2() {
