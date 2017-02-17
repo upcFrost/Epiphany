@@ -110,18 +110,18 @@ class Interrupt<bits<10> opcode, list<dag> pattern, string asm>
 class ImmAsmOperand : AsmOperandClass { let RenderMethod = "addImmOperands"; }
 
 // Immediate classes
-def Imm3_Operand   : ImmAsmOperand { let Name = "imm3";   }
-def Imm5_Operand   : ImmAsmOperand { let Name = "imm5";   }
-def Imm8_Operand   : ImmAsmOperand { let Name = "imm8";   }
-def Imm11_Operand  : ImmAsmOperand { let Name = "imm11";  }
-def Imm16_Operand  : ImmAsmOperand { let Name = "imm16";  }
-def Imm24_Operand  : ImmAsmOperand { let Name = "imm24";  }
-def Simm3_Operand  : ImmAsmOperand { let Name = "simm3";  }
-def Simm8_Operand  : ImmAsmOperand { let Name = "simm8";  }
-def Simm11_Operand : ImmAsmOperand { let Name = "simm11"; }
-def Simm12_Operand : ImmAsmOperand { let Name = "simm12"; }
-def Simm24_Operand : ImmAsmOperand { let Name = "simm24"; }
-def Fimm16_Operand : ImmAsmOperand { let Name = "fimm16"; }
+def Imm3_Operand   : ImmAsmOperand { let Name = "UImm<3>";   let ParserMethod = "ParseImmOperand";   }
+def Imm5_Operand   : ImmAsmOperand { let Name = "UImm<5>";   let ParserMethod = "ParseImmOperand";   }
+def Imm8_Operand   : ImmAsmOperand { let Name = "UImm<8>";   let ParserMethod = "ParseImmOperand";   }
+def Imm11_Operand  : ImmAsmOperand { let Name = "UImm<11>";  let ParserMethod = "ParseImmOperand";   }
+def Imm16_Operand  : ImmAsmOperand { let Name = "UImm<16>";  let ParserMethod = "ParseImmOperand";   }
+def Imm24_Operand  : ImmAsmOperand { let Name = "UImm<24>";  let ParserMethod = "ParseImmOperand";   }
+def Simm3_Operand  : ImmAsmOperand { let Name = "SImm<3>";   let ParserMethod = "ParseSimmOperand";  }
+def Simm8_Operand  : ImmAsmOperand { let Name = "SImm<8>";   let ParserMethod = "ParseSimmOperand";  }
+def Simm11_Operand : ImmAsmOperand { let Name = "SImm<11>";  let ParserMethod = "ParseSimmOperand";  }
+def Simm12_Operand : ImmAsmOperand { let Name = "SImm<12>";  let ParserMethod = "ParseSimmOperand";  }
+def Simm24_Operand : ImmAsmOperand { let Name = "SImm<24>";  let ParserMethod = "ParseSimmOperand";  }
+def Fimm16_Operand : ImmAsmOperand { let Name = "Fimm16";    let ParserMethod = "ParseFimmOperand";  }
 
 // Immediates
 let OperandType = "OPERAND_IMMEDIATE" in {
@@ -158,16 +158,23 @@ def immSExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getSExtValue()); }]>;
 def immSExt11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 def immSExt16  : PatLeaf<(imm), [{ return isInt<16>(N->getSExtValue()); }]>;
 
+// Memory operand for asm parser
+def EpiphanyMemAsmOperand : AsmOperandClass {
+  let Name = "Mem";
+  let ParserMethod = "parseMemOperand";
+}
 // Memory address operand
 def mem3 : Operand<iPTR> {
   let PrintMethod = "printMemOperand";
   let MIOperandInfo = (ops GPR16:$Rn, imm3:$imm);
   let EncoderMethod = "getMemEncoding";
+  let ParserMatchClass = EpiphanyMemAsmOperand;
 }
 def mem11 : Operand<iPTR> {
   let PrintMethod = "printMemOperand";
   let MIOperandInfo = (ops GPR32:$Rn, simm12:$imm);
   let EncoderMethod = "getMemEncoding";
+  let ParserMatchClass = EpiphanyMemAsmOperand;
 }
 // Postmodify operand
 def pmem11 : Operand<iPTR> {

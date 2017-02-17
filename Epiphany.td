@@ -42,6 +42,19 @@ include "EpiphanyInstrInfo.td"
 def EpiphanyInstrInfo : InstrInfo;
 
 //===----------------------------------------------------------------------===//
+// Asm parser
+//===----------------------------------------------------------------------===//
+def EpiphanyAsmParser : AsmParser {
+  let ShouldEmitMatchRegisterName = 0;
+}
+
+def EpiphanyAsmParserVariant : AsmParserVariant {
+  int Variant = 0;
+  // Recognize hard coded registers
+  string RegisterPrefix = "r";
+}
+
+//===----------------------------------------------------------------------===//
 // Declare the target which we are implementing
 //===----------------------------------------------------------------------===//
 
@@ -49,4 +62,6 @@ def EpiphanyInstrInfo : InstrInfo;
 //  as follows,
 def Epiphany : Target {
   let InstructionSet = EpiphanyInstrInfo;
+  let AssemblyParsers = [EpiphanyAsmParser];
+  let AssemblyParserVariants = [EpiphanyAsmParserVariant];
 }
