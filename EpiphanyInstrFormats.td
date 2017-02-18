@@ -110,18 +110,24 @@ class Interrupt<bits<10> opcode, list<dag> pattern, string asm>
 class ImmAsmOperand : AsmOperandClass { let RenderMethod = "addImmOperands"; }
 
 // Immediate classes
-def Imm3_Operand   : ImmAsmOperand { let Name = "UImm<3>";   let ParserMethod = "ParseImmOperand";   }
-def Imm5_Operand   : ImmAsmOperand { let Name = "UImm<5>";   let ParserMethod = "ParseImmOperand";   }
-def Imm8_Operand   : ImmAsmOperand { let Name = "UImm<8>";   let ParserMethod = "ParseImmOperand";   }
-def Imm11_Operand  : ImmAsmOperand { let Name = "UImm<11>";  let ParserMethod = "ParseImmOperand";   }
-def Imm16_Operand  : ImmAsmOperand { let Name = "UImm<16>";  let ParserMethod = "ParseImmOperand";   }
-def Imm24_Operand  : ImmAsmOperand { let Name = "UImm<24>";  let ParserMethod = "ParseImmOperand";   }
-def Simm3_Operand  : ImmAsmOperand { let Name = "SImm<3>";   let ParserMethod = "ParseSimmOperand";  }
-def Simm8_Operand  : ImmAsmOperand { let Name = "SImm<8>";   let ParserMethod = "ParseSimmOperand";  }
-def Simm11_Operand : ImmAsmOperand { let Name = "SImm<11>";  let ParserMethod = "ParseSimmOperand";  }
-def Simm12_Operand : ImmAsmOperand { let Name = "SImm<12>";  let ParserMethod = "ParseSimmOperand";  }
-def Simm24_Operand : ImmAsmOperand { let Name = "SImm<24>";  let ParserMethod = "ParseSimmOperand";  }
-def Fimm16_Operand : ImmAsmOperand { let Name = "Fimm16";    let ParserMethod = "ParseFimmOperand";  }
+//let ParserMethod = "ParseImmOperand" in {
+  def Imm3_Operand   : ImmAsmOperand { let Name = "UImm3";  let PredicateMethod = "isUImm<3>"; }
+  def Imm5_Operand   : ImmAsmOperand { let Name = "UImm5";  let PredicateMethod = "isUImm<5>"; }
+  def Imm8_Operand   : ImmAsmOperand { let Name = "UImm8";  let PredicateMethod = "isUImm<8>"; }
+  def Imm11_Operand  : ImmAsmOperand { let Name = "UImm11"; let PredicateMethod = "isUImm<11>"; }
+  def Imm16_Operand  : ImmAsmOperand { let Name = "UImm16"; let PredicateMethod = "isUImm<16>"; }
+  def Imm24_Operand  : ImmAsmOperand { let Name = "UImm24"; let PredicateMethod = "isUImm<24>"; }
+//}
+//let ParserMethod = "ParseSimmOperand" in {
+  def Simm3_Operand  : ImmAsmOperand { let Name = "SImm3";  let PredicateMethod = "isSImm<3>";  }
+  def Simm8_Operand  : ImmAsmOperand { let Name = "SImm8";  let PredicateMethod = "isSImm<8>";  }
+  def Simm11_Operand : ImmAsmOperand { let Name = "SImm11"; let PredicateMethod = "isSImm<11>"; }
+  def Simm12_Operand : ImmAsmOperand { let Name = "SImm12"; let PredicateMethod = "isSImm<12>"; }
+  def Simm24_Operand : ImmAsmOperand { let Name = "SImm24"; let PredicateMethod = "isSImm<24>"; }
+//}
+//let ParserMethod = "ParseFimmOperand" in {
+  def Fimm16_Operand : ImmAsmOperand { let Name = "Fimm16"; let PredicateMethod = "isSImm<16>"; }
+//}
 
 // Immediates
 let OperandType = "OPERAND_IMMEDIATE" in {

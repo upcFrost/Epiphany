@@ -424,7 +424,7 @@ int EpiphanyAsmParser::matchRegisterByNumber(unsigned RegNum, StringRef Mnemonic
   if (RegNum > 63)
     return -1;
 
-  return getReg(Epiphany::CPURegsRegClassID, RegNum);
+  return getReg(Epiphany::GPR32RegClassID, RegNum);
 }
 
 int EpiphanyAsmParser::tryParseRegister(StringRef Mnemonic) {
@@ -704,8 +704,7 @@ EpiphanyAsmParser::OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
   return MatchOperand_Success;
 }
 
-bool EpiphanyAsmParser::
-parseMathOperation(StringRef Name, SMLoc NameLoc,
+bool EpiphanyAsmParser::parseMathOperation(StringRef Name, SMLoc NameLoc,
     OperandVector &Operands) {
   // split the format
   size_t Start = Name.find('.'), Next = Name.rfind('.');
