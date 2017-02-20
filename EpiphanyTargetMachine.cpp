@@ -125,6 +125,7 @@ bool EpiphanyPassConfig::addInstSelector() {
 
 void EpiphanyPassConfig::addPreRegAlloc() {
   addPass(&LiveVariablesID, false);
+  addPass(createEpiphanyFpuConfigPass());
 }
 
 void EpiphanyPassConfig::addPreSched2() {

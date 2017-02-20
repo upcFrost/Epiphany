@@ -15,6 +15,7 @@ add_public_tablegen_target(EpiphanyCommonTableGen)
 
 add_llvm_target(EpiphanyCodeGen
   EpiphanyAsmPrinter.cpp
+  EpiphanyFpuConfigPass.cpp
   EpiphanyFrameLowering.cpp
   EpiphanyISelLowering.cpp
   EpiphanyISelDAGToDAG.cpp

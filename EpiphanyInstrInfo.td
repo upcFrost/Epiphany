@@ -243,8 +243,8 @@ def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
 def MOVi32rr     : Mov32rr<"mov", [], GPR32>;
 def MOVf32rr     : Mov32rr<"mov", [], FPR32>;
 
-def MOVFS32rr    : MovSpecial<"movfs", (outs SPECIAL:$Rd), (ins GPR32:$Rn),   [], CoreReg, SpecFrom>;
-def MOVTS32rr    : MovSpecial<"movts", (outs GPR32:$Rd),   (ins SPECIAL:$Rn), [], CoreReg, SpecTo>;
+def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins SPECIAL:$Rn), [], CoreReg, SpecFrom>;
+def MOVTS32rr    : MovSpecial<"movts", (outs SPECIAL:$Rd), (ins GPR32:$Rn),   [], CoreReg, SpecTo>;
 
 let Uses = [STATUS], Constraints = "$src = $Rd" in {
   def MOVCC32rr : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, GPR32:$sub), []>;

@@ -42,6 +42,8 @@ namespace llvm {
   class EpiphanyTargetMachine;
   class FunctionPass;
 
+  FunctionPass *createEpiphanyFpuConfigPass();
+
 } // end namespace llvm;
 
 #endif
