@@ -96,7 +96,7 @@ class Normal32<dag outs, dag ins, string asm, list<dag> pattern, InstrItinClass 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 class Interrupt<bits<10> opcode, list<dag> pattern, string asm>
-    : Normal32<(outs), (ins), asm, pattern, ControlItin> {
+    : Normal16<(outs), (ins), asm, pattern, ControlItin> {
   let Inst{9-0} = opcode;
 }
 
