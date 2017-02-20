@@ -90,6 +90,7 @@ let Namespace = "Epiphany" in {
 
 // General purpose (first 7 only)
 def GPR16 : RegisterClass<"Epiphany", [i32], 32, (add (sequence "R%u", 0, 7))>;
+def FPR16 : RegisterClass<"Epiphany", [f32], 32, (add (sequence "R%u", 0, 7))>;
 
 // General purpose (all)
 def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add

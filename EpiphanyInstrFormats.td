@@ -28,6 +28,8 @@ class EpiphanyInst16<Format f, string cstr> : Instruction {
   bits<2> Form      = F.Value;
   let Pattern       = [];
   let Constraints   = cstr;
+  let Size          = 2;
+  let CodeSize      = 2;
 }
 
 // Epiphany instruction format (general)
@@ -38,6 +40,8 @@ class EpiphanyInst32<Format f, string cstr> : Instruction {
   bits<2> Form      = F.Value;
   let Pattern       = [];
   let Constraints   = cstr;
+  let Size          = 4;
+  let CodeSize      = 4;
 }
 
 class Pseudo16<dag outs, dag ins, list<dag> pattern, InstrItinClass itin = NoItinerary, string cstr = ""> 
@@ -523,16 +527,29 @@ class SimpleMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterCl
 }
 
 //===----------------------------------------------------------------------===//
-// Arithmetic operations with registers: Integer
+// Arithmetic operations with registers: Float
 //===----------------------------------------------------------------------===//
 
-class ComplexMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+class ComplexMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, InstrItinClass itin> :
   Math16rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"), 
-           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, Ialu2Itin> {}
+           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, itin> {}
 
-class ComplexMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+class ComplexMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, InstrItinClass itin> :
   Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"), 
-           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, Ialu2Itin> {
+           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, itin> {
+  let Inst{19-16} = 0b0111;
+}
+
+class ComplexMath2_16rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode OpNode2, RegisterClass RegClass, InstrItinClass itin> :
+  Math16rr<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"), 
+           [(set RegClass:$Rd, (OpNode RegClass:$src, (OpNode2 RegClass:$Rn, RegClass:$Rm)))], opcode, itin> {
+  let Constraints = "$src = $Rd";
+}
+
+class ComplexMath2_32rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode OpNode2, RegisterClass RegClass, InstrItinClass itin> :
+  Math32rr<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"), 
+           [(set RegClass:$Rd, (OpNode RegClass:$src, (OpNode2 RegClass:$Rn, RegClass:$Rm)))], opcode, itin> {
+  let Constraints = "$src = $Rd";
   let Inst{19-16} = 0b0111;
 }
 
