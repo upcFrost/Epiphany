@@ -1,4 +1,4 @@
-;===- ./lib/Target/Epiphany/LLVMBuild.txt -----------------------*- Conf -*--===;
+;===- ./lib/Target/Epiphany/AsmParser/LLVMBuild.txt ----------------*- Conf -*--===;
 ;
 ;                     The LLVM Compiler Infrastructure
 ;
@@ -15,26 +15,9 @@
 ;
 ;===------------------------------------------------------------------------===;
 
-[common]
-subdirectories = AsmParser MCTargetDesc TargetInfo InstPrinter
-
 [component_0]
-type = TargetGroup
-name = Epiphany
-parent = Target
-has_asmprinter = 1
-has_asmparser = 1
-
-[component_1]
 type = Library
-name = EpiphanyCodeGen
+name = EpiphanyAsmParser
 parent = Epiphany
-required_libraries = AsmPrinter CodeGen Core MC
-                     EpiphanyAsmPrinter
-                     EpiphanyDesc
-                     EpiphanyInfo
-                     SelectionDAG
-                     Support
-                     Target
-
+required_libraries = EpiphanyDesc EpiphanyInfo MC MCParser Support 
 add_to_library_groups = Epiphany

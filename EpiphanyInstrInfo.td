@@ -73,7 +73,13 @@ def SDT_EpiphanyRet : SDTypeProfile<0, 1, [SDTCisInt<0>]>;
 def EpiphanyRet : SDNode<"EpiphanyISD::RTS", SDTNone, 
                          [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
-def NOP : Interrupt<0b0110100010, [], "nop">;
+//===----------------------------------------------------------------------===//
+// Interrupts and core control
+//===----------------------------------------------------------------------===//
+def NOP  : Interrupt<0b0110100010, [], "nop">;
+def IDLE : Interrupt<0b0110110010, [], "idle">;
+def GIE  : Interrupt<0b0110010010, [], "gie">;
+def GID  : Interrupt<0b1110010010, [], "gid">;
 
 //let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
 //  def RTI : Interrupt<0b0111010010, [(EpiphanyRet)], "rti">;

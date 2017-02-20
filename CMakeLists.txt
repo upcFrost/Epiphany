@@ -1,5 +1,6 @@
 set(LLVM_TARGET_DEFINITIONS Epiphany.td)
 
+tablegen(LLVM EpiphanyGenAsmMatcher.inc -gen-asm-matcher)
 tablegen(LLVM EpiphanyGenCodeEmitter.inc -gen-emitter)
 tablegen(LLVM EpiphanyGenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM EpiphanyGenInstrInfo.inc -gen-instr-info)
@@ -29,3 +30,5 @@ add_llvm_target(EpiphanyCodeGen
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 add_subdirectory(InstPrinter)
+add_subdirectory(AsmParser)
+

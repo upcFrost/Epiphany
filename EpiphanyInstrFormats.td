@@ -96,7 +96,7 @@ class Normal32<dag outs, dag ins, string asm, list<dag> pattern, InstrItinClass 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 class Interrupt<bits<10> opcode, list<dag> pattern, string asm>
-    : Normal32<(outs), (ins), asm, pattern, ControlItin> {
+    : Normal16<(outs), (ins), asm, pattern, ControlItin> {
   let Inst{9-0} = opcode;
 }
 
@@ -110,18 +110,24 @@ class Interrupt<bits<10> opcode, list<dag> pattern, string asm>
 class ImmAsmOperand : AsmOperandClass { let RenderMethod = "addImmOperands"; }
 
 // Immediate classes
-def Imm3_Operand   : ImmAsmOperand { let Name = "imm3";   }
-def Imm5_Operand   : ImmAsmOperand { let Name = "imm5";   }
-def Imm8_Operand   : ImmAsmOperand { let Name = "imm8";   }
-def Imm11_Operand  : ImmAsmOperand { let Name = "imm11";  }
-def Imm16_Operand  : ImmAsmOperand { let Name = "imm16";  }
-def Imm24_Operand  : ImmAsmOperand { let Name = "imm24";  }
-def Simm3_Operand  : ImmAsmOperand { let Name = "simm3";  }
-def Simm8_Operand  : ImmAsmOperand { let Name = "simm8";  }
-def Simm11_Operand : ImmAsmOperand { let Name = "simm11"; }
-def Simm12_Operand : ImmAsmOperand { let Name = "simm12"; }
-def Simm24_Operand : ImmAsmOperand { let Name = "simm24"; }
-def Fimm16_Operand : ImmAsmOperand { let Name = "fimm16"; }
+//let ParserMethod = "ParseImmOperand" in {
+  def Imm3_Operand   : ImmAsmOperand { let Name = "UImm3";  let PredicateMethod = "isUImm<3>"; }
+  def Imm5_Operand   : ImmAsmOperand { let Name = "UImm5";  let PredicateMethod = "isUImm<5>"; }
+  def Imm8_Operand   : ImmAsmOperand { let Name = "UImm8";  let PredicateMethod = "isUImm<8>"; }
+  def Imm11_Operand  : ImmAsmOperand { let Name = "UImm11"; let PredicateMethod = "isUImm<11>"; }
+  def Imm16_Operand  : ImmAsmOperand { let Name = "UImm16"; let PredicateMethod = "isUImm<16>"; }
+  def Imm24_Operand  : ImmAsmOperand { let Name = "UImm24"; let PredicateMethod = "isUImm<24>"; }
+//}
+//let ParserMethod = "ParseSimmOperand" in {
+  def Simm3_Operand  : ImmAsmOperand { let Name = "SImm3";  let PredicateMethod = "isSImm<3>";  }
+  def Simm8_Operand  : ImmAsmOperand { let Name = "SImm8";  let PredicateMethod = "isSImm<8>";  }
+  def Simm11_Operand : ImmAsmOperand { let Name = "SImm11"; let PredicateMethod = "isSImm<11>"; }
+  def Simm12_Operand : ImmAsmOperand { let Name = "SImm12"; let PredicateMethod = "isSImm<12>"; }
+  def Simm24_Operand : ImmAsmOperand { let Name = "SImm24"; let PredicateMethod = "isSImm<24>"; }
+//}
+//let ParserMethod = "ParseFimmOperand" in {
+  def Fimm16_Operand : ImmAsmOperand { let Name = "Fimm16"; let PredicateMethod = "isSImm<16>"; }
+//}
 
 // Immediates
 let OperandType = "OPERAND_IMMEDIATE" in {
@@ -158,16 +164,23 @@ def immSExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getSExtValue()); }]>;
 def immSExt11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 def immSExt16  : PatLeaf<(imm), [{ return isInt<16>(N->getSExtValue()); }]>;
 
+// Memory operand for asm parser
+def EpiphanyMemAsmOperand : AsmOperandClass {
+  let Name = "Mem";
+  let ParserMethod = "parseMemOperand";
+}
 // Memory address operand
 def mem3 : Operand<iPTR> {
   let PrintMethod = "printMemOperand";
   let MIOperandInfo = (ops GPR16:$Rn, imm3:$imm);
   let EncoderMethod = "getMemEncoding";
+  let ParserMatchClass = EpiphanyMemAsmOperand;
 }
 def mem11 : Operand<iPTR> {
   let PrintMethod = "printMemOperand";
   let MIOperandInfo = (ops GPR32:$Rn, simm12:$imm);
   let EncoderMethod = "getMemEncoding";
+  let ParserMatchClass = EpiphanyMemAsmOperand;
 }
 // Postmodify operand
 def pmem11 : Operand<iPTR> {
