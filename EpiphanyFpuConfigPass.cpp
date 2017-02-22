@@ -63,13 +63,12 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
   if (hasFPU) {
     MachineBasicBlock *MBB = &MF.front();
     MachineInstr *insertPos = &MBB->front();
-    MBB->addLiveIn(Epiphany::CONFIG);
     DebugLoc DL = insertPos->getDebugLoc();
     // Disable interrupts
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GID));
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GID)).addReg(Epiphany::CONFIG, RegState::ImplicitDefine);
     // Get current config and save it to stack
     unsigned configTmpReg = MRI.createVirtualRegister(RC);
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVFS32rr), configTmpReg).addReg(Epiphany::CONFIG);
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVFS32rr), configTmpReg).addReg(Epiphany::CONFIG, RegState::Kill);
     frameIdx = MFI->CreateStackObject(RC->getSize(), /* Alignment = */ RC->getSize(), /* isSS = */ false);
     TII->storeRegToStackSlot(*MBB, insertPos, configTmpReg, /* killReg = */ false, frameIdx, RC, ST.getRegisterInfo());
     // Create mask with bits 19:17 set to 0
@@ -81,9 +80,9 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     unsigned maskReg = MRI.createVirtualRegister(RC);
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::ANDrr_r32), maskReg).addReg(configTmpReg, RegState::Kill).addReg(tmpReg, RegState::Kill);
     // Push reg back to config
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTS32rr)).addReg(Epiphany::CONFIG).addReg(maskReg, RegState::Kill);
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTS32rr), Epiphany::CONFIG).addReg(maskReg, RegState::Kill);
     // Restore interrupts
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GIE));
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GIE)).addReg(Epiphany::CONFIG, RegState::ImplicitKill);
   }
 
 
@@ -110,7 +109,7 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     // Upload config value to the core
     BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::MOVTS32rr), Epiphany::CONFIG).addReg(configTmpReg, RegState::Kill);
     // Restore interrupts
-    BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::GIE));
+    BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::GIE)).addReg(Epiphany::CONFIG, RegState::ImplicitKill);
   }
 
   return true;
