@@ -120,12 +120,12 @@ bool EpiphanyPassConfig::addILPOpts() {
 
 bool EpiphanyPassConfig::addInstSelector() {
   addPass(new EpiphanyDAGToDAGISel(getEpiphanyTargetMachine(), getOptLevel()));
+  addPass(createEpiphanyFpuConfigPass());
   return false;
 }
 
 void EpiphanyPassConfig::addPreRegAlloc() {
   addPass(&LiveVariablesID, false);
-  addPass(createEpiphanyFpuConfigPass());
 }
 
 void EpiphanyPassConfig::addPreSched2() {

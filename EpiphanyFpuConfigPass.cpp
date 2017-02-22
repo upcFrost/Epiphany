@@ -38,8 +38,6 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
   // Prepare binary flag and regs
   bool hasFPU;
   unsigned frameIdx;
-  unsigned configTmpReg;
-  unsigned tmpReg;
 
   // Step 1: Loop over all of the basic blocks to find the first FPU instruction
   for(MachineFunction::iterator it = MF.begin(), E = MF.end(); it != E; ++it) {
@@ -49,7 +47,7 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
       MachineInstr *MI = &*MBBI;
       // Check if the opcode used is one of the FPU opcodesFPU
       bool isFPU = std::find(std::begin(opcodesFPU), std::end(opcodesFPU), MI->getOpcode()) != std::end(opcodesFPU);
-      // If FPU inst found - break
+      // If FPU inst found - break and insert config
       if (isFPU) {
         hasFPU = true;
         break;
@@ -70,18 +68,20 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     // Disable interrupts
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GID));
     // Get current config and save it to stack
-    configTmpReg = MRI.createVirtualRegister(RC);
+    unsigned configTmpReg = MRI.createVirtualRegister(RC);
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVFS32rr), configTmpReg).addReg(Epiphany::CONFIG);
-    //frameIdx = MFI->CreateStackObject(RC->getSize(), [> Alignment = */ RC->getSize(), /* isSS = <] false);
-    //TII->storeRegToStackSlot(*MBB, insertPos, configTmpReg, [> killReg = <] false, frameIdx, RC, ST.getRegisterInfo());
+    frameIdx = MFI->CreateStackObject(RC->getSize(), /* Alignment = */ RC->getSize(), /* isSS = */ false);
+    TII->storeRegToStackSlot(*MBB, insertPos, configTmpReg, /* killReg = */ false, frameIdx, RC, ST.getRegisterInfo());
     // Create mask with bits 19:17 set to 0
-    tmpReg = MRI.createVirtualRegister(RC);
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVi32ri), tmpReg).addImm(0xffff);
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTi32ri), tmpReg).addReg(tmpReg).addImm(0xfff1);
+    unsigned lowTmpReg = MRI.createVirtualRegister(RC);
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVi32ri), lowTmpReg).addImm(0xffff);
+    unsigned tmpReg = MRI.createVirtualRegister(RC);
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTi32ri), tmpReg).addReg(lowTmpReg).addImm(0xfff1);
     // Apply mask to configTmpReg
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::ANDrr_r32), configTmpReg).addReg(configTmpReg).addReg(tmpReg, RegState::Kill);
+    unsigned maskReg = MRI.createVirtualRegister(RC);
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::ANDrr_r32), maskReg).addReg(configTmpReg, RegState::Kill).addReg(tmpReg, RegState::Kill);
     // Push reg back to config
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTS32rr)).addReg(Epiphany::CONFIG).addReg(configTmpReg, RegState::Kill);
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTS32rr)).addReg(Epiphany::CONFIG).addReg(maskReg, RegState::Kill);
     // Restore interrupts
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GIE));
   }
@@ -102,15 +102,13 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     }
     MachineInstr *MI = &*MBBI;
     DebugLoc DL = MI->getDebugLoc();
+    unsigned configTmpReg = MRI.createVirtualRegister(RC);
     // Reload old config value 
     TII->loadRegFromStackSlot(*MBB, MBBI, configTmpReg, frameIdx, RC, ST.getRegisterInfo());
     // Disable interrupts
     BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::GID));
     // Upload config value to the core
     BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::MOVTS32rr), Epiphany::CONFIG).addReg(configTmpReg, RegState::Kill);
-    // For some reason it still tries to save it, even though RegState::Kill is specified
-    MBB->removeLiveIn(configTmpReg);
-    MBB->removeLiveIn(Epiphany::CONFIG);
     // Restore interrupts
     BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::GIE));
   }
