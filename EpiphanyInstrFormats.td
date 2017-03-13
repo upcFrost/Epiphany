@@ -100,8 +100,9 @@ class Normal32<dag outs, dag ins, string asm, list<dag> pattern, InstrItinClass 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 class Interrupt<bits<10> opcode, list<dag> pattern, string asm>
-    : Normal16<(outs), (ins), asm, pattern, ControlItin> {
+    : Normal16<(outs), (ins), asm, pattern, NoItinerary> {
   let Inst{9-0} = opcode;
+  let hasSideEffects = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -804,16 +805,16 @@ def SpecTo   : SpecRegFromTo<0>;
 def SpecFrom : SpecRegFromTo<1>;
 
 class MovSpecial<string instr_asm, dag outs, dag ins, list<dag> pattern, SpecRegClass regclass, SpecRegFromTo FromTo>
-    : Normal32<outs, ins, !strconcat(instr_asm, "\t$Rd, $Rn"), pattern, ControlItin> {
+    : Normal32<outs, ins, !strconcat(instr_asm, "\t$Rd, $MMR"), pattern, ControlItin> {
     bits<6> Rd;
-    bits<6> Rn;
+    bits<6> MMR;
     
     let Inst{31-29} = Rd{5-3};
-    let Inst{28-26} = Rn{5-3};
+    let Inst{28-26} = MMR{5-3};
     let Inst{21-20} = regclass.Code;
     let Inst{19-16} = 0b0010;
     let Inst{15-13} = Rd{2-0};
-    let Inst{12-10} = Rn{2-0};
+    let Inst{12-10} = MMR{2-0};
     let Inst{9-8}   = 0b01;
     let Inst{7-5}   = 0;
     let Inst{4}     = FromTo.Code;

@@ -61,9 +61,13 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
 
   // Step 2: Insert config
   if (hasFPU) {
-    MachineBasicBlock *MBB = &MF.front();
-    MachineInstr *insertPos = &MBB->front();
+    // Create and insert new basic block for the config reg switch
+    MachineBasicBlock *Front = &MF.front();
+    MachineBasicBlock *MBB = MF.CreateMachineBasicBlock();
+    MachineInstr *insertPos = &*MBB->begin();
     DebugLoc DL = insertPos->getDebugLoc();
+    MF.insert(MF.begin(), MBB);
+    MBB->addSuccessor(Front);
     // Disable interrupts
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GID)).addReg(Epiphany::CONFIG, RegState::ImplicitDefine);
     // Get current config and save it to stack

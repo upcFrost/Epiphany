@@ -99,12 +99,14 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
 
     // A terminator that isn't a branch can't easily be handled by this
     // analysis.
-    if (!I->isBranch())
+    if (!I->isBranch()) {
       return true;
+    }
 
     // Indirect branches with links are not handled
-    if (I->getOpcode() == Epiphany::BL32 || I->getOpcode() == Epiphany::JR32)
+    if (I->getOpcode() == Epiphany::BL32 || I->getOpcode() == Epiphany::JR32) {
       return true;
+    }
 
     // Handle unconditional branches.
     if (I->getOpcode() == Epiphany::BNONE32) {
@@ -125,7 +127,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
 
       // Delete the JMP if it's equivalent to a fall-through.
       if (MBB.isLayoutSuccessor(I->getOperand(0).getMBB())) {
-        DEBUG(dbgs()<< "\nErasing the jump to successor block\n";);
+        DEBUG(dbgs()<< "\nErasing the jump to successor block " << MBB.getNumber() << "\n";);
         TBB = nullptr;
         I->eraseFromParent();
         I = MBB.end();

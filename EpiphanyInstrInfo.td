@@ -78,8 +78,10 @@ def EpiphanyRet : SDNode<"EpiphanyISD::RTS", SDTNone,
 //===----------------------------------------------------------------------===//
 def NOP  : Interrupt<0b0110100010, [], "nop">;
 def IDLE : Interrupt<0b0110110010, [], "idle">;
-def GIE  : Interrupt<0b0110010010, [], "gie">;
 def GID  : Interrupt<0b1110010010, [], "gid">;
+let isTerminator = 1, isBarrier = 1 in {
+  def GIE  : Interrupt<0b0110010010, [], "gie">;
+}
 
 //let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
 //  def RTI : Interrupt<0b0111010010, [(EpiphanyRet)], "rti">;
@@ -243,8 +245,8 @@ def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
 def MOVi32rr     : Mov32rr<"mov", [], GPR32>;
 def MOVf32rr     : Mov32rr<"mov", [], FPR32>;
 
-def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins SPECIAL:$Rn), [], CoreReg, SpecFrom>;
-def MOVTS32rr    : MovSpecial<"movts", (outs SPECIAL:$Rd), (ins GPR32:$Rn),   [], CoreReg, SpecTo>;
+def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins SPECIAL:$MMR), [], CoreReg, SpecFrom>;
+def MOVTS32rr    : MovSpecial<"movts", (outs SPECIAL:$MMR), (ins GPR32:$Rd),   [], CoreReg, SpecTo>;
 
 let Uses = [STATUS], Constraints = "$src = $Rd" in {
   def MOVCC32rr : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, GPR32:$sub), []>;
@@ -320,7 +322,7 @@ let isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
 }
 
 // Branches are made combining sub (cmp replacement) and b<cond>
-let isBarrier = 0, hasDelaySlot = 0 in {
+let isBarrier = 1, hasDelaySlot = 0 in {
   def BNONE32 : Branch32<(ins branchtarget:$addr), [(br bb:$addr)], COND_NONE>;
 }
 
