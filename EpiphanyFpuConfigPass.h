@@ -37,7 +37,7 @@ namespace llvm {
       static char ID;
       EpiphanyFpuConfigPass() : MachineFunctionPass(ID) {}
 
-      const char *getPassName() const {
+      StringRef getPassName() const {
         return "Epiphany FPU/IALU2 config flag optimization pass";
       }
       bool runOnMachineFunction(MachineFunction &MF);

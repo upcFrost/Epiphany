@@ -123,9 +123,9 @@ void EpiphanyAsmPrinter::printSavedRegsBitmask(raw_ostream &O) {
   int CPUTopSavedRegOff;
 
   // Set the CPU and FPU Bitmasks
-  const MachineFrameInfo *MFI = MF->getFrameInfo();
+  const MachineFrameInfo &MFI = MF->getFrameInfo();
   const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
-  const std::vector<CalleeSavedInfo> &CSI = MFI->getCalleeSavedInfo();
+  const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
   // size of stack area to which FP callee-saved regs are saved.
   unsigned CPURegSize = Epiphany::GPR32RegClass.getSize();
   unsigned i = 0, e = CSI.size();
@@ -164,7 +164,7 @@ void EpiphanyAsmPrinter::emitFrameDirective() {
 
   unsigned stackReg  = RI.getFrameRegister(*MF);
   unsigned returnReg = RI.getRARegister();
-  unsigned stackSize = MF->getFrameInfo()->getStackSize();
+  unsigned stackSize = MF->getFrameInfo().getStackSize();
 
   if (OutStreamer->hasRawTextSupport())
     OutStreamer->EmitRawText("\t.frame\t$" +

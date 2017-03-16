@@ -41,7 +41,7 @@ using namespace llvm;
 void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
     MachineBasicBlock &MBB) const {
   assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
-  MachineFrameInfo *MFI = MF.getFrameInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
   EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
 
   const EpiphanyInstrInfo &TII =
@@ -61,10 +61,10 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
   unsigned CFIIndex;
 
   // First, compute final stack size.
-  uint64_t StackSize = MFI->getStackSize();
+  uint64_t StackSize = MFI.getStackSize();
 
   // No need to allocate space on the stack.
-  if (StackSize == 0 && !MFI->adjustsStack()) return;
+  if (StackSize == 0 && !MFI.adjustsStack()) return;
 
   MachineModuleInfo &MMI = MF.getMMI();
   const MCRegisterInfo *MRI = MMI.getContext().getRegisterInfo();
@@ -79,7 +79,7 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
     BuildMI(MBB, MBBI, DL, TII.get(MOVi32rr), FP).addReg(SP).setMIFlag(MachineInstr::FrameSetup);
 
     // emit ".cfi_def_cfa_register $fp"
-    CFIIndex = MMI.addFrameInst(MCCFIInstruction::createDefCfaRegister(nullptr, MRI->getDwarfRegNum(FP, true)));
+    CFIIndex = MF.addFrameInst(MCCFIInstruction::createDefCfaRegister(nullptr, MRI->getDwarfRegNum(FP, true)));
     BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
   } else {
     // Just adjust SP if no frame present
@@ -87,10 +87,10 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
   }
 
   // emit ".cfi_def_cfa_offset StackSize"
-  CFIIndex = MMI.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, -StackSize));
+  CFIIndex = MF.addFrameInst(MCCFIInstruction::createDefCfaOffset(nullptr, -StackSize));
   BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
 
-  const std::vector<CalleeSavedInfo> &CSI = MFI->getCalleeSavedInfo();
+  const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
 
   if (CSI.size()) {
     // Find the instruction past the last instruction that saves a callee-saved
@@ -102,11 +102,11 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
     // directives.
     DEBUG(dbgs() << "\nCallee-saved regs spilled in prologue\n");
     for (std::vector<CalleeSavedInfo>::const_iterator I = CSI.begin(), E = CSI.end(); I != E; ++I) {
-      int64_t Offset = MFI->getObjectOffset(I->getFrameIdx());
+      int64_t Offset = MFI.getObjectOffset(I->getFrameIdx());
       unsigned Reg = I->getReg();
       // Reg is in CPURegs.
       DEBUG(dbgs() << Reg << "\n");
-      CFIIndex = MMI.addFrameInst(MCCFIInstruction::createOffset(nullptr, MRI->getDwarfRegNum(Reg, true), Offset));
+      CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(nullptr, MRI->getDwarfRegNum(Reg, true), Offset));
       BuildMI(MBB, MBBI, DL, TII.get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(CFIIndex);
     }
   }
@@ -118,7 +118,7 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
 void EpiphanyFrameLowering::emitEpilogue(MachineFunction &MF,
     MachineBasicBlock &MBB) const {
   MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
-  MachineFrameInfo *MFI = MF.getFrameInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
   EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
 
   const EpiphanyInstrInfo &TII =
@@ -133,7 +133,7 @@ void EpiphanyFrameLowering::emitEpilogue(MachineFunction &MF,
   unsigned LDRi32_r32 = Epiphany::LDRi32_r32;
 
   // Get the number of bytes from FrameInfo
-  uint64_t StackSize = MFI->getStackSize();
+  uint64_t StackSize = MFI.getStackSize();
 
   if (!StackSize)
     return;
@@ -166,7 +166,7 @@ void EpiphanyFrameLowering::determineCalleeSaves(MachineFunction &MF,
   EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
   MachineRegisterInfo& MRI = MF.getRegInfo();
 
-  if (MF.getFrameInfo()->hasCalls()) {
+  if (MF.getFrameInfo().hasCalls()) {
     setAliasRegs(MF, SavedRegs, Epiphany::LR);
   }
 
@@ -174,14 +174,14 @@ void EpiphanyFrameLowering::determineCalleeSaves(MachineFunction &MF,
 }
 
 bool EpiphanyFrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
-  const MachineFrameInfo *MFI = MF.getFrameInfo();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
 
   // Reserve call frame if the size of the maximum call frame fits into 16-bit
   // immediate field and there are no variable sized objects on the stack.
   // Make sure the second register scavenger spill slot can be accessed with one
   // instruction.
-  return isInt<16>(MFI->getMaxCallFrameSize() + getStackAlignment()) &&
-    !MFI->hasVarSizedObjects();
+  return isInt<16>(MFI.getMaxCallFrameSize() + getStackAlignment()) &&
+    !MFI.hasVarSizedObjects();
 }
 
 // Spill callee-saved regs to stack
@@ -206,7 +206,7 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
     // It's killed at the spill, unless the register is LR and return address
     // is taken.
     unsigned Reg = I->getReg();
-    bool IsRAAndRetAddrIsTaken = (Reg == Epiphany::LR) && MF->getFrameInfo()->isReturnAddressTaken();
+    bool IsRAAndRetAddrIsTaken = (Reg == Epiphany::LR) && MF->getFrameInfo().isReturnAddressTaken();
     if (!IsRAAndRetAddrIsTaken) {
       MBB.addLiveIn(Reg);
     }
@@ -225,12 +225,12 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
 // if it needs dynamic stack realignment, if frame pointer elimination is
 // disabled, or if the frame address is taken.
 bool EpiphanyFrameLowering::hasFP(const MachineFunction &MF) const {
-  const MachineFrameInfo *MFI = MF.getFrameInfo();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo *TRI = STI.getRegisterInfo();
 
   DEBUG(
       const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
-      dbgs() << "\nMax alignment = " << MFI->getMaxAlignment() << "\n";
+      dbgs() << "\nMax alignment = " << MFI.getMaxAlignment() << "\n";
       dbgs() << "Current alignment = " << TFI->getStackAlignment() << "\n";
       if (MF.getTarget().Options.DisableFramePointerElim(MF)) {
         dbgs() << "\nHas FP: DisableFramePointerElim set\n";
@@ -238,17 +238,17 @@ bool EpiphanyFrameLowering::hasFP(const MachineFunction &MF) const {
       if (TRI->needsStackRealignment(MF)) {
         dbgs() << "\nHas FP: Stack realign needed\n";
       }
-      if (MFI->hasVarSizedObjects()) {
+      if (MFI.hasVarSizedObjects()) {
         dbgs() << "\nHas FP: Has var sized objects\n";
       }
-      if (MFI->isFrameAddressTaken()) {
+      if (MFI.isFrameAddressTaken()) {
         dbgs() << "\nHas FP: Frame address taken\n";
       });
 
   return (MF.getTarget().Options.DisableFramePointerElim(MF) || 
       TRI->needsStackRealignment(MF) ||
-      MFI->hasVarSizedObjects() ||
-      MFI->isFrameAddressTaken());
+      MFI.hasVarSizedObjects() ||
+      MFI.isFrameAddressTaken());
 }
 
 // Eliminate pseudo ADJCALLSTACKUP/ADJCALLSTACKDOWN instructions

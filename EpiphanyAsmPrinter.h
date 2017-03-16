@@ -53,7 +53,7 @@ public:
     Subtarget = static_cast<EpiphanyTargetMachine &>(TM).getSubtargetImpl();
   }
 
-  virtual const char *getPassName() const override {
+  virtual StringRef getPassName() const override {
     return "Epiphany Assembly Printer";
   }
 

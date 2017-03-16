@@ -167,7 +167,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
     SmallVectorImpl<SDValue> &InVals) const {
 
   MachineFunction &MF = DAG.getMachineFunction();
-  MachineFrameInfo *MFI = MF.getFrameInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &RegInfo = MF.getRegInfo();
 
   // Assign locations to all of the incoming arguments.
@@ -179,7 +179,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
   // Create frame index for the start of the first vararg value
   /*if (IsVarArg) {*/
   //unsigned Offset = CCInfo.getNextStackOffset();
-  //FI->setVarArgsFrameIndex(MFI->CreateFixedObject(1, Offset, true));
+  //FI->setVarArgsFrameIndex(MFI.CreateFixedObject(1, Offset, true));
   /*}*/
 
   DEBUG(dbgs() << "Number of args present: " << ArgLocs.size() << "\n");
@@ -219,7 +219,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
     } else { // VA.isRegLoc()
       assert(VA.isMemLoc());
       DEBUG(dbgs() << "Arg is a memory loc\n");
-      int FI = MFI->CreateFixedObject(VA.getLocVT().getSizeInBits()/8, VA.getLocMemOffset(), true);
+      int FI = MFI.CreateFixedObject(VA.getLocVT().getSizeInBits()/8, VA.getLocMemOffset(), true);
       SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
       ArgValue = DAG.getLoad(VA.getLocVT(), DL, Chain, FIN, MachinePointerInfo::getFixedStack(MF, FI));
     }

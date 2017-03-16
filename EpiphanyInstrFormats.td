@@ -42,6 +42,7 @@ class EpiphanyInst32<Format f, string cstr> : Instruction {
   let Constraints   = cstr;
   let Size          = 4;
   let CodeSize      = 4;
+  let AddedComplexity = 2;
 }
 
 class Pseudo16<dag outs, dag ins, list<dag> pattern, InstrItinClass itin = NoItinerary, string cstr = ""> 

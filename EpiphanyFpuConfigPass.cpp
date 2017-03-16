@@ -26,7 +26,7 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
   DEBUG(dbgs() << "\nRunning Epiphany FPU config pass\n");
   auto &ST = MF.getSubtarget<EpiphanySubtarget>();
   const EpiphanyInstrInfo *TII = ST.getInstrInfo();
-  MachineFrameInfo *MFI = MF.getFrameInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   const TargetRegisterClass *RC = &Epiphany::GPR32RegClass;
 
@@ -64,16 +64,20 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     // Create and insert new basic block for the config reg switch
     MachineBasicBlock *Front = &MF.front();
     MachineBasicBlock *MBB = MF.CreateMachineBasicBlock();
-    MachineInstr *insertPos = &*MBB->begin();
-    DebugLoc DL = insertPos->getDebugLoc();
+    MachineBasicBlock::iterator insertPos = MBB->begin();
+    DebugLoc DL = DebugLoc();
     MF.insert(MF.begin(), MBB);
     MBB->addSuccessor(Front);
+    // Add function live-ins so that they'll be defined in every path
+    for (MachineRegisterInfo::livein_iterator LB = MRI.livein_begin(), LE = MRI.livein_end(); LB != LE; ++LB) {
+      MBB->addLiveIn(LB->first);
+    }
     // Disable interrupts
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GID)).addReg(Epiphany::CONFIG, RegState::ImplicitDefine);
     // Get current config and save it to stack
     unsigned configTmpReg = MRI.createVirtualRegister(RC);
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVFS32rr), configTmpReg).addReg(Epiphany::CONFIG, RegState::Kill);
-    frameIdx = MFI->CreateStackObject(RC->getSize(), /* Alignment = */ RC->getSize(), /* isSS = */ false);
+    frameIdx = MFI.CreateStackObject(RC->getSize(), /* Alignment = */ RC->getSize(), /* isSS = */ false);
     TII->storeRegToStackSlot(*MBB, insertPos, configTmpReg, /* killReg = */ false, frameIdx, RC, ST.getRegisterInfo());
     // Create mask with bits 19:17 set to 0
     unsigned lowTmpReg = MRI.createVirtualRegister(RC);
@@ -94,17 +98,20 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
   if (hasFPU) {
     MachineBasicBlock *MBB = &MF.back();
     MachineBasicBlock::iterator MBBI = MBB->end();
+    MBBI--;
     for (MachineBasicBlock::iterator MBBE = MBB->begin(); MBBI != MBBE; --MBBI) {
-      // Check if the opcode used is one of the FPU opcodesFPU
       MachineInstr *MI = &*MBBI;
-      bool isFPU = std::find(std::begin(opcodesFPU), std::end(opcodesFPU), MI->getOpcode()) != std::end(opcodesFPU);
-      // If FPU inst found - insert config flag
-      if (isFPU) {
+      if (MI->isTerminator()) {
         break;
       }
+      // Check if the opcode used is one of the FPU opcodesFPU
+      //bool isFPU = std::find(std::begin(opcodesFPU), std::end(opcodesFPU), MI->getOpcode()) != std::end(opcodesFPU);
+      // If FPU inst found - insert config flag
+      //if (isFPU) {
+      //break;
+      //}
     }
-    MachineInstr *MI = &*MBBI;
-    DebugLoc DL = MI->getDebugLoc();
+    DebugLoc DL = DebugLoc();
     unsigned configTmpReg = MRI.createVirtualRegister(RC);
     // Reload old config value 
     TII->loadRegFromStackSlot(*MBB, MBBI, configTmpReg, frameIdx, RC, ST.getRegisterInfo());
