@@ -65,6 +65,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     addRegisterClass(MVT::i32, &Epiphany::GPR16RegClass);
     addRegisterClass(MVT::i32, &Epiphany::GPR32RegClass);
     addRegisterClass(MVT::f32, &Epiphany::FPR32RegClass);
+    addRegisterClass(MVT::i64, &Epiphany::GPR64RegClass);
+    addRegisterClass(MVT::f64, &Epiphany::FPR64RegClass);
 
     //- Set .align 2
     // It will emit .align 2 later

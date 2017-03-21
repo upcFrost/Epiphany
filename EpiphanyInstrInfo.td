@@ -229,7 +229,7 @@ let Defs = [STATUS] in {
 // Move operations: Immediates
 //===----------------------------------------------------------------------===//
 let Constraints = "$src = $Rd" in {
-  def MOVTi32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set GPR32:$Rd, (or (and GPR32:$src, 0xffff), (shl immSExt16:$Imm, 16)))], 0b01011, /* MOVT = */ 1, GPR32>;
+  def MOVTi32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set GPR32:$Rd, (or (and GPR32:$src, 0xffff), (shl immSExt16:$Imm, (i32 16))))], 0b01011, /* MOVT = */ 1, GPR32>;
 }
 def MOVi16ri : Mov16ri<"mov", (ins imm8:$Imm),    [(set GPR16:$Rd, immSExt8:$Imm)], 0b00011, GPR16>;
 def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm),   [(set GPR32:$Rd, imm:$Imm)],      0b01011, /* MOVT = */ 0, GPR32>;

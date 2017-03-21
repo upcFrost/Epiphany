@@ -161,14 +161,14 @@ def fpimm16 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP16I
 }
 
 // Node immediate fits as N-bit sign extended on target immediate.
-def immUExt5   : PatLeaf<(imm), [{ return isInt<5>(N->getZExtValue()); }]>;
-def immUExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getZExtValue()); }]>;
-def immUExt24  : PatLeaf<(imm), [{ return isInt<24>(N->getZExtValue()); }]>;
+def immUExt5   : PatLeaf<(i32 imm), [{ return isInt<5>(N->getZExtValue()); }]>;
+def immUExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getZExtValue()); }]>;
+def immUExt24  : PatLeaf<(i32 imm), [{ return isInt<24>(N->getZExtValue()); }]>;
 
-def immSExt3   : PatLeaf<(imm), [{ return isInt<3>(N->getSExtValue()); }]>;
-def immSExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getSExtValue()); }]>;
-def immSExt11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
-def immSExt16  : PatLeaf<(imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+def immSExt3   : PatLeaf<(i32 imm), [{ return isInt<3>(N->getSExtValue()); }]>;
+def immSExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getSExtValue()); }]>;
+def immSExt11  : PatLeaf<(i32 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
+def immSExt16  : PatLeaf<(i32 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
 
 // Memory operand for asm parser
 def EpiphanyMemAsmOperand : AsmOperandClass {
