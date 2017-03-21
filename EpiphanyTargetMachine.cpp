@@ -120,6 +120,7 @@ bool EpiphanyPassConfig::addILPOpts() {
 
 bool EpiphanyPassConfig::addInstSelector() {
   addPass(new EpiphanyDAGToDAGISel(getEpiphanyTargetMachine(), getOptLevel()));
+  addPass(createEpiphanyFpuConfigPass());
   return false;
 }
 

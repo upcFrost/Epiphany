@@ -90,6 +90,7 @@ let Namespace = "Epiphany" in {
 
 // General purpose (first 7 only)
 def GPR16 : RegisterClass<"Epiphany", [i32], 32, (add (sequence "R%u", 0, 7))>;
+def FPR16 : RegisterClass<"Epiphany", [f32], 32, (add (sequence "R%u", 0, 7))>;
 
 // General purpose (all)
 def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
@@ -116,8 +117,8 @@ def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
   // Caller-saved GPR
   (sequence "R%u", 32, 63))> {
   
-  // Reordering - putting callee-saved regs to the end of the list
-  let AltOrders = [(add (sub GPR32, R4, R5, R6, R7, R8), R4, R5, R6, R7, R8)];
+  // Reordering - putting GPR16 regs to the end to lower register pressure
+  let AltOrders = [(add (sub GPR32, R0, R1, R2, R3, R4, R5, R6, R7, R8), R0, R1, R2, R3, R4, R5, R6, R7, R8)];
   let AltOrderSelect = [{ return 1; }];
 }
 
@@ -127,7 +128,8 @@ def FPR32 : RegisterClass<"Epiphany", [f32], 32, (add GPR32)>;
 def SR : RegisterClass<"Epiphany", [i32], 32, (add STATUS)>;
 
 // Special regs
-def SPECIAL : RegisterClass<"Epiphany", [i32], 32, (add CONFIG, 
+def SPECIAL : RegisterClass<"Epiphany", [i32], 32, (add 
+  CONFIG, 
   STATUS, 
   PC, 
   DEBUGSTATUS,

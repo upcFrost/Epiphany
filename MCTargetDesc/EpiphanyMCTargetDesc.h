@@ -12,6 +12,7 @@
 #define LLVM_LIB_TARGET_EPIPHANY_MCTARGETDESC_EPIPHANYMCTARGETDESC_H
 
 #include "EpiphanyConfig.h"
+#include "llvm/MC/MCTargetOptions.h"
 #include "llvm/Support/DataTypes.h"
 
 namespace llvm {
@@ -36,7 +37,7 @@ namespace llvm {
 
   MCAsmBackend *createEpiphanyAsmBackendEL32(const Target &T,
       const MCRegisterInfo &MRI,
-      const Triple &TT, StringRef CPU);
+      const Triple &TT, StringRef CPU, const MCTargetOptions &Options);
 
   MCObjectWriter *createEpiphanyELFObjectWriter(raw_pwrite_stream &OS,
       uint8_t OSABI,

@@ -28,6 +28,8 @@ class EpiphanyInst16<Format f, string cstr> : Instruction {
   bits<2> Form      = F.Value;
   let Pattern       = [];
   let Constraints   = cstr;
+  let Size          = 2;
+  let CodeSize      = 2;
 }
 
 // Epiphany instruction format (general)
@@ -38,6 +40,9 @@ class EpiphanyInst32<Format f, string cstr> : Instruction {
   bits<2> Form      = F.Value;
   let Pattern       = [];
   let Constraints   = cstr;
+  let Size          = 4;
+  let CodeSize      = 4;
+  let AddedComplexity = 2;
 }
 
 class Pseudo16<dag outs, dag ins, list<dag> pattern, InstrItinClass itin = NoItinerary, string cstr = ""> 
@@ -96,8 +101,9 @@ class Normal32<dag outs, dag ins, string asm, list<dag> pattern, InstrItinClass 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 class Interrupt<bits<10> opcode, list<dag> pattern, string asm>
-    : Normal16<(outs), (ins), asm, pattern, ControlItin> {
+    : Normal16<(outs), (ins), asm, pattern, NoItinerary> {
   let Inst{9-0} = opcode;
+  let hasSideEffects = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -523,16 +529,29 @@ class SimpleMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterCl
 }
 
 //===----------------------------------------------------------------------===//
-// Arithmetic operations with registers: Integer
+// Arithmetic operations with registers: Float
 //===----------------------------------------------------------------------===//
 
-class ComplexMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+class ComplexMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, InstrItinClass itin> :
   Math16rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"), 
-           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, Ialu2Itin> {}
+           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, itin> {}
 
-class ComplexMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+class ComplexMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, InstrItinClass itin> :
   Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"), 
-           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, Ialu2Itin> {
+           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, itin> {
+  let Inst{19-16} = 0b0111;
+}
+
+class ComplexMath2_16rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode OpNode2, RegisterClass RegClass, InstrItinClass itin> :
+  Math16rr<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"), 
+           [(set RegClass:$Rd, (OpNode RegClass:$src, (OpNode2 RegClass:$Rn, RegClass:$Rm)))], opcode, itin> {
+  let Constraints = "$src = $Rd";
+}
+
+class ComplexMath2_32rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode OpNode2, RegisterClass RegClass, InstrItinClass itin> :
+  Math32rr<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"), 
+           [(set RegClass:$Rd, (OpNode RegClass:$src, (OpNode2 RegClass:$Rn, RegClass:$Rm)))], opcode, itin> {
+  let Constraints = "$src = $Rd";
   let Inst{19-16} = 0b0111;
 }
 
@@ -787,16 +806,16 @@ def SpecTo   : SpecRegFromTo<0>;
 def SpecFrom : SpecRegFromTo<1>;
 
 class MovSpecial<string instr_asm, dag outs, dag ins, list<dag> pattern, SpecRegClass regclass, SpecRegFromTo FromTo>
-    : Normal32<outs, ins, !strconcat(instr_asm, "\t$Rd, $Rn"), pattern, ControlItin> {
+    : Normal32<outs, ins, !strconcat(instr_asm, "\t$Rd, $MMR"), pattern, ControlItin> {
     bits<6> Rd;
-    bits<6> Rn;
+    bits<6> MMR;
     
     let Inst{31-29} = Rd{5-3};
-    let Inst{28-26} = Rn{5-3};
+    let Inst{28-26} = MMR{5-3};
     let Inst{21-20} = regclass.Code;
     let Inst{19-16} = 0b0010;
     let Inst{15-13} = Rd{2-0};
-    let Inst{12-10} = Rn{2-0};
+    let Inst{12-10} = MMR{2-0};
     let Inst{9-8}   = 0b01;
     let Inst{7-5}   = 0;
     let Inst{4}     = FromTo.Code;

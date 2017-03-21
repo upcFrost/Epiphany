@@ -14,15 +14,17 @@
 
 #include "MCTargetDesc/EpiphanyFixupKinds.h"
 #include "MCTargetDesc/EpiphanyAsmBackend.h"
-
 #include "MCTargetDesc/EpiphanyMCTargetDesc.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAssembler.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDirectives.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/MCTargetOptions.h"
+#include "llvm/MC/MCValue.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -169,6 +171,6 @@ bool EpiphanyAsmBackend::writeNopData(uint64_t Count, MCObjectWriter *OW) const 
 // MCAsmBackend
 MCAsmBackend *llvm::createEpiphanyAsmBackendEL32(const Target &T,
     const MCRegisterInfo &MRI,
-    const Triple &TT, StringRef CPU) {
+    const Triple &TT, StringRef CPU, const MCTargetOptions &Options) {
   return new EpiphanyAsmBackend(T, TT.getOS(), /*IsLittle*/true);
 }

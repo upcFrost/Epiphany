@@ -78,8 +78,10 @@ def EpiphanyRet : SDNode<"EpiphanyISD::RTS", SDTNone,
 //===----------------------------------------------------------------------===//
 def NOP  : Interrupt<0b0110100010, [], "nop">;
 def IDLE : Interrupt<0b0110110010, [], "idle">;
-def GIE  : Interrupt<0b0110010010, [], "gie">;
 def GID  : Interrupt<0b1110010010, [], "gid">;
+let isTerminator = 1, isBarrier = 1 in {
+  def GIE  : Interrupt<0b0110010010, [], "gie">;
+}
 
 //let isReturn = 1, isTerminator = 1, isBarrier = 1 in {
 //  def RTI : Interrupt<0b0111010010, [(EpiphanyRet)], "rti">;
@@ -158,18 +160,38 @@ let Defs = [STATUS] in {
   defm LSLrr  : SimpleMath<0b0101010, 0b0101111, "lsl", shl >;
 }
 
-// Complex math: i32/f32
-multiclass ComplexMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNodeI, SDNode OpNodeF> {
-  def _i32_r16 : ComplexMath16rr<opcode16, !strconcat("i", instr_asm), OpNodeI, GPR16>;
-  def _i32_r32 : ComplexMath32rr<opcode32, !strconcat("i", instr_asm), OpNodeI, GPR32>;
-  def _f32_r32 : ComplexMath32rr<opcode32, !strconcat("f", instr_asm), OpNodeF, FPR32>;
+// Complex math: f32
+multiclass FPMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
+  def _r16 : ComplexMath16rr<opcode16, instr_asm, OpNode, FPR16, FpuItin>;
+  def _r32 : ComplexMath32rr<opcode32, instr_asm, OpNode, FPR32, FpuItin>;
+}
+multiclass FPMath2<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
+  def _r16 : ComplexMath2_16rr<opcode16, instr_asm, OpNode, fmul, FPR16, FpuItin>;
+  def _r32 : ComplexMath2_32rr<opcode32, instr_asm, OpNode, fmul, FPR32, FpuItin>;
+}
+let Defs = [STATUS] in {
+  defm FADDrr : FPMath<0b0000111, 0b0001111, "fadd", fadd>;
+  defm FSUBrr : FPMath<0b0010111, 0b0011111, "fsub", fsub>;
+  defm FMULrr : FPMath<0b0100111, 0b0101111, "fmul", fmul>;
+  defm FMADDrr : FPMath2<0b0110111, 0b0111111, "fmadd", fadd>;
+  defm FMSUBrr : FPMath2<0b1000111, 0b1001111, "fmsub", fsub>;
 }
 
-// TODO: Handle arithmetics flag
-let Defs = [STATUS] in {
-  /*defm ADDrr : ComplexMath<0b0000111, 0b0011111, "add", add, fadd>;*/
-  /*defm SUBrr : ComplexMath<0b0010111, 0b0111111, "sub", sub, fsub>;*/
-  defm MULrr : ComplexMath<0b0100111, 0b0101111, "mul", mul, fmul>;
+// Complex math: i32
+multiclass Ialu2Math<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
+  def _r16 : ComplexMath16rr<opcode16, instr_asm, OpNode, GPR16, Ialu2Itin>;
+  def _r32 : ComplexMath32rr<opcode32, instr_asm, OpNode, GPR32, Ialu2Itin>;
+}
+multiclass Ialu2Math_2<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
+  def _r16 : ComplexMath2_16rr<opcode16, instr_asm, OpNode, mul, GPR16, Ialu2Itin>;
+  def _r32 : ComplexMath2_32rr<opcode32, instr_asm, OpNode, mul, GPR32, Ialu2Itin>;
+}
+let Defs = [STATUS], AddedComplexity = -1 in {
+  defm IADDrr : Ialu2Math<0b0000111, 0b0001111, "iadd", add>;
+  defm ISUBrr : Ialu2Math<0b0010111, 0b0011111, "isub", sub>;
+  defm IMULrr : Ialu2Math<0b0100111, 0b0101111, "imul", mul>;
+  defm IMADDrr : Ialu2Math_2<0b0110111, 0b0111111, "imadd", add>;
+  defm IMSUBrr : Ialu2Math_2<0b1000111, 0b1001111, "imsub", sub>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -223,8 +245,8 @@ def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
 def MOVi32rr     : Mov32rr<"mov", [], GPR32>;
 def MOVf32rr     : Mov32rr<"mov", [], FPR32>;
 
-def MOVFS32rr    : MovSpecial<"movfs", (outs SPECIAL:$Rd), (ins GPR32:$Rn),   [], CoreReg, SpecFrom>;
-def MOVTS32rr    : MovSpecial<"movts", (outs GPR32:$Rd),   (ins SPECIAL:$Rn), [], CoreReg, SpecTo>;
+def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins SPECIAL:$MMR), [], CoreReg, SpecFrom>;
+def MOVTS32rr    : MovSpecial<"movts", (outs SPECIAL:$MMR), (ins GPR32:$Rd),   [], CoreReg, SpecTo>;
 
 let Uses = [STATUS], Constraints = "$src = $Rd" in {
   def MOVCC32rr : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, GPR32:$sub), []>;
@@ -300,7 +322,7 @@ let isBarrier=1, hasDelaySlot = 1, isIndirectBranch = 1 in {
 }
 
 // Branches are made combining sub (cmp replacement) and b<cond>
-let isBarrier = 0, hasDelaySlot = 0 in {
+let isBarrier = 1, hasDelaySlot = 0 in {
   def BNONE32 : Branch32<(ins branchtarget:$addr), [(br bb:$addr)], COND_NONE>;
 }
 

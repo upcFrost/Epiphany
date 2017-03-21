@@ -99,12 +99,14 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
 
     // A terminator that isn't a branch can't easily be handled by this
     // analysis.
-    if (!I->isBranch())
+    if (!I->isBranch()) {
       return true;
+    }
 
     // Indirect branches with links are not handled
-    if (I->getOpcode() == Epiphany::BL32 || I->getOpcode() == Epiphany::JR32)
+    if (I->getOpcode() == Epiphany::BL32 || I->getOpcode() == Epiphany::JR32) {
       return true;
+    }
 
     // Handle unconditional branches.
     if (I->getOpcode() == Epiphany::BNONE32) {
@@ -125,7 +127,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
 
       // Delete the JMP if it's equivalent to a fall-through.
       if (MBB.isLayoutSuccessor(I->getOperand(0).getMBB())) {
-        DEBUG(dbgs()<< "\nErasing the jump to successor block\n";);
+        DEBUG(dbgs()<< "\nErasing the jump to successor block " << MBB.getNumber() << "\n";);
         TBB = nullptr;
         I->eraseFromParent();
         I = MBB.end();
@@ -173,10 +175,13 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
   return false;
 }
 
-// RemoveBranch - helper function for branch analysis
+// removeBranch - helper function for branch analysis
 // Used with IfConversion pass
-unsigned EpiphanyInstrInfo::RemoveBranch(MachineBasicBlock &MBB) const {
+unsigned EpiphanyInstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemoved) const {
+  assert(!BytesRemoved && "code size not handled");
+
   // Branches to handle
+  DEBUG(dbgs() << "\nRemoving branches out of BB#" << MBB.getNumber());
   unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCC32};
   MachineBasicBlock::iterator I = MBB.end();
   unsigned Count = 0;
@@ -200,13 +205,14 @@ unsigned EpiphanyInstrInfo::RemoveBranch(MachineBasicBlock &MBB) const {
   return Count;
 }
 
-unsigned EpiphanyInstrInfo::InsertBranch(MachineBasicBlock &MBB,
+unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
     MachineBasicBlock *TBB, MachineBasicBlock *FBB,	ArrayRef<MachineOperand> Cond,
-    const DebugLoc &DL) const {
+    const DebugLoc &DL, int *BytesAdded) const {
   // Shouldn't be a fall through.
   assert(TBB && "InsertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 1 || Cond.size() == 0) &&
       "Branch conditions have one component!");
+  assert(!BytesAdded && "code size not handled");
 
   if (Cond.empty()) {
     // Unconditional branch?
@@ -228,7 +234,7 @@ unsigned EpiphanyInstrInfo::InsertBranch(MachineBasicBlock &MBB,
   return Count;
 }
 
-bool EpiphanyInstrInfo::ReverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
+bool EpiphanyInstrInfo::reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
   assert(Cond.size() == 1 && "More than 1 condition");
   EpiphanyCC::CondCodes CC = static_cast<EpiphanyCC::CondCodes>(Cond[0].getImm());
   switch(CC) {
@@ -392,7 +398,7 @@ void EpiphanyInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   // Get function and frame info
   if (MI != MBB.end()) DL = MI->getDebugLoc();
   MachineFunction &MF = *MBB.getParent();
-  MachineFrameInfo &MFI = *MF.getFrameInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
 
   // Get mem operand where to store
   MachineMemOperand *MMO = MF.getMachineMemOperand(
@@ -416,7 +422,7 @@ void EpiphanyInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   // Get function and frame info
   if (MI != MBB.end()) DL = MI->getDebugLoc();
   MachineFunction &MF = *MBB.getParent();
-  MachineFrameInfo &MFI = *MF.getFrameInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
 
   // Get mem operand from where to load
   MachineMemOperand *MMO = MF.getMachineMemOperand(

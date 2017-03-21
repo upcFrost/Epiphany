@@ -86,7 +86,7 @@ eliminateFrameIndex(MachineBasicBlock::iterator MBBI, int SPAdj,
 		unsigned FIOperandNum, RegScavenger *RS) const {
 	MachineInstr &MI = *MBBI;
 	MachineFunction &MF = *MI.getParent()->getParent();
-	MachineFrameInfo *MFI = MF.getFrameInfo();
+	MachineFrameInfo &MFI = MF.getFrameInfo();
 	EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
 
 	unsigned i = 0;
@@ -100,14 +100,14 @@ eliminateFrameIndex(MachineBasicBlock::iterator MBBI, int SPAdj,
 			errs() << "<--------->\n" << MI);
 
 	int FrameIndex = MI.getOperand(i).getIndex();
-	uint64_t stackSize = MF.getFrameInfo()->getStackSize();
-	int64_t spOffset = MF.getFrameInfo()->getObjectOffset(FrameIndex);
+	uint64_t stackSize = MF.getFrameInfo().getStackSize();
+	int64_t spOffset = MF.getFrameInfo().getObjectOffset(FrameIndex);
 
 	DEBUG(errs() << "FrameIndex : " << FrameIndex << "\n"
 			<< "spOffset   : " << spOffset << "\n"
 			<< "stackSize  : " << stackSize << "\n");
 
-	const std::vector<CalleeSavedInfo> &CSI = MFI->getCalleeSavedInfo();
+	const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
 	int MinCSFI = 0;
 	int MaxCSFI = -1;
 
@@ -164,10 +164,10 @@ EpiphanyRegisterInfo::trackLivenessAfterRegAlloc(const MachineFunction &MF) cons
 }
 
 bool EpiphanyRegisterInfo::hasBasePointer(const MachineFunction &MF) const {
-  const MachineFrameInfo *MFI = MF.getFrameInfo();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
   // When we need stack realignment and there are dynamic allocas, we can't
   // reference off of the stack pointer, so we reserve a base pointer.
-  if (needsStackRealignment(MF) && MFI->hasVarSizedObjects()) {
+  if (needsStackRealignment(MF) && MFI.hasVarSizedObjects()) {
     return true;
   }
   return false;

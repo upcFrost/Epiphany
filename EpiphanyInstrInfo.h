@@ -78,16 +78,33 @@ namespace llvm {
         const DebugLoc &DL, unsigned DestReg, unsigned SrcReg,
         bool KillSrc) const override;
 
+    //==---
     // Branch analysis.
+    //==---
     bool isUnpredicatedTerminator(const MachineInstr &MI) const override;
     bool analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
         MachineBasicBlock *&FBB, SmallVectorImpl<MachineOperand> &Cond,
         bool AllowModify) const override;
-    unsigned RemoveBranch(MachineBasicBlock &MBB) const override;
-    unsigned InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
+
+    /// Remove the branching code at the end of the specific MBB.
+    /// This is only invoked in cases where AnalyzeBranch returns success. It
+    /// returns the number of instructions that were removed.
+    unsigned removeBranch(MachineBasicBlock &MBB, int *BytesRemoved = nullptr) const override;
+
+    /// Insert branch code into the end of the specified MachineBasicBlock.
+    /// The operands to this method are the same as those
+    /// returned by AnalyzeBranch.  This is only invoked in cases where
+    /// AnalyzeBranch returns success. It returns the number of instructions
+    /// inserted.
+    ///
+    /// It is also invoked by tail merging to add unconditional branches in
+    /// cases where AnalyzeBranch doesn't apply because there was no original
+    /// branch to analyze.  At least this much must be implemented, else tail
+    /// merging needs to be disabled.
+    unsigned insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
         MachineBasicBlock *FBB, ArrayRef<MachineOperand> Cond,
-        const DebugLoc &DL) const override;
-    bool ReverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
+        const DebugLoc &DL, int *BytesAdded = nullptr) const override;
+    bool reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
 
     // Misc
     void insertNoop(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI) const override;

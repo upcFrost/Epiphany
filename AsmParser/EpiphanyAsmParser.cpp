@@ -642,7 +642,7 @@ bool EpiphanyAsmParser::parseMemOffset(const MCExpr *&Res) {
 }
 
 // eg, 12($sp) or 12(la)
-EpiphanyAsmParser::OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
+OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
     OperandVector &Operands) {
 
   const MCExpr *IdVal = 0;
