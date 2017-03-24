@@ -165,10 +165,13 @@ def immUExt5   : PatLeaf<(i32 imm), [{ return isInt<5>(N->getZExtValue()); }]>;
 def immUExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getZExtValue()); }]>;
 def immUExt24  : PatLeaf<(i32 imm), [{ return isInt<24>(N->getZExtValue()); }]>;
 
-def immSExt3   : PatLeaf<(i32 imm), [{ return isInt<3>(N->getSExtValue()); }]>;
-def immSExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getSExtValue()); }]>;
-def immSExt11  : PatLeaf<(i32 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
-def immSExt16  : PatLeaf<(i32 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+def i32immSExt3   : PatLeaf<(i32 imm), [{ return isInt<3>(N->getSExtValue()); }]>;
+def i32immSExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getSExtValue()); }]>;
+def i32immSExt11  : PatLeaf<(i32 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
+def i32immSExt16  : PatLeaf<(i32 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+def i64immSExt16  : PatLeaf<(i64 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+def i64immSExt32  : PatLeaf<(i64 imm), [{ return isInt<32>(N->getSExtValue()); }]>;
+def i64immSExt64  : PatLeaf<(i64 imm), [{ return isInt<64>(N->getSExtValue()); }]>;
 
 // Memory operand for asm parser
 def EpiphanyMemAsmOperand : AsmOperandClass {
@@ -213,10 +216,6 @@ class AlignedStore<PatFrag Node> :
   StoreSDNode *SD = cast<StoreSDNode>(N);
   return SD->getMemoryVT().getSizeInBits()/8 <= SD->getAlignment();
 }]>;
-
-// Load/Store PatFrags.
-def load_a          : AlignedLoad<load>;
-def store_a         : AlignedStore<store>;
 
 class LS_bit<bits<1> LS, string asm> {
   bits<1> Value = LS;
@@ -299,8 +298,8 @@ class StoreDisp16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size
   let isPseudo    = Pseudo;
 }
 
-class LoadDisp32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize>
-    : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr11:$addr))], 0b1100, LoadBit, LoadSize, LoadItin> {
+class LoadDisp32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, list<dag> pattern>
+    : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), pattern, 0b1100, LoadBit, LoadSize, LoadItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -314,8 +313,8 @@ class LoadDisp32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size L
   let canFoldAsLoad = 1;
 }
 
-class StoreDisp32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize>
-    : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr11:$addr)], 0b1100, StoreBit, StoreSize, StoreItin> {
+class StoreDisp32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, list<dag> pattern>
+    : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), pattern, 0b1100, StoreBit, StoreSize, StoreItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -327,7 +326,6 @@ class StoreDisp32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size
   let Inst{24}    = addr{11};    // imm sign bit
   let isPseudo    = Pseudo;
 }
-
 
 //-----------Index (Rd <-> (Rn + Rm)) ----------//
 class LoadIdx16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub>

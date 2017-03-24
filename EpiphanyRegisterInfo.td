@@ -21,7 +21,7 @@ def isub_lo  : SubRegIndex<32>;
 def isub_hi  : SubRegIndex<32, 32>;
 def subreg_overflow : SubRegIndex<1, 0>;
 
-class EpiphanyReg64<bits<16> enc, string n, list<Register> subregs> : EpiphanyReg<enc, n> {
+class EpiphanyReg64<bits<16> enc, string n, list<Register> subregs> : RegisterWithSubRegs<n, subregs> {
   let SubRegs = subregs;
   let SubRegIndices = [isub_lo, isub_hi];
   let CoveredBySubRegs = 1;
@@ -46,38 +46,38 @@ let Namespace = "Epiphany" in {
   }
 
 // 64 bit extension
-  def D0    : Bank0Reg64<2,  "D2",  [R0, R1]>;
-  def D1    : Bank0Reg64<2,  "D2",  [R2, R3]>;
-  def D2    : Bank0Reg64<4,  "D4",  [R4, R5]>;
-  def D3    : Bank0Reg64<6,  "D6",  [R6, R7]>;
-  def D4    : Bank0Reg64<8,  "D8",  [R8, R9]>;
-  def D5    : Bank0Reg64<10, "D10", [R10, R11]>;
-  def D6    : Bank0Reg64<12, "D12", [R12, R13]>;
-  def D7    : Bank0Reg64<14, "D14", [R14, R15]>;
-  def D8    : Bank0Reg64<16, "D16", [R16, R17]>;
-  def D9    : Bank0Reg64<18, "D18", [R18, R19]>;
-  def D10   : Bank0Reg64<20, "D20", [R20, R21]>;
-  def D11   : Bank0Reg64<22, "D22", [R22, R23]>;
-  def D12   : Bank0Reg64<24, "D24", [R24, R25]>;
-  def D13   : Bank0Reg64<26, "D26", [R26, R27]>;
-  def D14   : Bank0Reg64<28, "D28", [R28, R29]>;
-  def D15   : Bank0Reg64<30, "D30", [R30, R31]>;
-  def D16   : Bank0Reg64<32, "D32", [R32, R33]>;
-  def D17   : Bank0Reg64<34, "D34", [R34, R35]>;
-  def D18   : Bank0Reg64<36, "D36", [R36, R37]>;
-  def D19   : Bank0Reg64<38, "D38", [R38, R39]>;
-  def D20   : Bank0Reg64<40, "D40", [R40, R41]>;
-  def D21   : Bank0Reg64<42, "D42", [R42, R43]>;
-  def D22   : Bank0Reg64<44, "D44", [R44, R45]>;
-  def D23   : Bank0Reg64<46, "D46", [R46, R47]>;
-  def D24   : Bank0Reg64<48, "D48", [R48, R49]>;
-  def D25   : Bank0Reg64<50, "D50", [R50, R51]>;
-  def D26   : Bank0Reg64<52, "D52", [R52, R53]>;
-  def D27   : Bank0Reg64<54, "D54", [R54, R55]>;
-  def D28   : Bank0Reg64<56, "D56", [R56, R57]>;
-  def D29   : Bank0Reg64<58, "D58", [R58, R59]>;
-  def D30   : Bank0Reg64<60, "D60", [R60, R61]>;
-  def D31   : Bank0Reg64<62, "D62", [R62, R63]>;
+  def D0    : Bank0Reg64<0,  "D0",  [R0, R1]>;
+  def D1    : Bank0Reg64<2,  "D1",  [R2, R3]>;
+  def D2    : Bank0Reg64<4,  "D2",  [R4, R5]>;
+  def D3    : Bank0Reg64<6,  "D3",  [R6, R7]>;
+  def D4    : Bank0Reg64<8,  "D4",  [R8, R9]>;
+  def D5    : Bank0Reg64<10, "D5", [R10, R11]>;
+  def D6    : Bank0Reg64<12, "D6", [R12, R13]>;
+  def D7    : Bank0Reg64<14, "D7", [R14, R15]>;
+  def D8    : Bank0Reg64<16, "D8", [R16, R17]>;
+  def D9    : Bank0Reg64<18, "D9", [R18, R19]>;
+  def D10   : Bank0Reg64<20, "D10", [R20, R21]>;
+  def D11   : Bank0Reg64<22, "D11", [R22, R23]>;
+  def D12   : Bank0Reg64<24, "D12", [R24, R25]>;
+  def D13   : Bank0Reg64<26, "D13", [R26, R27]>;
+  def D14   : Bank0Reg64<28, "D14", [R28, R29]>;
+  def D15   : Bank0Reg64<30, "D15", [R30, R31]>;
+  def D16   : Bank0Reg64<32, "D16", [R32, R33]>;
+  def D17   : Bank0Reg64<34, "D17", [R34, R35]>;
+  def D18   : Bank0Reg64<36, "D18", [R36, R37]>;
+  def D19   : Bank0Reg64<38, "D19", [R38, R39]>;
+  def D20   : Bank0Reg64<40, "D20", [R40, R41]>;
+  def D21   : Bank0Reg64<42, "D21", [R42, R43]>;
+  def D22   : Bank0Reg64<44, "D22", [R44, R45]>;
+  def D23   : Bank0Reg64<46, "D23", [R46, R47]>;
+  def D24   : Bank0Reg64<48, "D24", [R48, R49]>;
+  def D25   : Bank0Reg64<50, "D25", [R50, R51]>;
+  def D26   : Bank0Reg64<52, "D26", [R52, R53]>;
+  def D27   : Bank0Reg64<54, "D27", [R54, R55]>;
+  def D28   : Bank0Reg64<56, "D28", [R56, R57]>;
+  def D29   : Bank0Reg64<58, "D29", [R58, R59]>;
+  def D30   : Bank0Reg64<60, "D30", [R60, R61]>;
+  def D31   : Bank0Reg64<62, "D31", [R62, R63]>;
 
 // Aliases
   def A1    : Bank0Reg32<0,  "A1">,  DwarfRegAlias<R0>;
@@ -172,8 +172,17 @@ def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
 def FPR32 : RegisterClass<"Epiphany", [f32], 32, (add GPR32)>;
 
 // 64 bit
-def GPR64 : RegisterClass<"Epiphany", [i64], 64, (add (sequence "D%u", 0, 31))>;
-def FPR64 : RegisterClass<"Epiphany", [f64], 64, (add (sequence "D%u", 0, 31))>;
+/*def GPR64 : RegisterTuples<[isub_lo, isub_hi], [(add (decimate GPR32, 2)), (add (decimate (shl GPR32, 1), 2))]>;*/
+
+def GPR64 : RegisterClass<"Epiphany", [i64,v2i32], 64, (add (sequence "D%u", 0, 31))> {
+  let CopyCost = 4;
+  let Size = 64;
+}
+def FPR64 : RegisterClass<"Epiphany", [f64,v2f32], 64, (add (sequence "D%u", 0, 31))> {
+  let CopyCost = 4;
+  let Size = 64;
+}
+
 
 // Status register
 def SR : RegisterClass<"Epiphany", [i32], 32, (add STATUS)>;

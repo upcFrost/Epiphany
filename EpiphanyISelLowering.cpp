@@ -95,6 +95,75 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::UMUL_LOHI, MVT::i32,  Expand);
     setOperationAction(ISD::SMUL_LOHI, MVT::i32,  Expand);
 
+    // Expand vector load/store for now
+    for (MVT VT : MVT::integer_vector_valuetypes()) {
+      setLoadExtAction(ISD::EXTLOAD, VT, MVT::v2i8, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v2i8, Expand);
+      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v2i8, Expand);
+      setLoadExtAction(ISD::EXTLOAD, VT, MVT::v4i8, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v4i8, Expand);
+      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v4i8, Expand);
+      setLoadExtAction(ISD::EXTLOAD, VT, MVT::v2i16, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v2i16, Expand);
+      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v2i16, Expand);
+      setLoadExtAction(ISD::EXTLOAD, VT, MVT::v4i16, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v4i16, Expand);
+      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v4i16, Expand);
+    }
+  
+    static const MVT::SimpleValueType VectorIntTypes[] = {
+      MVT::v2i8, MVT::v2i16, MVT::v4i8, MVT::v2i32, MVT::v4i32
+    };
+    for (MVT VT : VectorIntTypes) {
+      // Expand the following operations for the current type by default.
+      setOperationAction(ISD::ADD,  VT, Expand);
+      setOperationAction(ISD::AND,  VT, Expand);
+      setOperationAction(ISD::FP_TO_SINT, VT, Expand);
+      setOperationAction(ISD::FP_TO_UINT, VT, Expand);
+      setOperationAction(ISD::MUL,  VT, Expand);
+      setOperationAction(ISD::MULHU, VT, Expand);
+      setOperationAction(ISD::MULHS, VT, Expand);
+      setOperationAction(ISD::OR,   VT, Expand);
+      setOperationAction(ISD::SHL,  VT, Expand);
+      setOperationAction(ISD::SRA,  VT, Expand);
+      setOperationAction(ISD::SRL,  VT, Expand);
+      setOperationAction(ISD::ROTL, VT, Expand);
+      setOperationAction(ISD::ROTR, VT, Expand);
+      setOperationAction(ISD::SUB,  VT, Expand);
+      setOperationAction(ISD::SINT_TO_FP, VT, Expand);
+      setOperationAction(ISD::UINT_TO_FP, VT, Expand);
+      setOperationAction(ISD::SDIV, VT, Expand);
+      setOperationAction(ISD::UDIV, VT, Expand);
+      setOperationAction(ISD::SREM, VT, Expand);
+      setOperationAction(ISD::UREM, VT, Expand);
+      setOperationAction(ISD::SMUL_LOHI, VT, Expand);
+      setOperationAction(ISD::UMUL_LOHI, VT, Expand);
+      setOperationAction(ISD::SDIVREM, VT, Custom);
+      setOperationAction(ISD::UDIVREM, VT, Expand);
+      setOperationAction(ISD::ADDC, VT, Expand);
+      setOperationAction(ISD::SUBC, VT, Expand);
+      setOperationAction(ISD::ADDE, VT, Expand);
+      setOperationAction(ISD::SUBE, VT, Expand);
+      setOperationAction(ISD::SELECT, VT, Expand);
+      setOperationAction(ISD::VSELECT, VT, Expand);
+      setOperationAction(ISD::SELECT_CC, VT, Expand);
+      setOperationAction(ISD::XOR,  VT, Expand);
+      setOperationAction(ISD::BSWAP, VT, Expand);
+      setOperationAction(ISD::CTPOP, VT, Expand);
+      setOperationAction(ISD::CTTZ, VT, Expand);
+      setOperationAction(ISD::CTLZ, VT, Expand);
+      setOperationAction(ISD::VECTOR_SHUFFLE, VT, Expand);
+    }
+
+    // For now - expand 64-bit ops that were not implemented yet
+    setOperationAction(ISD::ADD,       MVT::i64,  Expand);
+    setOperationAction(ISD::SUB,       MVT::i64,  Expand);
+    setOperationAction(ISD::ADDC,      MVT::i64,  Expand);
+    setOperationAction(ISD::SUBC,      MVT::i64,  Expand);
+    setOperationAction(ISD::FADD,      MVT::f64,  Expand);
+    setOperationAction(ISD::FSUB,      MVT::f64,  Expand);
+    setOperationAction(ISD::FMUL,      MVT::f64,  Expand);
+
     // Custom operations, see below
     setOperationAction(ISD::GlobalAddress,  MVT::i32, Custom);
     setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
@@ -383,7 +452,7 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
             Arg = DAG.getNode(ISD::BITCAST, DL, LocVT, Arg);
           else if (ValVT == MVT::f64 && LocVT == MVT::i32) {
             llvm_unreachable("Unimplemented yet!");
-              continue;
+            continue;
           }
         }
         // Nothing to do
