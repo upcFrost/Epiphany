@@ -458,7 +458,7 @@ void EpiphanyInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
     MachineBasicBlock::iterator I) const {
   DebugLoc DL = I != MBB.end() ? I->getDebugLoc() : DebugLoc();
   unsigned IP = Epiphany::IP;
-  unsigned ADDri = Epiphany::ADD32ri;
+  unsigned ADDri = Epiphany::ADDri_r32;
   unsigned ADDrr = Epiphany::ADDrr_r32;
   unsigned MOVi32ri = Epiphany::MOVi32ri;
   unsigned MOVTi32ri = Epiphany::MOVTi32ri;

@@ -169,6 +169,7 @@ def i32immSExt3   : PatLeaf<(i32 imm), [{ return isInt<3>(N->getSExtValue()); }]
 def i32immSExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getSExtValue()); }]>;
 def i32immSExt11  : PatLeaf<(i32 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 def i32immSExt16  : PatLeaf<(i32 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+def i64immSExt11  : PatLeaf<(i64 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 def i64immSExt16  : PatLeaf<(i64 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
 def i64immSExt32  : PatLeaf<(i64 imm), [{ return isInt<32>(N->getSExtValue()); }]>;
 def i64immSExt64  : PatLeaf<(i64 imm), [{ return isInt<64>(N->getSExtValue()); }]>;

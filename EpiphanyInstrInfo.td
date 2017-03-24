@@ -222,19 +222,22 @@ let Defs = [STATUS], AddedComplexity = -1 in {
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with immediates
 //===----------------------------------------------------------------------===//
+multiclass IntMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
+  def _r16 : IntMath16ri<opcode16, instr_asm, OpNode, simm3,  i32immSExt3>;
+  def _r32 : IntMath32ri<opcode32, instr_asm, OpNode, simm11, i32immSExt11>;
+}
+
 let Defs = [STATUS] in {
-  // Addsub i16
-  def ADD16ri : IntMath16ri<0b0010011, "add", addc, simm3, i32immSExt3>;
-  def SUB16ri : IntMath16ri<0b0110011, "sub", subc, simm3, i32immSExt3>;
+  // Addsub
+  defm ADDri  : IntMath<0b0010011, 0b0011011, "add", add >;
+  defm SUBri  : IntMath<0b0110011, 0b0111011, "sub", sub >;
+  defm ADDCri : IntMath<0b0010011, 0b0011011, "add", addc>;
+  defm SUBCri : IntMath<0b0110011, 0b0111011, "sub", subc>;
 
   // Shifts i16
   def LSR16ri : ShiftMath16ri<0b00110, "lsr", srl, imm5, immUExt5>;
   def LSL16ri : ShiftMath16ri<0b10110, "lsl", shl, imm5, immUExt5>;
   def ASR16ri : ShiftMath16ri<0b01110, "asr", sra, imm5, immUExt5>;
-
-  // Addsub i32
-  def ADD32ri : IntMath32ri<0b0011011, "add", addc, simm11, i32immSExt11>;
-  def SUB32ri : IntMath32ri<0b0111011, "sub", subc, simm11, i32immSExt11>;
 
   // Shifts i32
   def LSR32ri : ShiftMath32ri<0b0110, 0b01111, "lsr", srl, imm5, immUExt5>;
@@ -390,7 +393,7 @@ def : Pat<(brcc SETLE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_L
 
 // Patterns to use while replacing "brcond"
 // brcond takes only 1 arg, which should be true or false
-def : Pat<(brcond GPR32:$Rd, bb:$addr), (BCC32 bb:$addr, COND_GTU.Code, (SUB32ri GPR32:$Rd, 0))>;
+def : Pat<(brcond GPR32:$Rd, bb:$addr), (BCC32 bb:$addr, COND_GTU.Code, (SUBri_r32 GPR32:$Rd, 0))>;
 
 //===----------------------------------------------------------------------===//
 // Function Calls and JALR
@@ -428,7 +431,14 @@ let isCall = 1, Defs = [LR], hasDelaySlot = 0, isBarrier = 0 in {
 
 // Extended Addsub i32, exploiting the fact that MOVGTEU depend only on the carry
 def : Pat<(adde GPR32:$Rn, simm11:$imm), 
-          (ADDrr_r32 (ADD32ri GPR32:$Rn, simm11:$imm), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
+          (ADDrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
 def : Pat<(sube GPR32:$Rn, simm11:$imm), 
-          (SUBrr_r32 (ADD32ri GPR32:$Rn, simm11:$imm), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
+          (SUBrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
+
+def ADDri_r64 : Pat<(i64 (add GPR64:$Rn, i64immSExt11:$Imm)),
+  (REG_SEQUENCE GPR64,
+  (ADDri_r32 (LoReg GPR64:$Rn), (i32 (LO16 i64:$Imm))), isub_lo,
+  (ADDri_r32 (HiReg GPR64:$Rn), (i32 0)), isub_hi)>;
+  /*(ADDrr_r32 (HiReg GPR64:$Rn), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDri_r32 (LoReg GPR64:$Rn), (i32 (LO16 i64:$imm))))), isub_hi)>;*/
+
 
