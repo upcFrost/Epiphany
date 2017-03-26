@@ -223,8 +223,10 @@ let Defs = [STATUS], AddedComplexity = -1 in {
 // Integer arithmetic operations with immediates
 //===----------------------------------------------------------------------===//
 multiclass IntMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
-  def _r16 : IntMath16ri<opcode16, instr_asm, OpNode, simm3,  i32immSExt3>;
-  def _r32 : IntMath32ri<opcode32, instr_asm, OpNode, simm11, i32immSExt11>;
+  def _r16     : IntMath_r16_i32<opcode16, instr_asm, OpNode, i32imm, i32immSExt3>;
+  def _r32     : IntMath_r32_i32<opcode32, instr_asm, OpNode, i32imm, i32immSExt11>;
+  def _r16_i64 : IntMath_r16_i64<opcode16, instr_asm, OpNode, i64imm, i64immSExt3>;
+  def _r32_i64 : IntMath_r32_i64<opcode32, instr_asm, OpNode, i64imm, i64immSExt11>;
 }
 
 let Defs = [STATUS] in {
@@ -435,10 +437,19 @@ def : Pat<(adde GPR32:$Rn, simm11:$imm),
 def : Pat<(sube GPR32:$Rn, simm11:$imm), 
           (SUBrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
 
-def ADDri_r64 : Pat<(i64 (add GPR64:$Rn, i64immSExt11:$Imm)),
+def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),
   (REG_SEQUENCE GPR64,
-  (ADDri_r32 (LoReg GPR64:$Rn), (i32 (LO16 i64:$Imm))), isub_lo,
-  (ADDri_r32 (HiReg GPR64:$Rn), (i32 0)), isub_hi)>;
-  /*(ADDrr_r32 (HiReg GPR64:$Rn), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDri_r32 (LoReg GPR64:$Rn), (i32 (LO16 i64:$imm))))), isub_hi)>;*/
+  (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)), 
+  isub_lo,
+  (ADDrr_r32  (HiReg GPR64:$Rn), (ADDri_r32 (HiReg GPR64:$Rm), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))), 
+  isub_hi)>;
+
+def ADDri_r64 : Pat<(i64 (add (i64 GPR64:$Rn), i64immSExt11:$imm)),
+  (REG_SEQUENCE GPR64,
+  (ADDri_r32_i64 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)), isub_lo,
+  (ADDrr_r32 
+    (HiReg (i64 GPR64:$Rn)), 
+    (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, 
+      (ADDri_r32_i64 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))), isub_hi)>;
 
 

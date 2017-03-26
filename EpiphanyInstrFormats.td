@@ -165,10 +165,11 @@ def immUExt5   : PatLeaf<(i32 imm), [{ return isInt<5>(N->getZExtValue()); }]>;
 def immUExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getZExtValue()); }]>;
 def immUExt24  : PatLeaf<(i32 imm), [{ return isInt<24>(N->getZExtValue()); }]>;
 
-def i32immSExt3   : PatLeaf<(i32 imm), [{ return isInt<3>(N->getSExtValue()); }]>;
-def i32immSExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getSExtValue()); }]>;
+def i32immSExt3   : PatLeaf<(i32 imm), [{ return isInt<3>(N->getSExtValue());  }]>;
+def i32immSExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getSExtValue());  }]>;
 def i32immSExt11  : PatLeaf<(i32 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 def i32immSExt16  : PatLeaf<(i32 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+def i64immSExt3   : PatLeaf<(i64 imm), [{ return isInt<3>(N->getSExtValue());  }]>;
 def i64immSExt11  : PatLeaf<(i64 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 def i64immSExt16  : PatLeaf<(i64 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
 def i64immSExt32  : PatLeaf<(i64 imm), [{ return isInt<32>(N->getSExtValue()); }]>;
@@ -636,13 +637,19 @@ class AddrMath32ri<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opc
 // Arithmetic operations with immediates: Integer
 //===----------------------------------------------------------------------===//
 
-class IntMath16ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
+class IntMath_r16_i32<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
     : Math16ri<(outs GPR16:$Rd), (ins GPR16:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
           [(set GPR16:$Rd, (OpNode GPR16:$Rn, imm_type:$Imm))], opcode, IaluItin> {}
 
-class IntMath32ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> 
+class IntMath_r32_i32<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> 
     : Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
           [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], opcode, IaluItin> {}
+
+class IntMath_r16_i64<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
+    : Math16ri<(outs GPR16:$Rd), (ins GPR16:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"), [], opcode, IaluItin> {}
+
+class IntMath_r32_i64<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> 
+    : Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"), [], opcode, IaluItin> {}
 
 class ShiftMath16ri<bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
     : Normal16<(outs GPR16:$Rd), (ins GPR16:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"), 
