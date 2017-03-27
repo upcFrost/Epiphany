@@ -232,7 +232,7 @@ static unsigned getShift(unsigned int OpCode) {
       case Epiphany::STRi64:
       case Epiphany::LDRf64:
       case Epiphany::STRf64:
-        Shift = 4;
+        Shift = 3;
         break;
     }
 
