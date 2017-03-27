@@ -291,11 +291,6 @@ def MOVi64ri_i64 : Pat<(i64immSExt64:$Imm),
 def MOVi32rr     : Mov32rr<"mov", [], GPR32>;
 def MOVf32rr     : Mov32rr<"mov", [], FPR32>;
 
-def : Pat<(i64 (shl GPR64:$Rn, (i32 32))), 
-          (REG_SEQUENCE GPR64,
-          (MOVi32rr (EXTRACT_SUBREG GPR64:$Rn, isub_lo)), isub_hi,
-          (MOVi32ri 0), isub_lo)>;
-
 // Special regs
 def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins SPECIAL:$MMR), [], CoreReg, SpecFrom>;
 def MOVTS32rr    : MovSpecial<"movts", (outs SPECIAL:$MMR), (ins GPR32:$Rd),   [], CoreReg, SpecTo>;
@@ -441,8 +436,16 @@ def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),
   (REG_SEQUENCE GPR64,
   (i32 (COPY (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), 
   isub_lo,
-  (i32 (COPY (ADDrr_r32 
-    (HiReg GPR64:$Rn), 
+  (i32 (COPY (ADDrr_r32 (HiReg GPR64:$Rn), 
+    (ADDri_r32 (HiReg GPR64:$Rm), 
+      (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
+  isub_hi)>;
+
+def ADDCrr_r64 : Pat<(i64 (addc GPR64:$Rn, GPR64:$Rm)), 
+  (REG_SEQUENCE GPR64,
+  (i32 (COPY (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), 
+  isub_lo,
+  (i32 (COPY (ADDrr_r32 (HiReg GPR64:$Rn), 
     (ADDri_r32 (HiReg GPR64:$Rm), 
       (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
   isub_hi)>;
@@ -450,9 +453,13 @@ def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),
 def ADDri_r64 : Pat<(i64 (add (i64 GPR64:$Rn), i64immSExt11:$imm)),
   (REG_SEQUENCE GPR64,
   (i32 (COPY (ADDri_r32_i64 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))), isub_lo,
-  (i32 (COPY (ADDrr_r32 
-    (HiReg (i64 GPR64:$Rn)), 
+  (i32 (COPY (ADDrr_r32 (HiReg (i64 GPR64:$Rn)), 
     (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, 
       (ADDri_r32_i64 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))))), isub_hi)>;
+
+def : Pat<(i64 (shl GPR64:$Rn, (i32 32))), 
+          (REG_SEQUENCE GPR64,
+          (MOVi32rr (EXTRACT_SUBREG GPR64:$Rn, isub_lo)), isub_hi,
+          (MOVi32ri 0), isub_lo)>;
 
 
