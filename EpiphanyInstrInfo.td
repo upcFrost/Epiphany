@@ -439,17 +439,20 @@ def : Pat<(sube GPR32:$Rn, simm11:$imm),
 
 def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),
   (REG_SEQUENCE GPR64,
-  (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)), 
+  (i32 (COPY (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), 
   isub_lo,
-  (ADDrr_r32  (HiReg GPR64:$Rn), (ADDri_r32 (HiReg GPR64:$Rm), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))), 
+  (i32 (COPY (ADDrr_r32 
+    (HiReg GPR64:$Rn), 
+    (ADDri_r32 (HiReg GPR64:$Rm), 
+      (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
   isub_hi)>;
 
 def ADDri_r64 : Pat<(i64 (add (i64 GPR64:$Rn), i64immSExt11:$imm)),
   (REG_SEQUENCE GPR64,
-  (ADDri_r32_i64 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)), isub_lo,
-  (ADDrr_r32 
+  (i32 (COPY (ADDri_r32_i64 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))), isub_lo,
+  (i32 (COPY (ADDrr_r32 
     (HiReg (i64 GPR64:$Rn)), 
     (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, 
-      (ADDri_r32_i64 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))), isub_hi)>;
+      (ADDri_r32_i64 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))))), isub_hi)>;
 
 

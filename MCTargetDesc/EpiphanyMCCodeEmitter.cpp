@@ -207,6 +207,7 @@ static unsigned getShift(unsigned int OpCode) {
       case Epiphany::LDRi16_pmd_r32:
       case Epiphany::STRi16_pmd_r32:
         Shift = 1;
+        break;
       case Epiphany::LDRi32_r16:
       case Epiphany::STRi32_r16:
       case Epiphany::LDRi32_r32:
@@ -226,6 +227,13 @@ static unsigned getShift(unsigned int OpCode) {
       case Epiphany::LDRi32_pmd_r32:
       case Epiphany::STRi32_pmd_r32:
         Shift = 2;
+        break;
+      case Epiphany::LDRi64:
+      case Epiphany::STRi64:
+      case Epiphany::LDRf64:
+      case Epiphany::STRf64:
+        Shift = 4;
+        break;
     }
 
     return Shift;

@@ -184,6 +184,8 @@ def FPR64 : RegisterClass<"Epiphany", [f64,v2f32], 64, (add (sequence "D%u", 0, 
 }
 
 
+// We should not be able to alloc special regs
+let isAllocatable = 0 in {
 // Status register
 def SR : RegisterClass<"Epiphany", [i32], 32, (add STATUS)>;
 
@@ -206,3 +208,4 @@ def SPECIAL : RegisterClass<"Epiphany", [i32], 32, (add
   CTIMER1,
   FSTATUS,
   DEBUGCMD)>;
+}

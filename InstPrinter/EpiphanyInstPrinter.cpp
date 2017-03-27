@@ -38,11 +38,19 @@ static unsigned getShift(unsigned int OpCode) {
     case Epiphany::LDRi16_r32:
     case Epiphany::STRi16_r32:
       Shift = 1;
+      break;
     case Epiphany::LDRi32_r16:
     case Epiphany::STRi32_r16:
     case Epiphany::LDRi32_r32:
     case Epiphany::STRi32_r32:
       Shift = 2;
+      break;
+    case Epiphany::LDRi64:
+    case Epiphany::STRi64:
+    case Epiphany::LDRf64:
+    case Epiphany::STRf64:
+      Shift = 4;
+      break;
   }
 
   return Shift;
@@ -112,52 +120,52 @@ void EpiphanyInstPrinter::printCondCode(const MCInst *MI, unsigned OpNo,
   switch (CC) {
     default:
       llvm_unreachable("Unsupported CC code");
-     case EpiphanyCC::COND_EQ:
+    case EpiphanyCC::COND_EQ:
       O << "eq";
       break;
-     case EpiphanyCC::COND_NE:
+    case EpiphanyCC::COND_NE:
       O << "ne";
       break;
-     case EpiphanyCC::COND_GTU:
+    case EpiphanyCC::COND_GTU:
       O << "gtu";
       break;
-     case EpiphanyCC::COND_GTEU:
+    case EpiphanyCC::COND_GTEU:
       O << "gteu";
       break;
-     case EpiphanyCC::COND_LTEU:
+    case EpiphanyCC::COND_LTEU:
       O << "lteu";
       break;
-     case EpiphanyCC::COND_LTU:
+    case EpiphanyCC::COND_LTU:
       O << "ltu";
       break;
-     case EpiphanyCC::COND_GT:
+    case EpiphanyCC::COND_GT:
       O << "gt";
       break;
-     case EpiphanyCC::COND_GTE:
+    case EpiphanyCC::COND_GTE:
       O << "gte";
       break;
-     case EpiphanyCC::COND_LT:
+    case EpiphanyCC::COND_LT:
       O << "lt";
       break;
-     case EpiphanyCC::COND_LTE:
+    case EpiphanyCC::COND_LTE:
       O << "lte";
       break;
-     case EpiphanyCC::COND_BEQ:
+    case EpiphanyCC::COND_BEQ:
       O << "beq";
       break;
-     case EpiphanyCC::COND_BNE:
+    case EpiphanyCC::COND_BNE:
       O << "bne";
       break;
-     case EpiphanyCC::COND_BLT:
+    case EpiphanyCC::COND_BLT:
       O << "blt";
       break;
-     case EpiphanyCC::COND_BLTE:
+    case EpiphanyCC::COND_BLTE:
       O << "blte";
       break;
-     case EpiphanyCC::COND_NONE:
+    case EpiphanyCC::COND_NONE:
       O << "";
       break;
-     case EpiphanyCC::COND_L:
+    case EpiphanyCC::COND_L:
       O << "l";
       break;
   }
