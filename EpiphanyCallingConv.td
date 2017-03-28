@@ -32,7 +32,8 @@ def CC_Epiphany_Assign : CallingConv<[
   // If still no luck - save to stack
   CCIfType<[i32,f32], CCAssignToStack<4, 4>>,
 
-  // Pass 64-bit only in stack
+  // Pass 64-bit within 2 first regs or in the stack
+  CCIfType<[i64,f64], CCAssignToReg<[D0, D1]>>,
   CCIfType<[i64,f64], CCAssignToStack<8, 8>>
 ]>;
 
@@ -47,7 +48,8 @@ def RetCC_Epiphany : CallingConv<[
   // Alternatively, they are assigned to the stack in 4-byte aligned units.
   CCIfType<[i32,f32], CCAssignToStack<4, 4>>,
 
-  // Pass 64-bit only in stack
+  // Pass 64-bit within 2 first regs or in the stack
+  CCIfType<[i64,f64], CCAssignToReg<[D0, D1]>>,
   CCIfType<[i64,f64], CCAssignToStack<8, 8>>,
 
   CCAssignToStack<8, 8>

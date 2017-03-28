@@ -116,26 +116,34 @@ def HiReg: OutPatFrag<(ops node:$Rd), (EXTRACT_SUBREG (i64 $Rd), isub_hi)>;
 // Load/store instructions
 //===----------------------------------------------------------------------===//
 multiclass LoadM<PatFrag LoadType, LS_size LoadSize> {
-  def _r16 : LoadDisp16<0, GPR16, LoadType, LoadSize>;
-  def _r32 : LoadDisp32<0, GPR32, LoadType, LoadSize, [(set GPR32:$Rd, (LoadType addr11:$addr))]>;
-  def _idx_add_r16  : LoadIdx16<0, GPR16, LoadType, LoadSize, IndexAdd>;
-  def _idx_add_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexAdd>;
-  def _idx_sub_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexSub>;
-  def _pm_add_r16   : LoadPm16<0, GPR16, LoadType, LoadSize, IndexAdd>;
-  def _pm_add_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexAdd>;
-  def _pm_sub_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexSub>;
-  def _pmd_r32  : LoadPmd32<0, GPR32, LoadType, LoadSize>;
+    def _v4i8_r16  : LoadDisp16<0, GPR16, LoadType, LoadSize, v4i8>;
+    def _v2i16_r16 : LoadDisp16<0, GPR16, LoadType, LoadSize, v2i16>;
+    def _r16       : LoadDisp16<0, GPR16, LoadType, LoadSize, i32>;
+    def _v2i16_r32 : LoadDisp32<0, GPR32, LoadType, LoadSize, v2i16>;
+    def _v4i8_r32  : LoadDisp32<0, GPR32, LoadType, LoadSize, v4i8>;
+    def _r32       : LoadDisp32<0, GPR32, LoadType, LoadSize, i32>;
+    def _idx_add_r16  : LoadIdx16<0, GPR16, LoadType, LoadSize, IndexAdd, i32>;
+    def _idx_add_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexAdd, i32>;
+    def _idx_sub_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexSub, i32>;
+    def _pm_add_r16   : LoadPm16<0, GPR16, LoadType, LoadSize, IndexAdd, i32>;
+    def _pm_add_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexAdd, i32>;
+    def _pm_sub_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexSub, i32>;
+    def _pmd_r32  : LoadPmd32<0, GPR32, LoadType, LoadSize, i32>;
 }
 multiclass StoreM<PatFrag StoreType, LS_size StoreSize> {
-  def _r16 : StoreDisp16<0, GPR16, StoreType, StoreSize>;
-  def _r32 : StoreDisp32<0, GPR32, StoreType, StoreSize, [(StoreType GPR32:$Rd, addr11:$addr)]>;
-  def _idx_add_r16 : StoreIdx16<0, GPR16, StoreType, StoreSize, IndexAdd>;
-  def _idx_add_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexAdd>;
-  def _idx_sub_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexSub>;
-  def _pm_add_r16  : StorePm16<0, GPR16, StoreType, StoreSize, IndexAdd>;
-  def _pm_add_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexAdd>;
-  def _pm_sub_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexSub>;
-  def _pmd_r32  : StorePmd32<0, GPR32, StoreType, StoreSize>;
+  def _v4i8_r16  : StoreDisp16<0, GPR16, StoreType, StoreSize, v4i8>;
+  def _v2i16_r16 : StoreDisp16<0, GPR16, StoreType, StoreSize, v2i16>;
+  def _r16       : StoreDisp16<0, GPR16, StoreType, StoreSize, i32>;
+  def _v4i8_r32  : StoreDisp32<0, GPR32, StoreType, StoreSize, v4i8>;
+  def _v2i16_r32 : StoreDisp32<0, GPR32, StoreType, StoreSize, v2i16>;
+  def _r32       : StoreDisp32<0, GPR32, StoreType, StoreSize, i32>;
+  def _idx_add_r16 : StoreIdx16<0, GPR16, StoreType, StoreSize, IndexAdd, i32>;
+  def _idx_add_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexAdd, i32>;
+  def _idx_sub_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexSub, i32>;
+  def _pm_add_r16  : StorePm16<0, GPR16, StoreType, StoreSize, IndexAdd, i32>;
+  def _pm_add_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexAdd, i32>;
+  def _pm_sub_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexSub, i32>;
+  def _pmd_r32  : StorePmd32<0, GPR32, StoreType, StoreSize, i32>;
 }
 
 defm LDRi8   : LoadM<AlignedLoad<sextloadi8>,      LS_byte>;
@@ -149,29 +157,30 @@ defm STRi8   : StoreM<AlignedStore<truncstorei8>,  LS_byte>;
 defm STRi16  : StoreM<AlignedStore<truncstorei16>, LS_hword>;
 defm STRi32  : StoreM<AlignedStore<store>,         LS_word>;
 
-def LDRf32   : LoadDisp32<0, FPR32, AlignedLoad<load>,    LS_word, [(set FPR32:$Rd, (AlignedLoad<load> addr11:$addr))]>;
-def STRf32   : StoreDisp32<0, FPR32, AlignedStore<store>, LS_word, [(AlignedStore<store> FPR32:$Rd, addr11:$addr)]>;
+def LDRf32   : LoadDisp32<0, FPR32, AlignedLoad<load>,    LS_word, f32>;
+def STRf32   : StoreDisp32<0, FPR32, AlignedStore<store>, LS_word, f32>;
 
-def LDRi64   : LoadDisp32<0, GPR64, load, LS_dword, [(set (i64 GPR64:$Rd), (load addr11:$addr))]>;
-def LDRv2i32 : LoadDisp32<0, GPR64, load, LS_dword, [(set (v2i32 GPR64:$Rd), (load addr11:$addr))]>;
-def LDRf64   : LoadDisp32<0, FPR64, load, LS_dword, [(set (f64 FPR64:$Rd), (load addr11:$addr))]>;
-def STRi64   : StoreDisp32<0, GPR64, store, LS_dword, [(store (i64 GPR64:$Rd), addr11:$addr)]>;
-def STRv2i32 : StoreDisp32<0, GPR64, store, LS_dword, [(store (v2i32 GPR64:$Rd), addr11:$addr)]>;
-def STRf64   : StoreDisp32<0, FPR64, store, LS_dword, [(store (f64 FPR64:$Rd), addr11:$addr)]>;
+def LDRi64   : LoadDisp32<0, GPR64, load, LS_dword, i64>;
+def LDRv2i32 : LoadDisp32<0, GPR64, load, LS_dword, v2i32>;
+def LDRf64   : LoadDisp32<0, FPR64, load, LS_dword, f64>;
+def STRi64   : StoreDisp32<0, GPR64, store, LS_dword, i64>;
+def STRv2i32 : StoreDisp32<0, GPR64, store, LS_dword, v2i32>;
+def STRf64   : StoreDisp32<0, FPR64, store, LS_dword, f64>;
 
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with registers
 //===----------------------------------------------------------------------===//
 multiclass SimpleMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
-  def _r16 : SimpleMath16rr<opcode16, instr_asm, OpNode, GPR16> { let Defs = [STATUS]; }
-  def _r32 : SimpleMath32rr<opcode32, instr_asm, OpNode, GPR32> { let Defs = [STATUS]; }
+  def _r16 : SimpleMath16rr<opcode16, instr_asm, OpNode, GPR16, i32> { let Defs = [STATUS]; }
+  def _r32 : SimpleMath32rr<opcode32, instr_asm, OpNode, GPR32, i32> { let Defs = [STATUS]; }
 }
 
+// COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
 multiclass SimpleMath64<SDNode OpNode> {
   def _r64 : Pat<(i64 (OpNode GPR64:$Rn, GPR64:$Rm)),
                  (REG_SEQUENCE GPR64, 
-                 (!cast<Instruction>(NAME # _r32) (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)), isub_lo, 
-                 (!cast<Instruction>(NAME # _r32) (HiReg GPR64:$Rn), (HiReg GPR64:$Rm)), isub_hi)>;
+                 (i32 (COPY (!cast<Instruction>(NAME # _r32) (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), isub_lo, 
+                 (i32 (COPY (!cast<Instruction>(NAME # _r32) (HiReg GPR64:$Rn), (HiReg GPR64:$Rm)))), isub_hi)>;
 }
 
 defm ADDrr  : SimpleMath<0b0011010, 0b0011111, "add", add >;
@@ -187,12 +196,12 @@ defm LSLrr  : SimpleMath<0b0101010, 0b0101111, "lsl", shl >;
 
 // Complex math: f32
 multiclass FPMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
-  def _r16 : ComplexMath16rr<opcode16, instr_asm, OpNode, FPR16, FpuItin>;
-  def _r32 : ComplexMath32rr<opcode32, instr_asm, OpNode, FPR32, FpuItin>;
+  def _r16 : ComplexMath16rr<opcode16, instr_asm, OpNode, FPR16, FpuItin, f32>;
+  def _r32 : ComplexMath32rr<opcode32, instr_asm, OpNode, FPR32, FpuItin, f32>;
 }
 multiclass FPMath2<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
-  def _r16 : ComplexMath2_16rr<opcode16, instr_asm, OpNode, fmul, FPR16, FpuItin>;
-  def _r32 : ComplexMath2_32rr<opcode32, instr_asm, OpNode, fmul, FPR32, FpuItin>;
+  def _r16 : ComplexMath2_16rr<opcode16, instr_asm, OpNode, fmul, FPR16, FpuItin, f32>;
+  def _r32 : ComplexMath2_32rr<opcode32, instr_asm, OpNode, fmul, FPR32, FpuItin, f32>;
 }
 let Defs = [STATUS] in {
   defm FADDrr : FPMath<0b0000111, 0b0001111, "fadd", fadd>;
@@ -204,14 +213,14 @@ let Defs = [STATUS] in {
 
 // Complex math: i32
 multiclass Ialu2Math<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
-  def _r16 : ComplexMath16rr<opcode16, instr_asm, OpNode, GPR16, Ialu2Itin>;
-  def _r32 : ComplexMath32rr<opcode32, instr_asm, OpNode, GPR32, Ialu2Itin>;
+  def _r16 : ComplexMath16rr<opcode16, instr_asm, OpNode, GPR16, Ialu2Itin, i32>;
+  def _r32 : ComplexMath32rr<opcode32, instr_asm, OpNode, GPR32, Ialu2Itin, i32>;
 }
 multiclass Ialu2Math_2<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
-  def _r16 : ComplexMath2_16rr<opcode16, instr_asm, OpNode, mul, GPR16, Ialu2Itin>;
-  def _r32 : ComplexMath2_32rr<opcode32, instr_asm, OpNode, mul, GPR32, Ialu2Itin>;
+  def _r16 : ComplexMath2_16rr<opcode16, instr_asm, OpNode, mul, GPR16, Ialu2Itin, i32>;
+  def _r32 : ComplexMath2_32rr<opcode32, instr_asm, OpNode, mul, GPR32, Ialu2Itin, i32>;
 }
-let Defs = [STATUS], AddedComplexity = -1 in {
+let Defs = [STATUS], AddedComplexity = 1 in {
   defm IADDrr : Ialu2Math<0b0000111, 0b0001111, "iadd", add>;
   defm ISUBrr : Ialu2Math<0b0010111, 0b0011111, "isub", sub>;
   defm IMULrr : Ialu2Math<0b0100111, 0b0101111, "imul", mul>;
@@ -223,10 +232,8 @@ let Defs = [STATUS], AddedComplexity = -1 in {
 // Integer arithmetic operations with immediates
 //===----------------------------------------------------------------------===//
 multiclass IntMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
-  def _r16     : IntMath_r16_i32<opcode16, instr_asm, OpNode, i32imm, i32immSExt3>;
-  def _r32     : IntMath_r32_i32<opcode32, instr_asm, OpNode, i32imm, i32immSExt11>;
-  def _r16_i64 : IntMath_r16_i64<opcode16, instr_asm, OpNode, i64imm, i64immSExt3>;
-  def _r32_i64 : IntMath_r32_i64<opcode32, instr_asm, OpNode, i64imm, i64immSExt11>;
+  def _r16     : IntMath_r16_i32<opcode16, instr_asm, OpNode, i32imm, i32immSExt3,  i32>;
+  def _r32     : IntMath_r32_i32<opcode32, instr_asm, OpNode, i32imm, i32immSExt11, i32>;
 }
 
 let Defs = [STATUS] in {
@@ -237,37 +244,40 @@ let Defs = [STATUS] in {
   defm SUBCri : IntMath<0b0110011, 0b0111011, "sub", subc>;
 
   // Shifts i16
-  def LSR16ri : ShiftMath16ri<0b00110, "lsr", srl, imm5, immUExt5>;
-  def LSL16ri : ShiftMath16ri<0b10110, "lsl", shl, imm5, immUExt5>;
-  def ASR16ri : ShiftMath16ri<0b01110, "asr", sra, imm5, immUExt5>;
+  def LSR16ri : ShiftMath16ri<0b00110, "lsr", srl, imm5, immUExt5, i32>;
+  def LSL16ri : ShiftMath16ri<0b10110, "lsl", shl, imm5, immUExt5, i32>;
+  def ASR16ri : ShiftMath16ri<0b01110, "asr", sra, imm5, immUExt5, i32>;
 
   // Shifts i32
-  def LSR32ri : ShiftMath32ri<0b0110, 0b01111, "lsr", srl, imm5, immUExt5>;
-  def LSL32ri : ShiftMath32ri<0b0110, 0b11111, "lsl", shl, imm5, immUExt5>;
-  def ASR32ri : ShiftMath32ri<0b1110, 0b01111, "asr", sra, imm5, immUExt5>;
+  def LSR32ri : ShiftMath32ri<0b0110, 0b01111, "lsr", srl, imm5, immUExt5, i32>;
+  def LSL32ri : ShiftMath32ri<0b0110, 0b11111, "lsl", shl, imm5, immUExt5, i32>;
+  def ASR32ri : ShiftMath32ri<0b1110, 0b01111, "asr", sra, imm5, immUExt5, i32>;
 }
 
 //===----------------------------------------------------------------------===//
 // IntToFloat and Abs
 //===----------------------------------------------------------------------===//
 let Defs = [STATUS] in {
-  def FLOAT32rr : IntToFloat32<(outs FPR32:$Rd), (ins GPR32:$Rn), "float\t$Rd, $Rn", [(set FPR32:$Rd, (sint_to_fp GPR32:$Rn))], 0b1011111, FpuItin>;
-  def FIX32rr   : IntToFloat32<(outs GPR32:$Rd), (ins FPR32:$Rn), "fix\t$Rd, $Rn",   [(set GPR32:$Rd, (fp_to_sint FPR32:$Rn))], 0b1101111, FpuItin>;
+  def FLOAT32rr : IntToFloat32<(outs FPR32:$Rd), (ins GPR32:$Rn), "float\t$Rd, $Rn", GPR32, FPR32, sint_to_fp, 0b1011111, FpuItin, i32, f32>;
+  def FIX32rr   : IntToFloat32<(outs GPR32:$Rd), (ins FPR32:$Rn), "fix\t$Rd, $Rn",   FPR32, GPR32, fp_to_sint, 0b1101111, FpuItin, f32, i32>;
 }
 
 //===----------------------------------------------------------------------===//
 // Move operations: Immediates
 //===----------------------------------------------------------------------===//
 let Constraints = "$src = $Rd" in {
-  def MOVTi32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set GPR32:$Rd, (or (and GPR32:$src, 0xffff), (shl i32immSExt16:$Imm, (i32 16))))], 0b01011, /* MOVT = */ 1, GPR32>;
+  def MOVTi32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set (i32 GPR32:$Rd), (or (and (i32 GPR32:$src), 0xffff), (shl i32immSExt16:$Imm, (i32 16))))], 0b01011, /* MOVT = */ 1, GPR32>;
 }
-def MOVi16ri : Mov16ri<"mov", (ins imm8:$Imm),    [(set GPR16:$Rd, i32immSExt8:$Imm)], 0b00011, GPR16>;
-def MOVi32ri : Mov32ri<"mov", (ins imm16:$Imm),   [(set GPR32:$Rd, imm:$Imm)],      0b01011, /* MOVT = */ 0, GPR32>;
-def MOVf32ri : Mov32ri<"mov", (ins fpimm16:$Imm), [(set FPR32:$Rd, fpimm16:$Imm)],  0b01011, /* MOVT = */ 0, FPR32>;
+def MOVi16ri : Mov16ri<"mov", (ins i32imm:$Imm), [(set (i32 GPR16:$Rd), i32immSExt8:$Imm)],  0b00011, GPR16>;
+def MOVi32ri : Mov32ri<"mov", (ins i32imm:$Imm), [(set (i32 GPR32:$Rd), i32immSExt16:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
+def MOVf32ri : Mov32ri<"mov", (ins i32imm:$Imm), [(set (f32 FPR32:$Rd), fpimm16:$Imm)],      0b01011, /* MOVT = */ 0, FPR32>;
 
 // Special instruction to move memory pointer to the reg
 def MOViPTR  : AddrMath32ri<(outs GPR32:$Rd), (ins mem11:$imm), "add \t$Rd, $imm", [(set GPR32:$Rd, addr11:$imm)],   0b0011011, IaluItin>;
-def : Pat<(or GPR32:$src, 0xffff0000), (MOVTi32ri GPR32:$src, 0xffff)>;
+def : Pat<(or (i32 GPR32:$src), 0xffff0000), (MOVTi32ri (i32 GPR32:$src), 0xffff)>;
+
+// SIMD patterns
+def MOVri_v2i16_r32 : Pat<(v2i16 (imm:$imm)), (v2i16 (MOVTi32ri (MOVi32ri (LO16 $imm)), (HI16 $imm)))>;
 
 // 64-bit move i64 pattern
 def MOVi64ri_i16 : Pat<(i64immSExt32:$Imm),
@@ -301,44 +311,44 @@ let Uses = [STATUS], Constraints = "$src = $Rd" in {
 
 // Patterns to replace select_cc
 // Converting select to movcc
-def : Pat<(selectcc GPR32:$lhs, GPR32:$rhs, GPR32:$Rn, GPR32:$src, SETEQ), 
-          (MOVCC32rr GPR32:$src, GPR32:$Rn, COND_EQ.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(selectcc GPR32:$lhs, GPR32:$rhs, GPR32:$Rn, GPR32:$src, SETUGT), 
-          (MOVCC32rr GPR32:$src, GPR32:$Rn, COND_GTU.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(selectcc GPR32:$lhs, GPR32:$rhs, GPR32:$Rn, GPR32:$src, SETUGE), 
-          (MOVCC32rr GPR32:$src, GPR32:$Rn, COND_GTEU.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(selectcc GPR32:$lhs, GPR32:$rhs, GPR32:$Rn, GPR32:$src, SETULE), 
-          (MOVCC32rr GPR32:$src, GPR32:$Rn, COND_LTEU.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(selectcc GPR32:$lhs, GPR32:$rhs, GPR32:$Rn, GPR32:$src, SETULT), 
-          (MOVCC32rr GPR32:$src, GPR32:$Rn, COND_LTU.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(selectcc GPR32:$lhs, GPR32:$rhs, GPR32:$Rn, GPR32:$src, SETGT), 
-          (MOVCC32rr GPR32:$src, GPR32:$Rn, COND_GT.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(selectcc GPR32:$lhs, GPR32:$rhs, GPR32:$Rn, GPR32:$src, SETGE), 
-          (MOVCC32rr GPR32:$src, GPR32:$Rn, COND_GTE.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(selectcc GPR32:$lhs, GPR32:$rhs, GPR32:$Rn, GPR32:$src, SETLT), 
-          (MOVCC32rr GPR32:$src, GPR32:$Rn, COND_LT.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(selectcc GPR32:$lhs, GPR32:$rhs, GPR32:$Rn, GPR32:$src, SETLE), 
-          (MOVCC32rr GPR32:$src, GPR32:$Rn, COND_LTE.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
+def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETEQ), 
+          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_EQ.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETUGT), 
+          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETUGE), 
+          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETULE), 
+          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETULT), 
+          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETGT), 
+          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETGE), 
+          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETLT), 
+          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETLE), 
+          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 
 // Patterns to replace setcc
-def : Pat<(setcc GPR32:$lhs, GPR32:$rhs, SETEQ), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_EQ.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(setcc GPR32:$lhs, GPR32:$rhs, SETUGT), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTU.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(setcc GPR32:$lhs, GPR32:$rhs, SETUGE), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(setcc GPR32:$lhs, GPR32:$rhs, SETULE), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTEU.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(setcc GPR32:$lhs, GPR32:$rhs, SETULT), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTU.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(setcc GPR32:$lhs, GPR32:$rhs, SETGT), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GT.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(setcc GPR32:$lhs, GPR32:$rhs, SETGE), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTE.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(setcc GPR32:$lhs, GPR32:$rhs, SETLT), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LT.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
-def : Pat<(setcc GPR32:$lhs, GPR32:$rhs, SETLE), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTE.Code, (SUBrr_r32 GPR32:$lhs, GPR32:$rhs))>;
+def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETEQ)), 
+          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_EQ.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETUGT)), 
+          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETUGE)), 
+          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETULE)), 
+          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETULT)), 
+          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETGT)), 
+          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETGE)), 
+          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETLT)), 
+          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETLE)), 
+          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 
 //===----------------------------------------------------------------------===//
 // Move operations: Wrapper
@@ -378,19 +388,19 @@ let isBarrier = 1, hasDelaySlot = 0, Uses = [STATUS] in {
 }
 
 // Patterns to use while replacing "brcc" (condition branch)
-def : Pat<(brcc SETEQ,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_EQ.Code,   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
-def : Pat<(brcc SETUGT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_GTU.Code,  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
-def : Pat<(brcc SETUGE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_GTEU.Code, (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
-def : Pat<(brcc SETULE, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_LTEU.Code, (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
-def : Pat<(brcc SETULT, GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_LTU.Code,  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
-def : Pat<(brcc SETGT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_GT.Code,   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
-def : Pat<(brcc SETGE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_GTE.Code,  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
-def : Pat<(brcc SETLT,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_LT.Code,   (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
-def : Pat<(brcc SETLE,  GPR32:$Rd, GPR32:$Rn, bb:$addr), (BCC32 bb:$addr, COND_LTE.Code,  (SUBrr_r32 GPR32:$Rd, GPR32:$Rn))>;
+def : Pat<(brcc SETEQ,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_EQ.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETUGT, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_GTU.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETUGE, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_GTEU.Code, (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETULE, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_LTEU.Code, (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETULT, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_LTU.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETGT,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_GT.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETGE,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_GTE.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETLT,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_LT.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETLE,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_LTE.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
 
 // Patterns to use while replacing "brcond"
 // brcond takes only 1 arg, which should be true or false
-def : Pat<(brcond GPR32:$Rd, bb:$addr), (BCC32 bb:$addr, COND_GTU.Code, (SUBri_r32 GPR32:$Rd, 0))>;
+def : Pat<(brcond (i32 GPR32:$Rd), bb:$addr), (BCC32 bb:$addr, COND_GTU.Code, (SUBri_r32 (i32 GPR32:$Rd), 0))>;
 
 //===----------------------------------------------------------------------===//
 // Function Calls and JALR
@@ -432,6 +442,8 @@ def : Pat<(adde GPR32:$Rn, simm11:$imm),
 def : Pat<(sube GPR32:$Rn, simm11:$imm), 
           (SUBrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
 
+
+// COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
 def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),
   (REG_SEQUENCE GPR64,
   (i32 (COPY (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), 
@@ -441,6 +453,7 @@ def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),
       (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
   isub_hi)>;
 
+// COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
 def ADDCrr_r64 : Pat<(i64 (addc GPR64:$Rn, GPR64:$Rm)), 
   (REG_SEQUENCE GPR64,
   (i32 (COPY (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), 
@@ -450,12 +463,13 @@ def ADDCrr_r64 : Pat<(i64 (addc GPR64:$Rn, GPR64:$Rm)),
       (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
   isub_hi)>;
 
+// COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
 def ADDri_r64 : Pat<(i64 (add (i64 GPR64:$Rn), i64immSExt11:$imm)),
   (REG_SEQUENCE GPR64,
-  (i32 (COPY (ADDri_r32_i64 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))), isub_lo,
+  (i32 (COPY (ADDri_r32 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))), isub_lo,
   (i32 (COPY (ADDrr_r32 (HiReg (i64 GPR64:$Rn)), 
     (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, 
-      (ADDri_r32_i64 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))))), isub_hi)>;
+      (ADDri_r32 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))))), isub_hi)>;
 
 def : Pat<(i64 (shl GPR64:$Rn, (i32 32))), 
           (REG_SEQUENCE GPR64,

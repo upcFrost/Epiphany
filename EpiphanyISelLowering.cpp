@@ -159,6 +159,14 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SUB,       MVT::i64,  Expand);
     setOperationAction(ISD::SUBC,      MVT::i64,  Expand);
     setOperationAction(ISD::MUL,       MVT::i64,  Expand);
+    setOperationAction(ISD::SMUL_LOHI, MVT::i64,  Expand);
+    setOperationAction(ISD::UMUL_LOHI, MVT::i64,  Expand);
+    setOperationAction(ISD::SDIV,      MVT::i64,  Expand);
+    setOperationAction(ISD::SREM,      MVT::i64,  Expand);
+    setOperationAction(ISD::UDIV,      MVT::i64,  Expand);
+    setOperationAction(ISD::UREM,      MVT::i64,  Expand);
+    setOperationAction(ISD::SDIVREM,   MVT::i64,  Expand);
+    setOperationAction(ISD::UDIVREM,   MVT::i64,  Expand);
     setOperationAction(ISD::FADD,      MVT::f64,  Expand);
     setOperationAction(ISD::FSUB,      MVT::f64,  Expand);
     setOperationAction(ISD::FMUL,      MVT::f64,  Expand);
@@ -194,11 +202,6 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   int64_t Offset = cast<GlobalAddressSDNode>(Op)->getOffset();
   auto PTY = getPointerTy(DAG.getDataLayout());
 
-  // For now let's think that it's all 32bit 
-  /*  if (GV->hasInternalLinkage() || GV->hasLocalLinkage()) {*/
-  //SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
-  //return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
-  /*} else {*/
   SDValue AddrLow  = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_LOW);
   SDValue AddrHigh = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_HIGH);
   SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
@@ -208,12 +211,15 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
 
 SDValue EpiphanyTargetLowering::LowerExternalSymbol(SDValue Op,
     SelectionDAG &DAG) const {
-  SDLoc dl(Op);
-  const char *Sym = cast<ExternalSymbolSDNode>(Op)->getSymbol();
-  auto PtrVT = getPointerTy(DAG.getDataLayout());
-  SDValue Result = DAG.getTargetExternalSymbol(Sym, PtrVT);
+  SDLoc DL(Op);
 
-  return DAG.getNode(EpiphanyISD::MOV, dl, PtrVT, Result);
+  const char *Sym = cast<ExternalSymbolSDNode>(Op)->getSymbol();
+  auto PTY = getPointerTy(DAG.getDataLayout());
+
+  SDValue AddrLow  = DAG.getTargetExternalSymbol(Sym, PTY, EpiphanyII::MO_LOW);
+  SDValue AddrHigh = DAG.getTargetExternalSymbol(Sym, PTY, EpiphanyII::MO_HIGH);
+  SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+  return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
 }
 
 //===----------------------------------------------------------------------===//
@@ -531,7 +537,10 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
   } else if (ExternalSymbolSDNode *S = dyn_cast<ExternalSymbolSDNode>(Callee)) {
     DEBUG(dbgs() << "\nArgument is an external symbol");
     const char *Sym = S->getSymbol();
-    Callee = DAG.getTargetExternalSymbol(Sym, PTY);
+    SDValue AddrLow  = DAG.getTargetExternalSymbol(Sym, PTY, EpiphanyII::MO_LOW);
+    SDValue AddrHigh = DAG.getTargetExternalSymbol(Sym, PTY, EpiphanyII::MO_HIGH);
+    Callee = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+    Callee = DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Callee, AddrHigh);
   }
 
   // We produce the following DAG scheme for the actual call instruction:
@@ -587,7 +596,7 @@ EpiphanyTargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
   // Assign locations to each value returned by this call according to EpiphanyCallingConv.td
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs, *DAG.getContext());
-  CCInfo.AnalyzeCallResult(Ins, CC_Epiphany_Assign);
+  CCInfo.AnalyzeCallResult(Ins, RetCC_Epiphany);
 
   // For each argument check if some modification is needed
   for (unsigned i = 0; i != RVLocs.size(); ++i) {

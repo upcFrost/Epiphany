@@ -136,11 +136,11 @@ let Namespace = "Epiphany" in {
 //===----------------------------------------------------------------------===//
 
 // General purpose (first 7 only)
-def GPR16 : RegisterClass<"Epiphany", [i32], 32, (add (sequence "R%u", 0, 7))>;
+def GPR16 : RegisterClass<"Epiphany", [i32, v4i8, v2i16], 32, (add (sequence "R%u", 0, 7))>;
 def FPR16 : RegisterClass<"Epiphany", [f32], 32, (add (sequence "R%u", 0, 7))>;
 
 // General purpose 32 bit
-def GPR32 : RegisterClass<"Epiphany", [i32], 32, (add
+def GPR32 : RegisterClass<"Epiphany", [i32, v4i8, v2i16], 32, (add
   // Arg/result/scratch caller-saved regs
   R0, R1, R2, R3,
   // Variable callee-saved
