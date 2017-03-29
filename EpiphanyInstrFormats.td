@@ -133,6 +133,7 @@ class ImmAsmOperand : AsmOperandClass { let RenderMethod = "addImmOperands"; }
 //}
 //let ParserMethod = "ParseFimmOperand" in {
   def Fimm16_Operand : ImmAsmOperand { let Name = "Fimm16"; let PredicateMethod = "isSImm<16>"; }
+  def Fimm32_Operand : ImmAsmOperand { let Name = "Fimm32"; let PredicateMethod = "isSImm<32>"; }
 //}
 
 // Immediates
@@ -151,13 +152,22 @@ let OperandType = "OPERAND_IMMEDIATE" in {
 }
 
 // Floating-point immediate.
-def fpimm16 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP16Imm(N->getValueAPF()) != -1; }], 
+def f32imm16 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP16Imm(N->getValueAPF()) != -1; }], 
     SDNodeXForm<fpimm, [{
       APFloat InVal = N->getValueAPF();
       uint32_t enc = Epiphany_AM::getFP16Imm(InVal);
       return CurDAG->getTargetConstant(enc, SDLoc(N), MVT::i32);
     }]>> {
   let ParserMatchClass = Fimm16_Operand;
+}
+
+def f32imm32 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP32Imm(N->getValueAPF()) != -1; }],
+    SDNodeXForm<fpimm, [{
+      APFloat InVal = N->getValueAPF();
+      uint32_t enc = Epiphany_AM::getFP32Imm(InVal);
+      return CurDAG->getTargetConstant(enc, SDLoc(N), MVT::i32);
+    }]>> {
+  let ParserMatchClass = Fimm32_Operand;
 }
 
 // Node immediate fits as N-bit sign extended on target immediate.
@@ -169,6 +179,7 @@ def i32immSExt3   : PatLeaf<(i32 imm), [{ return isInt<3>(N->getSExtValue());  }
 def i32immSExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getSExtValue());  }]>;
 def i32immSExt11  : PatLeaf<(i32 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 def i32immSExt16  : PatLeaf<(i32 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+def i32immSExt32  : PatLeaf<(i32 imm), [{ return isInt<32>(N->getSExtValue()); }]>;
 def i64immSExt3   : PatLeaf<(i64 imm), [{ return isInt<3>(N->getSExtValue());  }]>;
 def i64immSExt11  : PatLeaf<(i64 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 def i64immSExt16  : PatLeaf<(i64 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
@@ -673,6 +684,37 @@ class ShiftMath32ri<bits<4> leftcode, bits<5> opcode, string instr_asm, SDNode O
   let Inst{9-5}   = Imm;
   let Inst{4-0}   = opcode;
 }
+
+class Bitr16ri<bits<5> opcode, ValueType Ty>
+    : Normal16<(outs GPR16:$Rd), (ins GPR16:$Rn), "bitr\t$Rd, $Rn", 
+            [(set (Ty GPR16:$Rd), (bitreverse (Ty GPR16:$Rn)))], IaluItin> {
+  bits<3> Rd;
+  bits<3> Rn;
+
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Rn{2-0};
+  let Inst{6-5}   = 0;
+  let Inst{4-0}   = opcode;
+}
+
+class Bitr32ri<bits<4> leftcode, bits<5> opcode, ValueType Ty>
+    : Normal32<(outs GPR32:$Rd), (ins GPR32:$Rn), "bitr.l\t$Rd, $Rn", 
+            [(set (Ty GPR32:$Rd), (bitreverse (Ty GPR32:$Rn)))], IaluItin> {
+  bits<6> Rd;
+  bits<6> Rn;
+
+  let Inst{31-29} = Rd{5-3};
+  let Inst{28-26} = Rn{5-3};
+  let Inst{19-16} = leftcode;
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Rn{2-0};
+  let Inst{6-5}   = 0;
+  let Inst{4-0}   = opcode;
+}
+
+
 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//

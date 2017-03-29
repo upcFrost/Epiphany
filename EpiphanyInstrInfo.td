@@ -113,59 +113,74 @@ def LoReg: OutPatFrag<(ops node:$Rd), (EXTRACT_SUBREG (i64 $Rd), isub_lo)>;
 def HiReg: OutPatFrag<(ops node:$Rd), (EXTRACT_SUBREG (i64 $Rd), isub_hi)>;
 
 //===----------------------------------------------------------------------===//
+// Bitcast
+//===----------------------------------------------------------------------===//
+multiclass bitconvert_32<ValueType a, ValueType b> {
+  def : Pat <(b (bitconvert (a GPR32:$src))),
+             (b GPR32:$src)>;
+  def : Pat <(a (bitconvert (b GPR32:$src))),
+             (a GPR32:$src)>;
+}
+
+// Bit convert vector types.
+defm : bitconvert_32<v4i8,  i32>;
+defm : bitconvert_32<v2i16, i32>;
+defm : bitconvert_32<v2i16, v4i8>;
+
+//===----------------------------------------------------------------------===//
 // Load/store instructions
 //===----------------------------------------------------------------------===//
-multiclass LoadM<PatFrag LoadType, LS_size LoadSize> {
-    def _v4i8_r16  : LoadDisp16<0, GPR16, LoadType, LoadSize, v4i8>;
-    def _v2i16_r16 : LoadDisp16<0, GPR16, LoadType, LoadSize, v2i16>;
-    def _r16       : LoadDisp16<0, GPR16, LoadType, LoadSize, i32>;
-    def _v2i16_r32 : LoadDisp32<0, GPR32, LoadType, LoadSize, v2i16>;
-    def _v4i8_r32  : LoadDisp32<0, GPR32, LoadType, LoadSize, v4i8>;
-    def _r32       : LoadDisp32<0, GPR32, LoadType, LoadSize, i32>;
-    def _idx_add_r16  : LoadIdx16<0, GPR16, LoadType, LoadSize, IndexAdd, i32>;
-    def _idx_add_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexAdd, i32>;
-    def _idx_sub_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexSub, i32>;
-    def _pm_add_r16   : LoadPm16<0, GPR16, LoadType, LoadSize, IndexAdd, i32>;
-    def _pm_add_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexAdd, i32>;
-    def _pm_sub_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexSub, i32>;
-    def _pmd_r32  : LoadPmd32<0, GPR32, LoadType, LoadSize, i32>;
+multiclass LoadM<PatFrag LoadType, LS_size LoadSize, ValueType Ty> {
+    def _r16          : LoadDisp16<0, GPR16, LoadType, LoadSize, Ty>;
+    def _r32          : LoadDisp32<0, GPR32, LoadType, LoadSize, Ty>;
+    def _idx_add_r16  : LoadIdx16<0, GPR16, LoadType, LoadSize, IndexAdd, Ty>;
+    def _idx_add_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexAdd, Ty>;
+    def _idx_sub_r32  : LoadIdx32<0, GPR32, LoadType, LoadSize, IndexSub, Ty>;
+    def _pm_add_r16   : LoadPm16<0, GPR16, LoadType, LoadSize, IndexAdd, Ty>;
+    def _pm_add_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexAdd, Ty>;
+    def _pm_sub_r32   : LoadPm32<0, GPR32, LoadType, LoadSize, IndexSub, Ty>;
+    def _pmd_r32      : LoadPmd32<0, GPR32, LoadType, LoadSize, Ty>;
 }
-multiclass StoreM<PatFrag StoreType, LS_size StoreSize> {
-  def _v4i8_r16  : StoreDisp16<0, GPR16, StoreType, StoreSize, v4i8>;
-  def _v2i16_r16 : StoreDisp16<0, GPR16, StoreType, StoreSize, v2i16>;
-  def _r16       : StoreDisp16<0, GPR16, StoreType, StoreSize, i32>;
-  def _v4i8_r32  : StoreDisp32<0, GPR32, StoreType, StoreSize, v4i8>;
-  def _v2i16_r32 : StoreDisp32<0, GPR32, StoreType, StoreSize, v2i16>;
-  def _r32       : StoreDisp32<0, GPR32, StoreType, StoreSize, i32>;
-  def _idx_add_r16 : StoreIdx16<0, GPR16, StoreType, StoreSize, IndexAdd, i32>;
-  def _idx_add_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexAdd, i32>;
-  def _idx_sub_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexSub, i32>;
-  def _pm_add_r16  : StorePm16<0, GPR16, StoreType, StoreSize, IndexAdd, i32>;
-  def _pm_add_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexAdd, i32>;
-  def _pm_sub_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexSub, i32>;
-  def _pmd_r32  : StorePmd32<0, GPR32, StoreType, StoreSize, i32>;
+multiclass StoreM<PatFrag StoreType, LS_size StoreSize, ValueType Ty> {
+  def _r16         : StoreDisp16<0, GPR16, StoreType, StoreSize, Ty>;
+  def _r32         : StoreDisp32<0, GPR32, StoreType, StoreSize, Ty>;
+  def _idx_add_r16 : StoreIdx16<0, GPR16, StoreType, StoreSize, IndexAdd, Ty>;
+  def _idx_add_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexAdd, Ty>;
+  def _idx_sub_r32 : StoreIdx32<0, GPR32, StoreType, StoreSize, IndexSub, Ty>;
+  def _pm_add_r16  : StorePm16<0, GPR16, StoreType, StoreSize, IndexAdd, Ty>;
+  def _pm_add_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexAdd, Ty>;
+  def _pm_sub_r32  : StorePm32<0, GPR32, StoreType, StoreSize, IndexSub, Ty>;
+  def _pmd_r32     : StorePmd32<0, GPR32, StoreType, StoreSize, Ty>;
 }
 
-defm LDRi8   : LoadM<AlignedLoad<sextloadi8>,      LS_byte>;
-defm LDRi8u  : LoadM<AlignedLoad<extloadi8>,       LS_byte>;
-defm LDRi8z  : LoadM<AlignedLoad<zextloadi8>,      LS_byte>;
-defm LDRi16  : LoadM<AlignedLoad<sextloadi16>,     LS_hword>;
-defm LDRi16u : LoadM<AlignedLoad<extloadi16>,      LS_hword>;
-defm LDRi16z : LoadM<AlignedLoad<zextloadi16>,     LS_hword>;
-defm LDRi32  : LoadM<AlignedLoad<load>,            LS_word>;
-defm STRi8   : StoreM<AlignedStore<truncstorei8>,  LS_byte>;
-defm STRi16  : StoreM<AlignedStore<truncstorei16>, LS_hword>;
-defm STRi32  : StoreM<AlignedStore<store>,         LS_word>;
+defm LDRi8s  : LoadM<AlignedLoad<sextloadi8>,      LS_byte,  i32>;
+defm LDRi8e  : LoadM<AlignedLoad<extloadi8>,       LS_byte,  i32>;
+defm LDRi8z  : LoadM<AlignedLoad<zextloadi8>,      LS_byte,  i32>;
+defm LDRi16s : LoadM<AlignedLoad<sextloadi16>,     LS_hword, i32>;
+defm LDRi16e : LoadM<AlignedLoad<extloadi16>,      LS_hword, i32>;
+defm LDRi16z : LoadM<AlignedLoad<zextloadi16>,     LS_hword, i32>;
+defm LDRi32  : LoadM<AlignedLoad<load>,            LS_word,  i32>;
+defm LDRi32s : LoadM<AlignedLoad<sextloadi32>,     LS_word,  i32>;
+defm LDRi32z : LoadM<AlignedLoad<zextloadi32>,     LS_word,  i32>;
+defm STRi8   : StoreM<AlignedStore<truncstorei8>,  LS_byte,  i32>;
+defm STRi16  : StoreM<AlignedStore<truncstorei16>, LS_hword, i32>;
+defm STRi32  : StoreM<AlignedStore<store>,         LS_word,  i32>;
+defm STRi32t : StoreM<AlignedStore<truncstorei32>, LS_word,  i32>;
 
-def LDRf32   : LoadDisp32<0, FPR32, AlignedLoad<load>,    LS_word, f32>;
-def STRf32   : StoreDisp32<0, FPR32, AlignedStore<store>, LS_word, f32>;
+def LDRf32e  : LoadDisp32<0,  FPR32, AlignedLoad<extloadf32>,     LS_word,  f32>;
+def STRf32t  : StoreDisp32<0, FPR32, AlignedStore<truncstoref32>, LS_word,  f32>;
+def LDRf32   : LoadDisp32<0,  FPR32, AlignedLoad<load>,   LS_word,  f32>;
+def STRf32   : StoreDisp32<0, FPR32, AlignedStore<store>, LS_word,  f32>;
 
-def LDRi64   : LoadDisp32<0, GPR64, load, LS_dword, i64>;
-def LDRv2i32 : LoadDisp32<0, GPR64, load, LS_dword, v2i32>;
-def LDRf64   : LoadDisp32<0, FPR64, load, LS_dword, f64>;
-def STRi64   : StoreDisp32<0, GPR64, store, LS_dword, i64>;
-def STRv2i32 : StoreDisp32<0, GPR64, store, LS_dword, v2i32>;
-def STRf64   : StoreDisp32<0, FPR64, store, LS_dword, f64>;
+def LDRi64   : LoadDisp32<0, GPR64, AlignedLoad<load>,    LS_dword, i64>;
+def STRi64   : StoreDisp32<0, GPR64, AlignedStore<store>, LS_dword, i64>;
+def LDRv2i32 : LoadDisp32<0, GPR64, AlignedLoad<load>,    LS_dword, v2i32>;
+def STRv2i32 : StoreDisp32<0, GPR64, AlignedStore<store>, LS_dword, v2i32>;
+
+def LDRf64t : LoadDisp32<0, FPR64, AlignedLoad<extloadf64>,      LS_dword, f64>;
+def STRf64e : StoreDisp32<0, FPR64, AlignedStore<truncstoref64>, LS_dword, f64>;
+def LDRf64  : LoadDisp32<0, FPR64, AlignedLoad<load>,            LS_dword, f64>;
+def STRf64  : StoreDisp32<0, FPR64, AlignedStore<store>,         LS_dword, f64>;
 
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with registers
@@ -244,14 +259,17 @@ let Defs = [STATUS] in {
   defm SUBCri : IntMath<0b0110011, 0b0111011, "sub", subc>;
 
   // Shifts i16
-  def LSR16ri : ShiftMath16ri<0b00110, "lsr", srl, imm5, immUExt5, i32>;
-  def LSL16ri : ShiftMath16ri<0b10110, "lsl", shl, imm5, immUExt5, i32>;
-  def ASR16ri : ShiftMath16ri<0b01110, "asr", sra, imm5, immUExt5, i32>;
+  def LSR16ri  : ShiftMath16ri<0b00110, "lsr",  srl,        imm5, immUExt5, i32>;
+  def LSL16ri  : ShiftMath16ri<0b10110, "lsl",  shl,        imm5, immUExt5, i32>;
+  def ASR16ri  : ShiftMath16ri<0b01110, "asr",  sra,        imm5, immUExt5, i32>;
 
   // Shifts i32
-  def LSR32ri : ShiftMath32ri<0b0110, 0b01111, "lsr", srl, imm5, immUExt5, i32>;
-  def LSL32ri : ShiftMath32ri<0b0110, 0b11111, "lsl", shl, imm5, immUExt5, i32>;
-  def ASR32ri : ShiftMath32ri<0b1110, 0b01111, "asr", sra, imm5, immUExt5, i32>;
+  def LSR32ri  : ShiftMath32ri<0b0110, 0b01111, "lsr",  srl,        imm5, immUExt5, i32>;
+  def LSL32ri  : ShiftMath32ri<0b0110, 0b11111, "lsl",  shl,        imm5, immUExt5, i32>;
+  def ASR32ri  : ShiftMath32ri<0b1110, 0b01111, "asr",  sra,        imm5, immUExt5, i32>;
+
+  def BITR16ri : Bitr16ri<0b11110, i32>;
+  def BITR32ri : Bitr32ri<0b1110, 0b11111, i32>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -266,11 +284,15 @@ let Defs = [STATUS] in {
 // Move operations: Immediates
 //===----------------------------------------------------------------------===//
 let Constraints = "$src = $Rd" in {
-  def MOVTi32ri : Mov32ri<"movt", (ins GPR32:$src, imm16:$Imm), [(set (i32 GPR32:$Rd), (or (and (i32 GPR32:$src), 0xffff), (shl i32immSExt16:$Imm, (i32 16))))], 0b01011, /* MOVT = */ 1, GPR32>;
+  def MOVTi32ri : Mov32ri<"movt", (ins GPR32:$src, i32imm:$Imm), [(set (i32 GPR32:$Rd), (or (and (i32 GPR32:$src), 0xffff), (shl i32immSExt16:$Imm, (i32 16))))], 0b01011, /* MOVT = */ 1, GPR32>;
+  def MOVTf32ri : Mov32ri<"movt", (ins FPR32:$src, f32imm:$Imm), [],     0b01011, /* MOVT = */ 1, FPR32>;
 }
-def MOVi16ri : Mov16ri<"mov", (ins i32imm:$Imm), [(set (i32 GPR16:$Rd), i32immSExt8:$Imm)],  0b00011, GPR16>;
-def MOVi32ri : Mov32ri<"mov", (ins i32imm:$Imm), [(set (i32 GPR32:$Rd), i32immSExt16:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
-def MOVf32ri : Mov32ri<"mov", (ins i32imm:$Imm), [(set (f32 FPR32:$Rd), fpimm16:$Imm)],      0b01011, /* MOVT = */ 0, FPR32>;
+def MOVi16ri     : Mov16ri<"mov", (ins i32imm:$Imm), [(set (i32 GPR16:$Rd), i32immSExt8:$Imm)],  0b00011, GPR16>;
+def MOVi32ri     : Mov32ri<"mov", (ins i32imm:$Imm), [(set (i32 GPR32:$Rd), i32immSExt16:$Imm)], 0b01011, /* MOVT = */ 0, GPR32>;
+def MOVi32ri_r32 : Pat<(i32immSExt32:$imm), (i32 (MOVTi32ri (MOVi32ri (LO16 $imm)), (HI16 $imm)))>;
+
+def MOVf16ri_r32 : Mov32ri<"mov", (ins f32imm:$Imm), [(set (f32 FPR32:$Rd), f32imm16:$Imm)],      0b01011, /* MOVT = */ 0, FPR32>;
+def MOVf32ri_r32 : Pat<(f32imm32:$imm), (f32 (MOVTf32ri (MOVf16ri_r32 (LO16 $imm)), (HI16 $imm)))>;
 
 // Special instruction to move memory pointer to the reg
 def MOViPTR  : AddrMath32ri<(outs GPR32:$Rd), (ins mem11:$imm), "add \t$Rd, $imm", [(set GPR32:$Rd, addr11:$imm)],   0b0011011, IaluItin>;

@@ -94,23 +94,52 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::MULHU,     MVT::i32,  Expand);
     setOperationAction(ISD::UMUL_LOHI, MVT::i32,  Expand);
     setOperationAction(ISD::SMUL_LOHI, MVT::i32,  Expand);
+    setOperationAction(ISD::SINT_TO_FP, MVT::i64, Expand);
+    setOperationAction(ISD::FP_TO_SINT, MVT::f64, Expand);
 
     // Expand vector load/store for now
     for (MVT VT : MVT::integer_vector_valuetypes()) {
-      setLoadExtAction(ISD::EXTLOAD, VT, MVT::v2i8, Expand);
+      setLoadExtAction(ISD::EXTLOAD,  VT, MVT::v2i8, Expand);
       setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v2i8, Expand);
       setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v2i8, Expand);
-      setLoadExtAction(ISD::EXTLOAD, VT, MVT::v4i8, Expand);
+      setLoadExtAction(ISD::EXTLOAD,  VT, MVT::v4i8, Expand);
       setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v4i8, Expand);
       setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v4i8, Expand);
-      setLoadExtAction(ISD::EXTLOAD, VT, MVT::v2i16, Expand);
+      setLoadExtAction(ISD::EXTLOAD,  VT, MVT::v2i16, Expand);
       setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v2i16, Expand);
       setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v2i16, Expand);
-      setLoadExtAction(ISD::EXTLOAD, VT, MVT::v4i16, Expand);
+      setLoadExtAction(ISD::EXTLOAD,  VT, MVT::v4i16, Expand);
       setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v4i16, Expand);
       setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v4i16, Expand);
     }
-  
+
+    // No extending loads from i32.
+    for (MVT VT : MVT::integer_valuetypes()) {
+      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i32, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i32, Expand);
+      setLoadExtAction(ISD::EXTLOAD,  VT, MVT::i32, Expand);
+    }
+    // Turn FP truncstore into trunc + store.
+    setTruncStoreAction(MVT::f64, MVT::f32, Expand);
+    // Turn FP extload into load/fpextend.
+    for (MVT VT : MVT::fp_valuetypes()) {
+      setLoadExtAction(ISD::EXTLOAD, VT, MVT::f32, Expand);
+    }
+
+    // We don't have conversion from i32/i64 to f64
+    setLoadExtAction(ISD::EXTLOAD,  MVT::f32, MVT::i32, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::f32, MVT::i32, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::f32, MVT::i32, Expand);
+    setLoadExtAction(ISD::EXTLOAD,  MVT::f32, MVT::i64, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::f32, MVT::i64, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::f32, MVT::i64, Expand);
+    setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::i32, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::i32, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::i32, Expand);
+    setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::i64, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::i64, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::i64, Expand);
+
     static const MVT::SimpleValueType VectorIntTypes[] = {
       MVT::v2i8, MVT::v2i16, MVT::v4i8, MVT::v2i32, MVT::v4i32
     };
@@ -170,6 +199,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::FADD,      MVT::f64,  Expand);
     setOperationAction(ISD::FSUB,      MVT::f64,  Expand);
     setOperationAction(ISD::FMUL,      MVT::f64,  Expand);
+    setOperationAction(ISD::FDIV,      MVT::f64,  Expand);
 
     // Custom operations, see below
     setOperationAction(ISD::GlobalAddress,  MVT::i32, Custom);
@@ -207,7 +237,7 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
   return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
   //}
-}
+  }
 
 SDValue EpiphanyTargetLowering::LowerExternalSymbol(SDValue Op,
     SelectionDAG &DAG) const {

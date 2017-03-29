@@ -346,9 +346,9 @@ unsigned EpiphanyInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
     int &FrameIndex) const {
   // Load instructions
   unsigned inst[] = {
-    Epiphany::LDRi8_r32,  Epiphany::LDRi8u_r32, 
-    Epiphany::LDRi16_r32, Epiphany::LDRi16u_r32, 
-    Epiphany::LDRi32_r32, Epiphany::LDRf32
+    Epiphany::LDRi8e_r32,  Epiphany::LDRi8z_r32, 
+    Epiphany::LDRi16e_r32, Epiphany::LDRi16z_r32, 
+    Epiphany::LDRi32_r32,  Epiphany::LDRf32
   };
   DEBUG(dbgs() << "\nisLoadToStackSlot for "; MI.print(dbgs()));
   // Check if current opcode is one of those

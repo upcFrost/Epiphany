@@ -31,29 +31,57 @@ using namespace llvm;
 
 // In some cases we will need to print shifted Imm, e.g. for load/store instructions
 static unsigned getShift(unsigned int OpCode) {
-  unsigned Shift = 0;
-  switch (OpCode) {
-    case Epiphany::LDRi16_r16:
-    case Epiphany::STRi16_r16:
-    case Epiphany::LDRi16_r32:
-    case Epiphany::STRi16_r32:
-      Shift = 1;
-      break;
-    case Epiphany::LDRi32_r16:
-    case Epiphany::STRi32_r16:
-    case Epiphany::LDRi32_r32:
-    case Epiphany::STRi32_r32:
-      Shift = 2;
-      break;
-    case Epiphany::LDRi64:
-    case Epiphany::STRi64:
-    case Epiphany::LDRf64:
-    case Epiphany::STRf64:
-      Shift = 3;
-      break;
-  }
+    unsigned Shift = 0;
+    switch (OpCode) {
+      case Epiphany::LDRi16e_r16:
+      case Epiphany::STRi16_r16:
+      case Epiphany::LDRi16e_r32:
+      case Epiphany::STRi16_r32:
+      case Epiphany::LDRi16e_idx_add_r16:
+      case Epiphany::STRi16_idx_add_r16:
+      case Epiphany::LDRi16e_idx_add_r32:
+      case Epiphany::STRi16_idx_add_r32:
+      case Epiphany::LDRi16e_idx_sub_r32:
+      case Epiphany::STRi16_idx_sub_r32:
+      case Epiphany::LDRi16e_pm_add_r16:
+      case Epiphany::STRi16_pm_add_r16:
+      case Epiphany::LDRi16e_pm_add_r32:
+      case Epiphany::STRi16_pm_add_r32:
+      case Epiphany::LDRi16e_pm_sub_r32:
+      case Epiphany::STRi16_pm_sub_r32:
+      case Epiphany::LDRi16e_pmd_r32:
+      case Epiphany::STRi16_pmd_r32:
+        Shift = 1;
+        break;
+      case Epiphany::LDRi32_r16:
+      case Epiphany::STRi32_r16:
+      case Epiphany::LDRi32_r32:
+      case Epiphany::STRi32_r32:
+      case Epiphany::LDRi32_idx_add_r16:
+      case Epiphany::STRi32_idx_add_r16:
+      case Epiphany::LDRi32_idx_add_r32:
+      case Epiphany::STRi32_idx_add_r32:
+      case Epiphany::LDRi32_idx_sub_r32:
+      case Epiphany::STRi32_idx_sub_r32:
+      case Epiphany::LDRi32_pm_add_r16:
+      case Epiphany::STRi32_pm_add_r16:
+      case Epiphany::LDRi32_pm_add_r32:
+      case Epiphany::STRi32_pm_add_r32:
+      case Epiphany::LDRi32_pm_sub_r32:
+      case Epiphany::STRi32_pm_sub_r32:
+      case Epiphany::LDRi32_pmd_r32:
+      case Epiphany::STRi32_pmd_r32:
+        Shift = 2;
+        break;
+      case Epiphany::LDRi64:
+      case Epiphany::STRi64:
+      case Epiphany::LDRf64:
+      case Epiphany::STRf64:
+        Shift = 3;
+        break;
+    }
 
-  return Shift;
+    return Shift;
 }
 
 void EpiphanyInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
