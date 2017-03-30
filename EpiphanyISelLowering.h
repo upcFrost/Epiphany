@@ -140,6 +140,7 @@ namespace llvm {
       // Lower Operand specifics
       SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
 
       //- must be exist even without function all
       SDValue LowerFormalArguments(SDValue Chain,

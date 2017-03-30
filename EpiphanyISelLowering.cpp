@@ -201,9 +201,16 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::FMUL,      MVT::f64,  Expand);
     setOperationAction(ISD::FDIV,      MVT::f64,  Expand);
 
+    // Expand BR_CC and SELECT_CC for floats as not all comparisons are implemented
+    for (MVT VT : MVT::fp_valuetypes()) {
+      setOperationAction(ISD::BR_CC,     VT, Expand);
+      setOperationAction(ISD::SELECT_CC, VT, Expand);
+      setOperationAction(ISD::SETCC,     VT, Expand);
+    }
     // Custom operations, see below
     setOperationAction(ISD::GlobalAddress,  MVT::i32, Custom);
     setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
+    setOperationAction(ISD::ConstantPool,   MVT::i32, Custom);
   }
 
 SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
@@ -214,6 +221,10 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
       break;
     case ISD::ExternalSymbol:
       return LowerExternalSymbol(Op, DAG);
+      break;
+    case ISD::ConstantPool:
+      return LowerConstantPool(Op, DAG);
+      break;
   }
   return SDValue();
 }
@@ -252,6 +263,27 @@ SDValue EpiphanyTargetLowering::LowerExternalSymbol(SDValue Op,
   return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
 }
 
+SDValue EpiphanyTargetLowering::LowerConstantPool(SDValue Op,
+    SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  ConstantPoolSDNode *CP = cast<ConstantPoolSDNode>(Op);
+  EVT PTY = Op.getValueType();
+
+  // Get constant pool address
+  SDValue AddrLow;
+  SDValue AddrHigh;
+  if (CP->isMachineConstantPoolEntry()) {
+    AddrLow  = DAG.getTargetConstantPool(CP->getMachineCPVal(), PTY, CP->getAlignment(), CP->getOffset(), EpiphanyII::MO_LOW);
+    AddrHigh = DAG.getTargetConstantPool(CP->getMachineCPVal(), PTY, CP->getAlignment(), CP->getOffset(), EpiphanyII::MO_HIGH);
+  } else {
+    AddrLow  = DAG.getTargetConstantPool(CP->getConstVal(), PTY, CP->getAlignment(), CP->getOffset(), EpiphanyII::MO_LOW);
+    AddrHigh = DAG.getTargetConstantPool(CP->getConstVal(), PTY, CP->getAlignment(), CP->getOffset(), EpiphanyII::MO_HIGH);
+  }
+
+  // Move address to the register
+  SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+  return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
+}
 //===----------------------------------------------------------------------===//
 //  Misc Lower Operation implementation
 //===----------------------------------------------------------------------===//

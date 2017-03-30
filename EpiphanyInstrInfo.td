@@ -328,49 +328,73 @@ def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins SPECIAL:$MMR), [
 def MOVTS32rr    : MovSpecial<"movts", (outs SPECIAL:$MMR), (ins GPR32:$Rd),   [], CoreReg, SpecTo>;
 
 let Uses = [STATUS], Constraints = "$src = $Rd" in {
-  def MOVCC32rr : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, GPR32:$sub), []>;
+  def MOVCCi32rr     : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, GPR32:$sub), []>;
+  def MOVCCi32rr_f32 : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, FPR32:$sub), []>;
+  def MOVCCf32rr     : MovCond32rr<(outs FPR32:$Rd), (ins FPR32:$Rn, FPR32:$src, cc:$cc, FPR32:$sub), []>;
 }
 
 // Patterns to replace select_cc
 // Converting select to movcc
 def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETEQ), 
-          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_EQ.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_EQ.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETUGT), 
-          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETUGE), 
-          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETULE), 
-          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETULT), 
-          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETGT), 
-          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETGE), 
-          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETLT), 
-          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(selectcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETLE), 
-          (MOVCC32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+// f32 version
+def : Pat<(selectcc (f32 FPR32:$lhs), (f32 FPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETOEQ), 
+          (MOVCCi32rr_f32 (i32 GPR32:$src), (i32 GPR32:$Rn), COND_BEQ.Code,  (FSUBrr_r32 (f32 FPR32:$lhs), FPR32:$rhs))>;
+def : Pat<(selectcc (f32 FPR32:$lhs), (f32 FPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETONE), 
+          (MOVCCi32rr_f32 (i32 GPR32:$src), (i32 GPR32:$Rn), COND_BNE.Code,  (FSUBrr_r32 (f32 FPR32:$lhs), FPR32:$rhs))>;
+def : Pat<(selectcc (f32 FPR32:$lhs), (f32 FPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETOLT), 
+          (MOVCCi32rr_f32 (i32 GPR32:$src), (i32 GPR32:$Rn), COND_BLT.Code,  (FSUBrr_r32 (f32 FPR32:$lhs), FPR32:$rhs))>;
+def : Pat<(selectcc (f32 FPR32:$lhs), (f32 FPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETOLE), 
+          (MOVCCi32rr_f32 (i32 GPR32:$src), (i32 GPR32:$Rn), COND_BLTE.Code, (FSUBrr_r32 (f32 FPR32:$lhs), FPR32:$rhs))>;
+def : Pat<(selectcc (f32 FPR32:$lhs), (f32 FPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETULT), 
+          (MOVCCi32rr_f32 (i32 GPR32:$src), (i32 GPR32:$Rn), COND_BLT.Code,  (FSUBrr_r32 (f32 FPR32:$lhs), FPR32:$rhs))>;
+def : Pat<(selectcc (f32 FPR32:$lhs), (f32 FPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETULE), 
+          (MOVCCi32rr_f32 (i32 GPR32:$src), (i32 GPR32:$Rn), COND_BLTE.Code, (FSUBrr_r32 (f32 FPR32:$lhs), FPR32:$rhs))>;
+def : Pat<(selectcc (f32 FPR32:$lhs), (f32 FPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETOGE), 
+          (MOVCCi32rr_f32 (i32 GPR32:$src), (i32 GPR32:$Rn), COND_BLT.Code,  (FSUBrr_r32 (f32 FPR32:$rhs), FPR32:$lhs))>;
+def : Pat<(selectcc (f32 FPR32:$lhs), (f32 FPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETOGT), 
+          (MOVCCi32rr_f32 (i32 GPR32:$src), (i32 GPR32:$Rn), COND_BLTE.Code, (FSUBrr_r32 (f32 FPR32:$rhs), FPR32:$lhs))>;
+def : Pat<(selectcc (f32 FPR32:$lhs), (f32 FPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETUGE), 
+          (MOVCCi32rr_f32 (i32 GPR32:$src), (i32 GPR32:$Rn), COND_BLT.Code,  (FSUBrr_r32 (f32 FPR32:$rhs), FPR32:$lhs))>;
+def : Pat<(selectcc (f32 FPR32:$lhs), (f32 FPR32:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETUGT), 
+          (MOVCCi32rr_f32 (i32 GPR32:$src), (i32 GPR32:$Rn), COND_BLTE.Code, (FSUBrr_r32 (f32 FPR32:$rhs), FPR32:$lhs))>;
+
 
 // Patterns to replace setcc
 def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETEQ)), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_EQ.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_EQ.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETUGT)), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETUGE)), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETULE)), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTEU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETULT)), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTU.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETGT)), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETGE)), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETLT)), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_LT.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 def : Pat<(i32 (setcc (i32 GPR32:$lhs), (i32 GPR32:$rhs), SETLE)), 
-          (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
+          (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_LTE.Code, (SUBrr_r32 (i32 GPR32:$lhs), GPR32:$rhs))>;
 
 //===----------------------------------------------------------------------===//
 // Move operations: Wrapper
@@ -382,9 +406,11 @@ def MOVT     : SDNode<"EpiphanyISD::MOVT", SDT_MOVT>;
 def : Pat<(i32 (MOV tglobaladdr:$dst)),   (MOVi32ri tglobaladdr:$dst)>;
 def : Pat<(i32 (MOV texternalsym:$dst)),  (MOVi32ri texternalsym:$dst)>;
 def : Pat<(i32 (MOV tblockaddress:$dst)), (MOVi32ri tblockaddress:$dst)>;
+def : Pat<(i32 (MOV tconstpool:$dst)),    (MOVi32ri tconstpool:$dst)>;
 def : Pat<(i32 (MOVT GPR32:$Rd, tglobaladdr:$dst)),   (MOVTi32ri GPR32:$Rd, tglobaladdr:$dst)>;
 def : Pat<(i32 (MOVT GPR32:$Rd, texternalsym:$dst)),  (MOVTi32ri GPR32:$Rd, texternalsym:$dst)>;
 def : Pat<(i32 (MOVT GPR32:$Rd, tblockaddress:$dst)), (MOVTi32ri GPR32:$Rd, tblockaddress:$dst)>;
+def : Pat<(i32 (MOVT GPR32:$Rd, tconstpool:$dst)),    (MOVTi32ri GPR32:$Rd, tconstpool:$dst)>;
 
 //===----------------------------------------------------------------------===//
 // Branching
@@ -405,24 +431,31 @@ let isBarrier = 1, hasDelaySlot = 0 in {
   def BNONE32 : Branch32<(ins branchtarget:$addr), [(br bb:$addr)], COND_NONE>;
 }
 
-let isBarrier = 1, hasDelaySlot = 0, Uses = [STATUS] in {
-  def BCC32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR32:$Rd), []>;
+let isTerminator = 1, isBranch = 1, isBarrier = 1, hasDelaySlot = 0, Uses = [STATUS] in {
+  def BCCi32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR32:$Rd), []>;
+  def BCCf32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, FPR32:$Rd), []>;
 }
 
 // Patterns to use while replacing "brcc" (condition branch)
-def : Pat<(brcc SETEQ,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_EQ.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETUGT, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_GTU.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETUGE, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_GTEU.Code, (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETULE, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_LTEU.Code, (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETULT, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_LTU.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETGT,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_GT.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETGE,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_GTE.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETLT,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_LT.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETLE,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCC32 bb:$addr, COND_LTE.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETEQ,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_EQ.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETNE,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_NE.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETUGT, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_GTU.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETUGE, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_GTEU.Code, (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETULE, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_LTEU.Code, (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETULT, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_LTU.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETGT,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_GT.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETGE,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_GTE.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETLT,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_LT.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+def : Pat<(brcc SETLE,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_LTE.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
+// f32 brcc
+def : Pat<(brcc SETOEQ, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BEQ.Code,  (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
+def : Pat<(brcc SETONE, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BNE.Code,  (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
+def : Pat<(brcc SETOLT, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BLT.Code,  (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
+def : Pat<(brcc SETOLE, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BLTE.Code, (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
 
 // Patterns to use while replacing "brcond"
 // brcond takes only 1 arg, which should be true or false
-def : Pat<(brcond (i32 GPR32:$Rd), bb:$addr), (BCC32 bb:$addr, COND_GTU.Code, (SUBri_r32 (i32 GPR32:$Rd), 0))>;
+def : Pat<(brcond (i32 GPR32:$Rd), bb:$addr), (BCCi32 bb:$addr, COND_GTU.Code, (SUBri_r32 (i32 GPR32:$Rd), 0))>;
 
 //===----------------------------------------------------------------------===//
 // Function Calls and JALR
@@ -460,9 +493,9 @@ let isCall = 1, Defs = [LR], hasDelaySlot = 0, isBarrier = 0 in {
 
 // Extended Addsub i32, exploiting the fact that MOVGTEU depend only on the carry
 def : Pat<(adde GPR32:$Rn, simm11:$imm), 
-          (ADDrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
+          (ADDrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
 def : Pat<(sube GPR32:$Rn, simm11:$imm), 
-          (SUBrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
+          (SUBrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
 
 
 // COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
@@ -472,7 +505,7 @@ def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),
   isub_lo,
   (i32 (COPY (ADDrr_r32 (HiReg GPR64:$Rn), 
     (ADDri_r32 (HiReg GPR64:$Rm), 
-      (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
+      (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
   isub_hi)>;
 
 // COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
@@ -482,7 +515,7 @@ def ADDCrr_r64 : Pat<(i64 (addc GPR64:$Rn, GPR64:$Rm)),
   isub_lo,
   (i32 (COPY (ADDrr_r32 (HiReg GPR64:$Rn), 
     (ADDri_r32 (HiReg GPR64:$Rm), 
-      (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
+      (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
   isub_hi)>;
 
 // COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
@@ -490,7 +523,7 @@ def ADDri_r64 : Pat<(i64 (add (i64 GPR64:$Rn), i64immSExt11:$imm)),
   (REG_SEQUENCE GPR64,
   (i32 (COPY (ADDri_r32 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))), isub_lo,
   (i32 (COPY (ADDrr_r32 (HiReg (i64 GPR64:$Rn)), 
-    (MOVCC32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, 
+    (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, 
       (ADDri_r32 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))))), isub_hi)>;
 
 def : Pat<(i64 (shl GPR64:$Rn, (i32 32))), 

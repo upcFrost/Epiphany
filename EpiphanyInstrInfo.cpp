@@ -81,6 +81,9 @@ bool EpiphanyInstrInfo::isUnpredicatedTerminator(const MachineInstr &MI) const {
 // Analyze if branch can be removed/modified
 bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB, 
     MachineBasicBlock *&FBB, SmallVectorImpl<MachineOperand> &Cond, bool AllowModify) const {
+  DEBUG(dbgs()<< "\n<----------------->";);
+  DEBUG(dbgs()<< "\nAnalyzing block " << MBB.getNumber() << "\n";);
+  DEBUG(MBB.dump(););
   // Start from the bottom of the block and work up, examining the
   // terminator instructions.
   MachineBasicBlock::iterator I = MBB.end();
@@ -127,11 +130,13 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
 
       // Delete the JMP if it's equivalent to a fall-through.
       if (MBB.isLayoutSuccessor(I->getOperand(0).getMBB())) {
+        DEBUG(dbgs()<< "\n<----------------->";);
         DEBUG(dbgs()<< "\nErasing the jump to successor block " << MBB.getNumber() << "\n";);
         TBB = nullptr;
         I->eraseFromParent();
         I = MBB.end();
         UnCondBrIter = MBB.end();
+        DEBUG(MBB.getParent()->dump(););
         continue;
       }
 
@@ -141,7 +146,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
     }
 
     // Handle conditional branches.
-    if (I->getOpcode() != Epiphany::BCC32) {
+    if (I->getOpcode() != Epiphany::BCCi32 && I->getOpcode() != Epiphany::BCCf32) {
       continue;
     }
     EpiphanyCC::CondCodes BranchCode = static_cast<EpiphanyCC::CondCodes>(I->getOperand(1).getImm());
@@ -181,8 +186,9 @@ unsigned EpiphanyInstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemov
   assert(!BytesRemoved && "code size not handled");
 
   // Branches to handle
-  DEBUG(dbgs() << "\nRemoving branches out of BB#" << MBB.getNumber());
-  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCC32};
+  DEBUG(dbgs()<< "\n<----------------->";);
+  DEBUG(dbgs() << "\nRemoving branches out of BB#" << MBB.getNumber() << "\n");
+  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCCi32, Epiphany::BCCf32};
   MachineBasicBlock::iterator I = MBB.end();
   unsigned Count = 0;
 
@@ -202,12 +208,16 @@ unsigned EpiphanyInstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemov
     ++Count;
   }
 
+  DEBUG(MBB.getParent()->dump(););
   return Count;
 }
 
 unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
     MachineBasicBlock *TBB, MachineBasicBlock *FBB,	ArrayRef<MachineOperand> Cond,
     const DebugLoc &DL, int *BytesAdded) const {
+  DEBUG(dbgs()<< "\n<----------------->";);
+  DEBUG(dbgs() << "\nInserting branch into BB#" << MBB.getNumber() << "\n");
+  
   // Shouldn't be a fall through.
   assert(TBB && "InsertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 1 || Cond.size() == 0) &&
@@ -223,7 +233,7 @@ unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
 
   // Conditional branch.
   unsigned Count = 0;
-  BuildMI(&MBB, DL, get(Epiphany::BCC32)).addMBB(TBB).addImm(Cond[0].getImm()).addReg(Epiphany::R0);
+  BuildMI(&MBB, DL, get(Epiphany::BCCi32)).addMBB(TBB).addImm(Cond[0].getImm()).addReg(Epiphany::R0);
   ++Count;
 
   if (FBB) {
@@ -231,6 +241,7 @@ unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
     BuildMI(&MBB, DL, get(Epiphany::BNONE32)).addMBB(FBB);
     ++Count;
   }
+  DEBUG(MBB.getParent()->dump(););
   return Count;
 }
 
@@ -240,15 +251,19 @@ bool EpiphanyInstrInfo::reverseBranchCondition(SmallVectorImpl<MachineOperand> &
   switch(CC) {
     default:
       llvm_unreachable("Wrong branch condition code!");
-    case EpiphanyCC::COND_BEQ:
-    case EpiphanyCC::COND_BNE:
-    case EpiphanyCC::COND_BLT:
+   case EpiphanyCC::COND_BLT:
     case EpiphanyCC::COND_BLTE:
       llvm_unreachable("Unimplemented reverse conditions");
     case EpiphanyCC::COND_NONE:
     case EpiphanyCC::COND_L:
       llvm_unreachable("Unconditional branch cant be reversed");
-    case EpiphanyCC::COND_EQ:
+    case EpiphanyCC::COND_BEQ:
+      CC = EpiphanyCC::COND_BNE;
+      break;
+    case EpiphanyCC::COND_BNE:
+      CC = EpiphanyCC::COND_BEQ;
+      break;
+     case EpiphanyCC::COND_EQ:
       CC = EpiphanyCC::COND_NE;
       break;
     case EpiphanyCC::COND_NE:
