@@ -53,7 +53,7 @@ namespace llvm {
       BitVector ModifiedRegs, UsedRegs;
       bool optimizeBlock(MachineBasicBlock &MBB);
       bool tryToMergeZeroStInst(MachineBasicBlock::iterator &MBBI);
-      bool tryToPairStoreInst(MachineBasicBlock::iterator &MBBI);
+      bool tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI);
       MachineBasicBlock::iterator findMatchingInst(MachineBasicBlock::iterator I, 
           LoadStoreFlags &Flags, unsigned Limit);
       MachineBasicBlock::iterator mergePairedInsns(MachineBasicBlock::iterator I,

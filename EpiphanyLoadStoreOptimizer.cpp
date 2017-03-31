@@ -27,12 +27,14 @@ static cl::opt<unsigned> LdStLimit("epiphany-load-store-scan-limit", cl::init(20
 char EpiphanyLoadStoreOptimizer::ID = 0;
 
 // Check if the instruction is on the promotable list
-static bool isPairableStoreInst(MachineInstr &MI) {
+static bool isPairableLoadStoreInst(MachineInstr &MI) {
   unsigned inst[] = {
     Epiphany::STRi16_r16,
     Epiphany::STRi16_r32,
     Epiphany::STRi32_r16,
-    Epiphany::STRi32_r32
+    Epiphany::STRi32_r32,
+    Epiphany::LDRi32_r16,
+    Epiphany::LDRi32_r32
   };
   unsigned Opc = MI.getOpcode();
   return std::find(std::begin(inst), std::end(inst), Opc) != std::end(inst);
@@ -47,6 +49,8 @@ static int getMemScale(MachineInstr &MI) {
       return 2;
     case Epiphany::STRi32_r16:
     case Epiphany::STRi32_r32:
+    case Epiphany::LDRi32_r16:
+    case Epiphany::LDRi32_r32:
       return 4;
   }
 }
@@ -64,13 +68,16 @@ static unsigned getMatchingPairOpcode(unsigned Opc) {
     case Epiphany::STRi32_r16:
     case Epiphany::STRi32_r32:
       return Epiphany::STRi64;
+    case Epiphany::LDRi32_r16:
+    case Epiphany::LDRi32_r32:
+      return Epiphany::LDRi64;
   }
 }
 
 // Convert the byte-offset used by unscaled into an "element" offset used
 // by the scaled pair load/store instructions.
 static bool inBoundsForPair(int Offset) {
-  return Offset <= 64 && Offset >= -64;
+  return Offset <= 256 && Offset >= -256;
 }
 
 // Get register for the store
@@ -195,7 +202,7 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
     }
   }
   unsigned PairedOp = getMatchingPairOpcode(Opc);
-  if (PairedOp == Epiphany::STRi64) {
+  if (PairedOp == Epiphany::STRi64 || PairedOp == Epiphany::LDRi64) {
     // Reg with subs
     unsigned PairedReg = TRI->getMatchingSuperReg(RegOp0.getReg(), Epiphany::isub_lo, &Epiphany::GPR64RegClass);
     if (!PairedReg) {
@@ -268,7 +275,7 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
         getOffsetOperand(MI).isImm()) {
       assert(MI.mayLoadOrStore() && "Expected memory operation.");
       // If we've found another instruction with the same opcode, check to see
-      // if the base and offset are compatible with our starting instruction.
+      // if regs, base and offset are compatible with our starting instruction.
       // These instructions all have scaled immediate operands, so we just
       // check for +1/-1. Make sure to check the new instruction offset is
       // actually an immediate and not a symbolic reference destined for
@@ -277,11 +284,28 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
       int MIOffset = getOffsetOperand(MI).getImm();
       if (BaseReg == MIBaseReg && ((Offset == MIOffset + OffsetStride) ||
             (Offset + OffsetStride == MIOffset))) {
+        // First, check pairity for 64-bit pairing
+        unsigned Opc = MI.getOpcode();
+        if (Opc == Epiphany::LDRi32_r32 || Opc == Epiphany::LDRi32_r32 || 
+            Opc == Epiphany::STRi32_r32 || Opc == Epiphany::STRi32_r32) {
+          unsigned MIReg = getRegOperand(MI).getReg();
+          unsigned sra = TRI->getMatchingSuperReg (Reg, Epiphany::isub_lo, &Epiphany::GPR64RegClass);
+          unsigned srb = TRI->getMatchingSuperReg (MIReg, Epiphany::isub_hi, &Epiphany::GPR64RegClass);
+          if( (!sra || !srb) || sra != srb){
+            sra = TRI->getMatchingSuperReg (MIReg, Epiphany::isub_lo, &Epiphany::GPR64RegClass);
+            srb = TRI->getMatchingSuperReg (Reg, Epiphany::isub_hi, &Epiphany::GPR64RegClass);
+          }
+          if (!(sra && srb)) {
+            trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+            MemInsns.push_back(&MI);
+            continue;
+          }
+        }
+
         // Get the left-lowest offset
         int MinOffset = Offset < MIOffset ? Offset : MIOffset;
-        // Pairwise instructions have a 7-bit signed offset field. Single
-        // insns have a 12-bit unsigned offset field.  If the resultant
-        // immediate offset of merging these instructions is out of range for
+        // If the resultant immediate offset of merging these 
+        // instructions is out of range for
         // a pairwise instruction, bail and keep looking.
         if (!inBoundsForPair(MinOffset)) {
           trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
@@ -343,7 +367,7 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
 
 // Find loads and stores that can be merged into a single load or store pair
 // instruction.
-bool EpiphanyLoadStoreOptimizer::tryToPairStoreInst(MachineBasicBlock::iterator &MBBI) {
+bool EpiphanyLoadStoreOptimizer::tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI) {
   MachineInstr &MI = *MBBI;
   MachineBasicBlock::iterator E = MI.getParent()->end();
 
@@ -389,7 +413,7 @@ bool EpiphanyLoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
   //        strd r0, [fp]
   for (MachineBasicBlock::iterator MBBI = MBB.begin(), E = MBB.end();
       MBBI != E;) {
-    if (isPairableStoreInst(*MBBI) && tryToPairStoreInst(MBBI))
+    if (isPairableLoadStoreInst(*MBBI) && tryToPairLoadStoreInst(MBBI))
       Modified = true;
     else
       ++MBBI;
