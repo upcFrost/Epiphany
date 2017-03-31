@@ -17,9 +17,11 @@ class EpiphanyReg<bits<16> enc, string n> : Register<n> {
   let Namespace = "Epiphany";
 }
 
-def isub_lo  : SubRegIndex<32>;
-def isub_hi  : SubRegIndex<32, 32>;
-def subreg_overflow : SubRegIndex<1, 0>;
+let Namespace = "Epiphany" in {
+  def isub_lo  : SubRegIndex<32>;
+  def isub_hi  : SubRegIndex<32, 32>;
+  def subreg_overflow : SubRegIndex<1, 0>;
+}
 
 class EpiphanyReg64<bits<16> enc, string n, list<Register> subregs> : RegisterWithSubRegs<n, subregs> {
   let SubRegs = subregs;
@@ -46,38 +48,38 @@ let Namespace = "Epiphany" in {
   }
 
 // 64 bit extension
-  def D0    : Bank0Reg64<0,  "D0",  [R0, R1]>;
-  def D1    : Bank0Reg64<2,  "D1",  [R2, R3]>;
-  def D2    : Bank0Reg64<4,  "D2",  [R4, R5]>;
-  def D3    : Bank0Reg64<6,  "D3",  [R6, R7]>;
-  def D4    : Bank0Reg64<8,  "D4",  [R8, R9]>;
-  def D5    : Bank0Reg64<10, "D5", [R10, R11]>;
-  def D6    : Bank0Reg64<12, "D6", [R12, R13]>;
-  def D7    : Bank0Reg64<14, "D7", [R14, R15]>;
-  def D8    : Bank0Reg64<16, "D8", [R16, R17]>;
-  def D9    : Bank0Reg64<18, "D9", [R18, R19]>;
-  def D10   : Bank0Reg64<20, "D10", [R20, R21]>;
-  def D11   : Bank0Reg64<22, "D11", [R22, R23]>;
-  def D12   : Bank0Reg64<24, "D12", [R24, R25]>;
-  def D13   : Bank0Reg64<26, "D13", [R26, R27]>;
-  def D14   : Bank0Reg64<28, "D14", [R28, R29]>;
-  def D15   : Bank0Reg64<30, "D15", [R30, R31]>;
-  def D16   : Bank0Reg64<32, "D16", [R32, R33]>;
-  def D17   : Bank0Reg64<34, "D17", [R34, R35]>;
-  def D18   : Bank0Reg64<36, "D18", [R36, R37]>;
-  def D19   : Bank0Reg64<38, "D19", [R38, R39]>;
-  def D20   : Bank0Reg64<40, "D20", [R40, R41]>;
-  def D21   : Bank0Reg64<42, "D21", [R42, R43]>;
-  def D22   : Bank0Reg64<44, "D22", [R44, R45]>;
-  def D23   : Bank0Reg64<46, "D23", [R46, R47]>;
-  def D24   : Bank0Reg64<48, "D24", [R48, R49]>;
-  def D25   : Bank0Reg64<50, "D25", [R50, R51]>;
-  def D26   : Bank0Reg64<52, "D26", [R52, R53]>;
-  def D27   : Bank0Reg64<54, "D27", [R54, R55]>;
-  def D28   : Bank0Reg64<56, "D28", [R56, R57]>;
-  def D29   : Bank0Reg64<58, "D29", [R58, R59]>;
-  def D30   : Bank0Reg64<60, "D30", [R60, R61]>;
-  def D31   : Bank0Reg64<62, "D31", [R62, R63]>;
+  def D0    : Bank0Reg64<0,  "D0",  [R0, R1]>,   DwarfRegNum<[0]>;
+  def D1    : Bank0Reg64<2,  "D1",  [R2, R3]>,   DwarfRegNum<[2]>;
+  def D2    : Bank0Reg64<4,  "D2",  [R4, R5]>,   DwarfRegNum<[4]>;
+  def D3    : Bank0Reg64<6,  "D3",  [R6, R7]>,   DwarfRegNum<[6]>;
+  def D4    : Bank0Reg64<8,  "D4",  [R8, R9]>,   DwarfRegNum<[8]>;
+  def D5    : Bank0Reg64<10, "D5",  [R10, R11]>, DwarfRegNum<[10]>;
+  def D6    : Bank0Reg64<12, "D6",  [R12, R13]>, DwarfRegNum<[12]>;
+  def D7    : Bank0Reg64<14, "D7",  [R14, R15]>, DwarfRegNum<[14]>;
+  def D8    : Bank0Reg64<16, "D8",  [R16, R17]>, DwarfRegNum<[16]>;
+  def D9    : Bank0Reg64<18, "D9",  [R18, R19]>, DwarfRegNum<[18]>;
+  def D10   : Bank0Reg64<20, "D10", [R20, R21]>, DwarfRegNum<[20]>;
+  def D11   : Bank0Reg64<22, "D11", [R22, R23]>, DwarfRegNum<[22]>;
+  def D12   : Bank0Reg64<24, "D12", [R24, R25]>, DwarfRegNum<[24]>;
+  def D13   : Bank0Reg64<26, "D13", [R26, R27]>, DwarfRegNum<[26]>;
+  def D14   : Bank0Reg64<28, "D14", [R28, R29]>, DwarfRegNum<[28]>;
+  def D15   : Bank0Reg64<30, "D15", [R30, R31]>, DwarfRegNum<[30]>;
+  def D16   : Bank0Reg64<32, "D16", [R32, R33]>, DwarfRegNum<[32]>;
+  def D17   : Bank0Reg64<34, "D17", [R34, R35]>, DwarfRegNum<[34]>;
+  def D18   : Bank0Reg64<36, "D18", [R36, R37]>, DwarfRegNum<[36]>;
+  def D19   : Bank0Reg64<38, "D19", [R38, R39]>, DwarfRegNum<[38]>;
+  def D20   : Bank0Reg64<40, "D20", [R40, R41]>, DwarfRegNum<[40]>;
+  def D21   : Bank0Reg64<42, "D21", [R42, R43]>, DwarfRegNum<[42]>;
+  def D22   : Bank0Reg64<44, "D22", [R44, R45]>, DwarfRegNum<[44]>;
+  def D23   : Bank0Reg64<46, "D23", [R46, R47]>, DwarfRegNum<[46]>;
+  def D24   : Bank0Reg64<48, "D24", [R48, R49]>, DwarfRegNum<[48]>;
+  def D25   : Bank0Reg64<50, "D25", [R50, R51]>, DwarfRegNum<[50]>;
+  def D26   : Bank0Reg64<52, "D26", [R52, R53]>, DwarfRegNum<[52]>;
+  def D27   : Bank0Reg64<54, "D27", [R54, R55]>, DwarfRegNum<[54]>;
+  def D28   : Bank0Reg64<56, "D28", [R56, R57]>, DwarfRegNum<[56]>;
+  def D29   : Bank0Reg64<58, "D29", [R58, R59]>, DwarfRegNum<[58]>;
+  def D30   : Bank0Reg64<60, "D30", [R60, R61]>, DwarfRegNum<[60]>;
+  def D31   : Bank0Reg64<62, "D31", [R62, R63]>, DwarfRegNum<[62]>;
 
 // Aliases
   def A1    : Bank0Reg32<0,  "A1">,  DwarfRegAlias<R0>;

@@ -217,7 +217,7 @@ unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
     const DebugLoc &DL, int *BytesAdded) const {
   DEBUG(dbgs()<< "\n<----------------->";);
   DEBUG(dbgs() << "\nInserting branch into BB#" << MBB.getNumber() << "\n");
-  
+
   // Shouldn't be a fall through.
   assert(TBB && "InsertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 1 || Cond.size() == 0) &&
@@ -251,7 +251,7 @@ bool EpiphanyInstrInfo::reverseBranchCondition(SmallVectorImpl<MachineOperand> &
   switch(CC) {
     default:
       llvm_unreachable("Wrong branch condition code!");
-   case EpiphanyCC::COND_BLT:
+    case EpiphanyCC::COND_BLT:
     case EpiphanyCC::COND_BLTE:
       llvm_unreachable("Unimplemented reverse conditions");
     case EpiphanyCC::COND_NONE:
@@ -263,7 +263,7 @@ bool EpiphanyInstrInfo::reverseBranchCondition(SmallVectorImpl<MachineOperand> &
     case EpiphanyCC::COND_BNE:
       CC = EpiphanyCC::COND_BEQ;
       break;
-     case EpiphanyCC::COND_EQ:
+    case EpiphanyCC::COND_EQ:
       CC = EpiphanyCC::COND_NE;
       break;
     case EpiphanyCC::COND_NE:
@@ -454,16 +454,51 @@ void EpiphanyInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     const DebugLoc &DL, unsigned DestReg,
     unsigned SrcReg, bool KillSrc) const {
   unsigned Opc = 0;
+  unsigned BeginIdx = 0;
+  unsigned SubRegs = 0;
 
   // TODO: Should make it work for all 4 ways (i32 <-> f32)
   if (Epiphany::GPR32RegClass.contains(DestReg, SrcReg)) { // Copy between regs
     Opc = Epiphany::MOVi32rr;
   } else if (Epiphany::FPR32RegClass.contains(DestReg, SrcReg)) {
     Opc = Epiphany::MOVf32rr;
+  } else if (Epiphany::GPR64RegClass.contains(DestReg, SrcReg)) { // Copy between regs
+    Opc = Epiphany::MOVi32rr;
+    SubRegs = 2;
+    BeginIdx = Epiphany::isub_hi;
+  } else if (Epiphany::FPR64RegClass.contains(DestReg, SrcReg)) {
+    Opc = Epiphany::MOVf32rr;
+    SubRegs = 2;
+    BeginIdx = Epiphany::isub_hi;
   }
+
   assert(Opc && "Cannot copy registers");
 
-  BuildMI(MBB, I, DL, get(Opc), DestReg).addReg(SrcReg, getKillRegState(KillSrc));
+  if (SubRegs == 0) {
+    // 32-bit reg copy
+    DEBUG(dbgs() << "Expanding 32-bit copy\n";);
+    BuildMI(MBB, I, DL, get(Opc), DestReg).addReg(SrcReg, getKillRegState(KillSrc));
+  } else {
+    // 64-bit reg copy
+    const TargetRegisterInfo *TRI = &getRegisterInfo();
+    MachineInstrBuilder Mov;
+    DEBUG(dbgs() << "Expanding 64-bit copy\n";);
+    for (unsigned i = 0; i != SubRegs; ++i) {
+      // Get subregs
+      DEBUG(dbgs() << "Expanding subreg " << i << "\n";);
+      unsigned DstSub = TRI->getSubReg(DestReg, BeginIdx + i);
+      unsigned SrcSub = TRI->getSubReg(SrcReg, BeginIdx + i);
+      assert(DstSub && SrcSub && "Bad sub-register");
+      // Build op
+      Mov = BuildMI(MBB, I, DL, get(Opc), DstSub).addReg(SrcSub, getKillRegState(KillSrc));
+    }
+    // Add implicit super-register defs and kills to the last instruction.
+    Mov->addRegisterDefined(DestReg, TRI);
+    if (KillSrc) {
+      Mov->addRegisterKilled(SrcReg, TRI);
+    }
+  }
+
 }
 
 //@adjustStackPtr

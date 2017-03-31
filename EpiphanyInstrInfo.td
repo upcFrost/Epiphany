@@ -320,8 +320,8 @@ def MOVi64ri_i64 : Pat<(i64immSExt64:$Imm),
 //===----------------------------------------------------------------------===//
 // Move operations: Registers
 //===----------------------------------------------------------------------===//
-def MOVi32rr     : Mov32rr<"mov", [], GPR32>;
-def MOVf32rr     : Mov32rr<"mov", [], FPR32>;
+def MOVi32rr : Mov32rr<"mov", [], GPR32>;
+def MOVf32rr : Mov32rr<"mov", [], FPR32>;
 
 // Special regs
 def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins SPECIAL:$MMR), [], CoreReg, SpecFrom>;
@@ -531,4 +531,5 @@ def : Pat<(i64 (shl GPR64:$Rn, (i32 32))),
           (MOVi32rr (EXTRACT_SUBREG GPR64:$Rn, isub_lo)), isub_hi,
           (MOVi32ri 0), isub_lo)>;
 
+def : Pat<(i32 (trunc GPR64:$Rn)), (LoReg GPR64:$Rn)>;
 

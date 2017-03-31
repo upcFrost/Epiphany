@@ -94,6 +94,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::MULHU,     MVT::i32,  Expand);
     setOperationAction(ISD::UMUL_LOHI, MVT::i32,  Expand);
     setOperationAction(ISD::SMUL_LOHI, MVT::i32,  Expand);
+    setOperationAction(ISD::FDIV,      MVT::f32,  Expand);
     setOperationAction(ISD::SINT_TO_FP, MVT::i64, Expand);
     setOperationAction(ISD::FP_TO_SINT, MVT::f64, Expand);
 
