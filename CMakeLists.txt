@@ -20,6 +20,7 @@ add_llvm_target(EpiphanyCodeGen
   EpiphanyISelLowering.cpp
   EpiphanyISelDAGToDAG.cpp
   EpiphanyInstrInfo.cpp
+  EpiphanyLoadStoreOptimizer.cpp
   EpiphanyMachineFunction.cpp
   EpiphanyMCInstLower.cpp
   EpiphanyRegisterInfo.cpp

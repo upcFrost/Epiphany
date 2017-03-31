@@ -299,6 +299,7 @@ class LoadDisp16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size L
   let Inst{9-7}   = addr{2-0}; // imm3
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let mayLoad = 1; 
 }
 
 class StoreDisp16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, ValueType Ty>
@@ -309,6 +310,7 @@ class StoreDisp16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size
   let Inst{12-10} = addr{18-16}; // Rn
   let Inst{9-7}   = addr{2-0}; // imm3
   let isPseudo    = Pseudo;
+  let mayStore    = 1;
 }
 
 class LoadDisp32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, ValueType Ty>
@@ -324,6 +326,7 @@ class LoadDisp32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size L
   let Inst{24}    = addr{11};    // imm sign bit
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let mayLoad = 1;
 }
 
 class StoreDisp32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, ValueType Ty>
@@ -338,6 +341,7 @@ class StoreDisp32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size
   let Inst{25}    = 0b0;
   let Inst{24}    = addr{11};    // imm sign bit
   let isPseudo    = Pseudo;
+  let mayStore = 1;
 }
 
 //-----------Index (Rd <-> (Rn + Rm)) ----------//
@@ -351,6 +355,7 @@ class LoadIdx16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Lo
   let Inst{9-7}   = Rm;
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let mayLoad = 1;
 }
 
 class StoreIdx16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub, ValueType Ty>
@@ -362,6 +367,7 @@ class StoreIdx16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size 
   let Inst{12-10} = Rn;
   let Inst{9-7}   = Rm;
   let isPseudo    = Pseudo;
+  let mayStore = 1;
 }
 
 class LoadIdx32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub, ValueType Ty>
@@ -378,6 +384,7 @@ class LoadIdx32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Lo
   let Inst{9-7}   = Rm{2-0};
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let mayLoad = 1;
 }
 
 class StoreIdx32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub, ValueType Ty>
@@ -393,6 +400,7 @@ class StoreIdx32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size 
   let Inst{12-10} = Rn{2-0};
   let Inst{9-7}   = Rm{2-0};
   let isPseudo    = Pseudo;
+  let mayStore = 1;
 }
 
 //----------- Postmodify (Rd <-> [Rn] -> Rd + Rm) ----------//
@@ -408,6 +416,7 @@ class LoadPm16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Loa
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
   let Constraints = "$base = $Rn";
+  let mayLoad = 1;
 }
 
 class StorePm16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub, ValueType Ty>
@@ -420,6 +429,7 @@ class StorePm16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size S
   let Inst{9-7}   = Rm;
   let isPseudo    = Pseudo;
   let Constraints = "$base = $Rn";
+  let mayStore = 1;
 }
 
 class LoadPm32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub, ValueType Ty>
@@ -437,6 +447,7 @@ class LoadPm32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Loa
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
   let Constraints = "$base = $Rn";
+  let mayLoad = 1;
 }
 
 class StorePm32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub, ValueType Ty>
@@ -453,6 +464,7 @@ class StorePm32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size S
   let Inst{9-7}   = Rm{2-0};
   let isPseudo    = Pseudo;
   let Constraints = "$base = $Rn";
+  let mayStore = 1;
 }
 
 //----------- Postmodify-Disp (Rd <-> [Rn] -> Rd + imm) ----------//
@@ -470,6 +482,7 @@ class LoadPmd32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Lo
   let Inst{24}    = imm{11};    // imm sign bit
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let mayLoad = 1;
 }
 
 class StorePmd32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, ValueType Ty>
@@ -484,6 +497,7 @@ class StorePmd32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size 
   let Inst{25}    = 0b1;
   let Inst{24}    = imm{11};    // imm sign bit
   let isPseudo    = Pseudo;
+  let mayStore = 1;
 }
 
 //===----------------------------------------------------------------------===//

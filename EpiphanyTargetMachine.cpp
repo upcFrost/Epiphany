@@ -130,5 +130,6 @@ void EpiphanyPassConfig::addPreRegAlloc() {
 
 void EpiphanyPassConfig::addPreSched2() {
   addPass(&IfConverterID, false);
+  addPass(createEpiphanyLoadStoreOptimizationPass());
 }
 

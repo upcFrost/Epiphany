@@ -351,6 +351,27 @@ bool EpiphanyInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
 //-------------------------------------------------------------------
 // Load/Store
 //-------------------------------------------------------------------
+// Is this a candidate for ld/st merging or pairing?  For example, we don't
+// touch volatiles or load/stores that have a hint to avoid pair formation.
+bool EpiphanyInstrInfo::isCandidateToMergeOrPair(MachineInstr &MI) const {
+  // If this is a volatile load/store, don't mess with it.
+  if (MI.hasOrderedMemoryRef())
+    return false;
+
+  // Make sure this is a reg+imm (as opposed to an address reloc).
+  assert(MI.getOperand(1).isReg() && "Expected a reg operand.");
+  if (!MI.getOperand(2).isImm())
+    return false;
+
+  // Can't merge/pair if the instruction modifies the base register.
+  // e.g., ldr r0, [r0]
+  unsigned BaseReg = MI.getOperand(1).getReg();
+  const TargetRegisterInfo *TRI = &getRegisterInfo();
+  if (MI.modifiesRegister(BaseReg, TRI))
+    return false;
+
+  return true;
+}
 
 /// isLoadFromStackSlot - If the specified machine instruction is a direct
 /// load from a stack slot, return the virtual or physical register number of
@@ -361,9 +382,26 @@ unsigned EpiphanyInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
     int &FrameIndex) const {
   // Load instructions
   unsigned inst[] = {
-    Epiphany::LDRi8e_r32,  Epiphany::LDRi8z_r32, 
-    Epiphany::LDRi16e_r32, Epiphany::LDRi16z_r32, 
-    Epiphany::LDRi32_r32,  Epiphany::LDRf32
+    Epiphany::LDRi16e_r16,
+    Epiphany::LDRi16e_r32,
+    Epiphany::LDRi16e_idx_add_r16,
+    Epiphany::LDRi16e_idx_add_r32,
+    Epiphany::LDRi16e_idx_sub_r32,
+    Epiphany::LDRi16e_pm_add_r16,
+    Epiphany::LDRi16e_pm_add_r32,
+    Epiphany::LDRi16e_pm_sub_r32,
+    Epiphany::LDRi16e_pmd_r32,
+    Epiphany::LDRi32_r16,
+    Epiphany::LDRi32_r32,
+    Epiphany::LDRi32_idx_add_r16,
+    Epiphany::LDRi32_idx_add_r32,
+    Epiphany::LDRi32_idx_sub_r32,
+    Epiphany::LDRi32_pm_add_r16,
+    Epiphany::LDRi32_pm_add_r32,
+    Epiphany::LDRi32_pm_sub_r32,
+    Epiphany::LDRi32_pmd_r32,
+    Epiphany::LDRi64,
+    Epiphany::LDRf64
   };
   DEBUG(dbgs() << "\nisLoadToStackSlot for "; MI.print(dbgs()));
   // Check if current opcode is one of those
@@ -386,8 +424,26 @@ unsigned EpiphanyInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 unsigned EpiphanyInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
     int &FrameIndex) const {
   unsigned inst[] = {
-    Epiphany::STRi8_r32,  Epiphany::STRi16_r32,
-    Epiphany::STRi32_r32, Epiphany::STRf32
+    Epiphany::STRi16_r16,
+    Epiphany::STRi16_r32,
+    Epiphany::STRi16_idx_add_r16,
+    Epiphany::STRi16_idx_add_r32,
+    Epiphany::STRi16_idx_sub_r32,
+    Epiphany::STRi16_pm_add_r16,
+    Epiphany::STRi16_pm_add_r32,
+    Epiphany::STRi16_pm_sub_r32,
+    Epiphany::STRi16_pmd_r32,
+    Epiphany::STRi32_r16,
+    Epiphany::STRi32_r32,
+    Epiphany::STRi32_idx_add_r16,
+    Epiphany::STRi32_idx_add_r32,
+    Epiphany::STRi32_idx_sub_r32,
+    Epiphany::STRi32_pm_add_r16,
+    Epiphany::STRi32_pm_add_r32,
+    Epiphany::STRi32_pm_sub_r32,
+    Epiphany::STRi32_pmd_r32,
+    Epiphany::STRi64,
+    Epiphany::STRf64
   };
   DEBUG(dbgs() << "\nisStoreToStackSlot for "; MI.print(dbgs()));
   // Check if current opcode is one of those
@@ -408,7 +464,22 @@ void EpiphanyInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     const TargetRegisterClass *Rd, const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
   // Get instruction, for stack slots (FP/SP) we can only use 32-bit instructions
-  unsigned STRi32_r32 = Epiphany::STRi32_r32;
+  unsigned Opc;
+  // Choose instruction
+  if (Rd == &Epiphany::GPR16RegClass || Rd == &Epiphany::GPR32RegClass) {
+    Opc = Epiphany::STRi32_r32;
+  } else if (Rd == &Epiphany::FPR32RegClass) {
+    Opc = Epiphany::STRf32;
+  } else if (Rd == &Epiphany::GPR64RegClass) {
+    Opc = Epiphany::STRi64;
+  } else if (Rd == &Epiphany::FPR64RegClass) {
+    Opc = Epiphany::STRf64;
+  }
+
+  if (!Opc) {
+    DEBUG(dbgs() << "\nFail ahead!\n";);
+  }
+  assert(Opc && "Can't load reg, unknown reg class");
 
   // Get function and frame info
   if (MI != MBB.end()) DL = MI->getDebugLoc();
@@ -423,7 +494,7 @@ void EpiphanyInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
       MFI.getObjectAlignment(FrameIdx));
 
   // Build instruction
-  BuildMI(MBB, MI, DL, get(STRi32_r32)).addReg(SrcReg, getKillRegState(KillSrc))
+  BuildMI(MBB, MI, DL, get(Opc)).addReg(SrcReg, getKillRegState(KillSrc))
     .addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
 }
 
@@ -431,8 +502,22 @@ void EpiphanyInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MI, unsigned DestReg, int FrameIdx,
     const TargetRegisterClass *Rd, const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
-  // Get instruction, we can only use 32-bit instructions
-  unsigned LDRi32_r32 = Epiphany::LDRi32_r32;
+  // Choose instruction
+  unsigned Opc;
+  if (Rd == &Epiphany::GPR16RegClass || Rd == &Epiphany::GPR32RegClass) {
+    Opc = Epiphany::LDRi32_r32;
+  } else if (Rd == &Epiphany::FPR32RegClass) {
+    Opc = Epiphany::LDRf32;
+  } else if (Rd == &Epiphany::GPR64RegClass) {
+    Opc = Epiphany::LDRi64;
+  } else if (Rd == &Epiphany::FPR64RegClass) {
+    Opc = Epiphany::LDRf64;
+  }
+
+  if (!Opc) {
+    DEBUG(dbgs() << "\nFail ahead!\n";);
+  }
+  assert(Opc && "Can't load reg, unknown reg class");
 
   // Get function and frame info
   if (MI != MBB.end()) DL = MI->getDebugLoc();
@@ -446,7 +531,80 @@ void EpiphanyInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
       MFI.getObjectAlignment(FrameIdx));
 
   // Build instruction
-  BuildMI(MBB, MI, DL, get(LDRi32_r32), DestReg).addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
+  BuildMI(MBB, MI, DL, get(Opc), DestReg).addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
+}
+
+static MachineMemOperand* extractMemOp(MachineSDNode *Load) {
+  MachineMemOperand **IMemOp = Load->memoperands_begin();
+  MachineMemOperand* MMO = nullptr;
+
+  if(IMemOp) {
+    MMO = *IMemOp;
+    assert(++IMemOp == Load->memoperands_end() &&
+        "Expect a single memory operand in a load");
+  }
+
+  return MMO;
+}
+
+// gets the chain operand from an SDNode.
+static SDValue getChainOperand(SDNode *Node) {
+  // Loop past any glue nodes.
+  assert(Node->getNumOperands() &&
+         "Expect non-zero operand count on SDNode in chain");
+  unsigned OpIndex  = Node->getNumOperands() - 1;
+  while(OpIndex && Node->getOperand(OpIndex).getValueType() == MVT::Glue) {
+    --OpIndex;
+  }
+
+  // OpIndex is now the index of the last non-glue operand.
+  SDValue ChainOp = Node->getOperand(OpIndex);
+  assert(ChainOp.getValueType() == MVT::Other &&
+         "Expected Chain Operand on mayLoad MachineSDNode!");
+  return ChainOp;
+}
+
+bool EpiphanyInstrInfo::areLoadsFromSameBasePtr(SDNode *Load1, SDNode *Load2,
+    int64_t &Offset1, int64_t &Offset2) const {
+
+  // Only interested in MachineSDNodes
+  if(!Load1->isMachineOpcode() || !Load2->isMachineOpcode()) {
+    return false;
+  }
+
+  const MCInstrDesc &MCIDesc1 = get(Load1->getMachineOpcode());
+  const MCInstrDesc &MCIDesc2 = get(Load2->getMachineOpcode());
+  // Only interested in 'real' loads.
+  if (MCIDesc1.isPseudo() || !MCIDesc1.mayLoad() || MCIDesc2.isPseudo() || !MCIDesc2.mayLoad()) {
+    return false;
+  }
+
+  // only interested in Loads in the same chain.
+  if(getChainOperand(Load1) != getChainOperand(Load2)) {
+    return false;
+  }
+
+  // Get the memory operands
+  MachineSDNode *MachineLoad1 = dyn_cast<MachineSDNode>(Load1);
+  MachineSDNode *MachineLoad2 = dyn_cast<MachineSDNode>(Load2);
+  assert(MachineLoad1 && MachineLoad1);
+  MachineMemOperand *MemOp1 = extractMemOp(MachineLoad1);
+  MachineMemOperand *MemOp2 = extractMemOp(MachineLoad2);
+
+  // Not every load will have its MMO properly set. For example the loads
+  // created from intrinsic calls may not have them set.
+  if(!MemOp1 || !MemOp2)
+    return false;
+
+  // Check that the memory ops use the same base value
+  if(MemOp1->getValue() == MemOp2->getValue()) {
+    Offset1 = MemOp1->getOffset();
+    Offset2 = MemOp2->getOffset();
+    return true;
+  }
+
+  // Loads are off different base values.
+  return false;
 }
 
 void EpiphanyInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
