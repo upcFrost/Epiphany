@@ -232,8 +232,8 @@ multiclass Ialu2Math<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNod
   def _r32 : ComplexMath32rr<opcode32, instr_asm, OpNode, GPR32, Ialu2Itin, i32>;
 }
 multiclass Ialu2Math_2<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
-  def _r16 : ComplexMath2_16rr<opcode16, instr_asm, OpNode, mul, GPR16, Ialu2Itin, i32>;
-  def _r32 : ComplexMath2_32rr<opcode32, instr_asm, OpNode, mul, GPR32, Ialu2Itin, i32>;
+  def _r16 : ComplexMath2_16rr<opcode16, instr_asm, mul, OpNode, GPR16, Ialu2Itin, i32>;
+  def _r32 : ComplexMath2_32rr<opcode32, instr_asm, mul, OpNode, GPR32, Ialu2Itin, i32>;
 }
 let Defs = [STATUS], AddedComplexity = 1 in {
   defm IADDrr : Ialu2Math<0b0000111, 0b0001111, "iadd", add>;
@@ -433,6 +433,7 @@ let isBarrier = 1, hasDelaySlot = 0 in {
 
 let isTerminator = 1, isBranch = 1, isBarrier = 1, hasDelaySlot = 0, Uses = [STATUS] in {
   def BCCi32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR32:$Rd), []>;
+  def BCCi64    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR64:$Rd), []>;
   def BCCf32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, FPR32:$Rd), []>;
 }
 
@@ -497,7 +498,6 @@ def : Pat<(adde GPR32:$Rn, simm11:$imm),
 def : Pat<(sube GPR32:$Rn, simm11:$imm), 
           (SUBrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, GPR32:$Rn))>;
 
-
 // COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
 def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),
   (REG_SEQUENCE GPR64,
@@ -507,6 +507,20 @@ def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),
     (ADDri_r32 (HiReg GPR64:$Rm), 
       (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
   isub_hi)>;
+
+// Sub64 patfrag, as we will need it in many places later
+def SUBrr_r64_pat : OutPatFrag<(ops node:$Rn, node:$Rm), 
+  (REG_SEQUENCE GPR64,
+  (i32 (COPY (SUBrr_r32 (LoReg $Rn), (LoReg $Rm)))), 
+  isub_lo,
+  (i32 (COPY (SUBrr_r32 (HiReg $Rn), 
+    (SUBri_r32 (HiReg $Rm), 
+      (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (SUBrr_r32 (LoReg $Rn), (LoReg $Rm))))))), 
+  isub_hi)>;
+
+// SUB and SUBC patterns for i64
+def SUBrr_r64  : Pat<(i64 (sub GPR64:$Rn, GPR64:$Rm)), (SUBrr_r64_pat GPR64:$Rn, GPR64:$Rm)>;
+def SUBCrr_r64 : Pat<(i64 (subc GPR64:$Rn, GPR64:$Rm)), (SUBrr_r64_pat GPR64:$Rn, GPR64:$Rm)>;
 
 // COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
 def ADDCrr_r64 : Pat<(i64 (addc GPR64:$Rn, GPR64:$Rm)), 
@@ -532,4 +546,36 @@ def : Pat<(i64 (shl GPR64:$Rn, (i32 32))),
           (MOVi32ri 0), isub_lo)>;
 
 def : Pat<(i32 (trunc GPR64:$Rn)), (LoReg GPR64:$Rn)>;
+
+// i64 brcc patterns
+def : Pat<(brcc SETEQ,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_EQ.Code,   (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+def : Pat<(brcc SETNE,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_NE.Code,   (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+def : Pat<(brcc SETUGT, (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_GTU.Code,  (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+def : Pat<(brcc SETUGE, (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_GTEU.Code, (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+def : Pat<(brcc SETULE, (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_LTEU.Code, (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+def : Pat<(brcc SETULT, (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_LTU.Code,  (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+def : Pat<(brcc SETGT,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_GT.Code,   (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+def : Pat<(brcc SETGE,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_GTE.Code,  (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+def : Pat<(brcc SETLT,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_LT.Code,   (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+def : Pat<(brcc SETLE,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_LTE.Code,  (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+
+// i64 selectcc patterns
+def : Pat<(selectcc (i64 GPR64:$lhs), (i64 GPR64:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETEQ), 
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_EQ.Code, (SUBrr_r64_pat (i64 GPR64:$lhs), (i64 GPR64:$rhs)))>;
+def : Pat<(selectcc (i64 GPR64:$lhs), (i64 GPR64:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETUGT), 
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTU.Code, (SUBrr_r64_pat (i64 GPR64:$lhs), (i64 GPR64:$rhs)))>;
+def : Pat<(selectcc (i64 GPR64:$lhs), (i64 GPR64:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETUGE), 
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTEU.Code, (SUBrr_r64_pat (i64 GPR64:$lhs), (i64 GPR64:$rhs)))>;
+def : Pat<(selectcc (i64 GPR64:$lhs), (i64 GPR64:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETULE), 
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTEU.Code, (SUBrr_r64_pat (i64 GPR64:$lhs), (i64 GPR64:$rhs)))>;
+def : Pat<(selectcc (i64 GPR64:$lhs), (i64 GPR64:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETULT), 
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTU.Code, (SUBrr_r64_pat (i64 GPR64:$lhs), (i64 GPR64:$rhs)))>;
+def : Pat<(selectcc (i64 GPR64:$lhs), (i64 GPR64:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETGT), 
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GT.Code, (SUBrr_r64_pat (i64 GPR64:$lhs), (i64 GPR64:$rhs)))>;
+def : Pat<(selectcc (i64 GPR64:$lhs), (i64 GPR64:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETGE), 
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_GTE.Code, (SUBrr_r64_pat (i64 GPR64:$lhs), (i64 GPR64:$rhs)))>;
+def : Pat<(selectcc (i64 GPR64:$lhs), (i64 GPR64:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETLT), 
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LT.Code, (SUBrr_r64_pat (i64 GPR64:$lhs), (i64 GPR64:$rhs)))>;
+def : Pat<(selectcc (i64 GPR64:$lhs), (i64 GPR64:$rhs), (i32 GPR32:$Rn), (i32 GPR32:$src), SETLE), 
+          (MOVCCi32rr (i32 GPR32:$src), (i32 GPR32:$Rn), COND_LTE.Code, (SUBrr_r64_pat (i64 GPR64:$lhs), (i64 GPR64:$rhs)))>;
 

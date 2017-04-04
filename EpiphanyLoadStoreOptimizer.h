@@ -31,6 +31,8 @@
 #include "llvm/Target/TargetRegisterInfo.h"
 
 namespace llvm {
+  void initializeEpiphanyLoadStoreOptimizerPass(PassRegistry&);
+
   typedef struct LoadStoreFlags {
     // If a matching instruction is found, MergeForward is set to true if the
     // merge is to remove the first instruction and replace the second with
@@ -60,7 +62,9 @@ namespace llvm {
           MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags);
     public:
       static char ID;
-      EpiphanyLoadStoreOptimizer() : MachineFunctionPass(ID) {}
+      EpiphanyLoadStoreOptimizer() : MachineFunctionPass(ID) {
+        initializeEpiphanyLoadStoreOptimizerPass(*PassRegistry::getPassRegistry());
+      }
 
       StringRef getPassName() const {
         return "Epiphany Load/Store Optimization Pass";

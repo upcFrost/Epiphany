@@ -186,8 +186,6 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     }
 
     // For now - expand 64-bit ops that were not implemented yet
-    setOperationAction(ISD::SUB,       MVT::i64,  Expand);
-    setOperationAction(ISD::SUBC,      MVT::i64,  Expand);
     setOperationAction(ISD::MUL,       MVT::i64,  Expand);
     setOperationAction(ISD::SMUL_LOHI, MVT::i64,  Expand);
     setOperationAction(ISD::UMUL_LOHI, MVT::i64,  Expand);
@@ -197,6 +195,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::UREM,      MVT::i64,  Expand);
     setOperationAction(ISD::SDIVREM,   MVT::i64,  Expand);
     setOperationAction(ISD::UDIVREM,   MVT::i64,  Expand);
+    setOperationAction(ISD::SELECT_CC, MVT::i64,  Expand);
+    setOperationAction(ISD::SETCC,     MVT::i64,  Expand);
     setOperationAction(ISD::FADD,      MVT::f64,  Expand);
     setOperationAction(ISD::FSUB,      MVT::f64,  Expand);
     setOperationAction(ISD::FMUL,      MVT::f64,  Expand);

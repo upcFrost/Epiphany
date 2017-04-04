@@ -146,7 +146,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
     }
 
     // Handle conditional branches.
-    if (I->getOpcode() != Epiphany::BCCi32 && I->getOpcode() != Epiphany::BCCf32) {
+    if (I->getOpcode() != Epiphany::BCCi32 && I->getOpcode() != Epiphany::BCCf32 && I->getOpcode() != Epiphany::BCCi64) {
       continue;
     }
     EpiphanyCC::CondCodes BranchCode = static_cast<EpiphanyCC::CondCodes>(I->getOperand(1).getImm());
@@ -188,7 +188,7 @@ unsigned EpiphanyInstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemov
   // Branches to handle
   DEBUG(dbgs()<< "\n<----------------->";);
   DEBUG(dbgs() << "\nRemoving branches out of BB#" << MBB.getNumber() << "\n");
-  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCCi32, Epiphany::BCCf32};
+  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCCi32, Epiphany::BCCf32, Epiphany::BCCi64};
   MachineBasicBlock::iterator I = MBB.end();
   unsigned Count = 0;
 
@@ -410,6 +410,7 @@ unsigned EpiphanyInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
   if (found) {
     if (MI.getOperand(1).isFI() && MI.getOperand(2).isImm() && MI.getOperand(2).getImm() == 0) {
       FrameIndex = MI.getOperand(1).getIndex();
+      DEBUG(dbgs() << "\nFound load op for "; MI.print(dbgs()));
       return MI.getOperand(0).getReg();
     }
   }
@@ -452,6 +453,7 @@ unsigned EpiphanyInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
   if (found) {
     if (MI.getOperand(0).isFI() && MI.getOperand(1).isImm() && MI.getOperand(1).getImm() == 0) {
       FrameIndex = MI.getOperand(0).getIndex();
+      DEBUG(dbgs() << "\nFound store op for "; MI.print(dbgs()));
       return MI.getOperand(2).getReg();
     }
   }
@@ -466,13 +468,15 @@ void EpiphanyInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   // Get instruction, for stack slots (FP/SP) we can only use 32-bit instructions
   unsigned Opc;
   // Choose instruction
-  if (Rd == &Epiphany::GPR16RegClass || Rd == &Epiphany::GPR32RegClass) {
+  if (Epiphany::GPR16RegClass.hasSubClassEq(Rd)) {
     Opc = Epiphany::STRi32_r32;
-  } else if (Rd == &Epiphany::FPR32RegClass) {
+  } else if (Epiphany::GPR32RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::STRi32_r32;
+  } else if (Epiphany::FPR32RegClass.hasSubClassEq(Rd)) {
     Opc = Epiphany::STRf32;
-  } else if (Rd == &Epiphany::GPR64RegClass) {
+  } else if (Epiphany::GPR64RegClass.hasSubClassEq(Rd)) {
     Opc = Epiphany::STRi64;
-  } else if (Rd == &Epiphany::FPR64RegClass) {
+  } else if (Epiphany::FPR64RegClass.hasSubClassEq(Rd)) {
     Opc = Epiphany::STRf64;
   }
 
@@ -504,13 +508,15 @@ void EpiphanyInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   DebugLoc DL;
   // Choose instruction
   unsigned Opc;
-  if (Rd == &Epiphany::GPR16RegClass || Rd == &Epiphany::GPR32RegClass) {
+  if (Epiphany::GPR16RegClass.hasSubClassEq(Rd)) {
     Opc = Epiphany::LDRi32_r32;
-  } else if (Rd == &Epiphany::FPR32RegClass) {
+  } else if (Epiphany::GPR32RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::LDRi32_r32;
+  } else if (Epiphany::FPR32RegClass.hasSubClassEq(Rd)) {
     Opc = Epiphany::LDRf32;
-  } else if (Rd == &Epiphany::GPR64RegClass) {
+  } else if (Epiphany::GPR64RegClass.hasSubClassEq(Rd)) {
     Opc = Epiphany::LDRi64;
-  } else if (Rd == &Epiphany::FPR64RegClass) {
+  } else if (Epiphany::FPR64RegClass.hasSubClassEq(Rd)) {
     Opc = Epiphany::LDRf64;
   }
 

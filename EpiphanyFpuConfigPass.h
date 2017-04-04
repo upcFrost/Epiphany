@@ -28,6 +28,7 @@
 #include "llvm/Target/TargetRegisterInfo.h"
 
 namespace llvm {
+  void initializeEpiphanyFpuConfigPassPass(PassRegistry&);
 
   class EpiphanyFpuConfigPass : public MachineFunctionPass {
 
@@ -35,7 +36,9 @@ namespace llvm {
 
     public:
       static char ID;
-      EpiphanyFpuConfigPass() : MachineFunctionPass(ID) {}
+      EpiphanyFpuConfigPass() : MachineFunctionPass(ID) {
+        initializeEpiphanyFpuConfigPassPass(*PassRegistry::getPassRegistry());
+      }
 
       StringRef getPassName() const {
         return "Epiphany FPU/IALU2 config flag optimization pass";

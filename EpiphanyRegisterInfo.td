@@ -24,6 +24,8 @@ let Namespace = "Epiphany" in {
 }
 
 class EpiphanyReg64<bits<16> enc, string n, list<Register> subregs> : RegisterWithSubRegs<n, subregs> {
+  let HWEncoding = enc;
+  let Namespace = "Epiphany";
   let SubRegs = subregs;
   let SubRegIndices = [isub_lo, isub_hi];
   let CoveredBySubRegs = 1;
@@ -174,13 +176,11 @@ def GPR32 : RegisterClass<"Epiphany", [i32, v4i8, v2i16], 32, (add
 def FPR32 : RegisterClass<"Epiphany", [f32], 32, (add GPR32)>;
 
 // 64 bit
-/*def GPR64 : RegisterTuples<[isub_lo, isub_hi], [(add (decimate GPR32, 2)), (add (decimate (shl GPR32, 1), 2))]>;*/
-
 def GPR64 : RegisterClass<"Epiphany", [i64,v2i32], 64, (add (sequence "D%u", 0, 31))> {
   let CopyCost = 4;
   let Size = 64;
 }
-def FPR64 : RegisterClass<"Epiphany", [f64,v2f32], 64, (add (sequence "D%u", 0, 31))> {
+def FPR64 : RegisterClass<"Epiphany", [f64,v2f32], 64, (add GPR64)> {
   let CopyCost = 4;
   let Size = 64;
 }

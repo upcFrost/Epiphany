@@ -77,7 +77,9 @@ static unsigned getMatchingPairOpcode(unsigned Opc) {
 // Convert the byte-offset used by unscaled into an "element" offset used
 // by the scaled pair load/store instructions.
 static bool inBoundsForPair(int Offset) {
-  return Offset <= 256 && Offset >= -256;
+  // Well, in fact if the op is in bounds for any kind of store/load - it will be in bound for pairing
+  return true;
+  //return Offset <= 256 && Offset >= -256;
 }
 
 // Get register for the store
@@ -370,6 +372,7 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
 bool EpiphanyLoadStoreOptimizer::tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI) {
   MachineInstr &MI = *MBBI;
   MachineBasicBlock::iterator E = MI.getParent()->end();
+  DEBUG(dbgs() << "\nTrying to pair instruction: "; MI.print(dbgs()););
 
   if (!TII->isCandidateToMergeOrPair(MI))
     return false;
@@ -422,6 +425,9 @@ bool EpiphanyLoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
   return Modified;
 }
 
+
+INITIALIZE_PASS_BEGIN(EpiphanyLoadStoreOptimizer, "epiphany-ls-opt", "Epiphany Load Store Optimization", false, false);
+INITIALIZE_PASS_END(EpiphanyLoadStoreOptimizer, "epiphany-ls-opt", "Epiphany Load Store Optimization", false, false);
 
 bool EpiphanyLoadStoreOptimizer::runOnMachineFunction(MachineFunction &Fn) {
   DEBUG(dbgs() << "\nRunning Epiphany Load/Store Optimization Pass\n");
