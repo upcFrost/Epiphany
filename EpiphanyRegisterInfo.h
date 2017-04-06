@@ -28,7 +28,7 @@ class EpiphanySubtarget;
 class EpiphanyInstrInfo;
 class Type;
 
-struct EpiphanyRegisterInfo : public EpiphanyGenRegisterInfo {
+class EpiphanyRegisterInfo : public EpiphanyGenRegisterInfo {
 protected:
   const EpiphanySubtarget &Subtarget;
 

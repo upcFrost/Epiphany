@@ -903,7 +903,7 @@ let OperandType = "OPERAND_PCREL" in {
   def branchtarget     : Operand<OtherVT> { let EncoderMethod = "getBranchTargetOpValue"; }
   def branchlinktarget : Operand<iPTR>    { let EncoderMethod = "getBranchTargetOpValue"; }
 }
-def cc : Operand<i8> {
+def cc : Operand<i32> {
   let PrintMethod = "printCondCode";
 }
 

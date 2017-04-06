@@ -34,7 +34,9 @@ def CC_Epiphany_Assign : CallingConv<[
 
   // Pass 64-bit within 2 first regs or in the stack
   CCIfType<[i64,f64], CCAssignToReg<[D0, D1]>>,
-  CCIfType<[i64,f64], CCAssignToStack<8, 8>>
+  CCIfType<[i64,f64], CCAssignToStack<8, 8>>,
+
+  CCAssignToStack<8, 8>
 ]>;
 
 //===----------------------------------------------------------------------===//

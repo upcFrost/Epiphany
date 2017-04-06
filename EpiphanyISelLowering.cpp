@@ -49,6 +49,7 @@ const char *EpiphanyTargetLowering::getTargetNodeName(unsigned Opcode) const {
     case EpiphanyISD::RTS:            return "EpiphanyISD::RTS";
     case EpiphanyISD::MOV:            return "EpiphanyISD::MOV";
     case EpiphanyISD::MOVT:           return "EpiphanyISD::MOVT";
+    case EpiphanyISD::MOVCC:          return "EpiphanyISD::MOVCC";
     case EpiphanyISD::STORE:          return "EpiphanyISD::STORE";
     case EpiphanyISD::LOAD:           return "EpiphanyISD::LOAD";
 
@@ -84,48 +85,36 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setStackPointerRegisterToSaveRestore(Epiphany::SP);
 
     // Provide ops that we don't have
-    setOperationAction(ISD::SDIV,      MVT::i32,  Expand);
-    setOperationAction(ISD::SREM,      MVT::i32,  Expand);
-    setOperationAction(ISD::UDIV,      MVT::i32,  Expand);
-    setOperationAction(ISD::UREM,      MVT::i32,  Expand);
-    setOperationAction(ISD::SDIVREM,   MVT::i32,  Expand);
-    setOperationAction(ISD::UDIVREM,   MVT::i32,  Expand);
-    setOperationAction(ISD::MULHS,     MVT::i32,  Expand);
-    setOperationAction(ISD::MULHU,     MVT::i32,  Expand);
-    setOperationAction(ISD::UMUL_LOHI, MVT::i32,  Expand);
-    setOperationAction(ISD::SMUL_LOHI, MVT::i32,  Expand);
-    setOperationAction(ISD::FDIV,      MVT::f32,  Expand);
-    setOperationAction(ISD::SINT_TO_FP, MVT::i64, Expand);
-    setOperationAction(ISD::FP_TO_SINT, MVT::f64, Expand);
+    setOperationAction(ISD::SDIV,       MVT::i32,  Expand);
+    setOperationAction(ISD::SREM,       MVT::i32,  Expand);
+    setOperationAction(ISD::UDIV,       MVT::i32,  Expand);
+    setOperationAction(ISD::UREM,       MVT::i32,  Expand);
+    setOperationAction(ISD::SDIVREM,    MVT::i32,  Expand);
+    setOperationAction(ISD::UDIVREM,    MVT::i32,  Expand);
+    setOperationAction(ISD::MULHS,      MVT::i32,  Expand);
+    setOperationAction(ISD::MULHU,      MVT::i32,  Expand);
+    setOperationAction(ISD::UMUL_LOHI,  MVT::i32,  Expand);
+    setOperationAction(ISD::SMUL_LOHI,  MVT::i32,  Expand);
+    setOperationAction(ISD::UINT_TO_FP, MVT::i32,  Expand);
 
-    // Expand vector load/store for now
-    for (MVT VT : MVT::integer_vector_valuetypes()) {
-      setLoadExtAction(ISD::EXTLOAD,  VT, MVT::v2i8, Expand);
-      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v2i8, Expand);
-      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v2i8, Expand);
-      setLoadExtAction(ISD::EXTLOAD,  VT, MVT::v4i8, Expand);
-      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v4i8, Expand);
-      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v4i8, Expand);
-      setLoadExtAction(ISD::EXTLOAD,  VT, MVT::v2i16, Expand);
-      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v2i16, Expand);
-      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v2i16, Expand);
-      setLoadExtAction(ISD::EXTLOAD,  VT, MVT::v4i16, Expand);
-      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v4i16, Expand);
-      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v4i16, Expand);
+    for (MVT VT : MVT::fp_valuetypes()) {
+      setOperationAction(ISD::FDIV,  VT,  Expand);
+      setOperationAction(ISD::FSQRT, VT,  Expand);
+      setOperationAction(ISD::FSIN,  VT,  Expand);
+      setOperationAction(ISD::FCOS,  VT,  Expand);
+      setOperationAction(ISD::FLOG,  VT,  Expand);
+      setOperationAction(ISD::FEXP,  VT,  Expand);
+      setOperationAction(ISD::FPOW,  VT,  Expand);
+      setOperationAction(ISD::FREM,  VT,  Expand);
     }
 
-    // No extending loads from i32.
-    for (MVT VT : MVT::integer_valuetypes()) {
-      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i32, Expand);
-      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i32, Expand);
-      setLoadExtAction(ISD::EXTLOAD,  VT, MVT::i32, Expand);
+    for (MVT VT : MVT::all_valuetypes()) {
+      setOperationAction(ISD::FP_TO_UINT, VT, Expand);
+      setOperationAction(ISD::FP_TO_SINT, VT, Expand);
     }
+
     // Turn FP truncstore into trunc + store.
     setTruncStoreAction(MVT::f64, MVT::f32, Expand);
-    // Turn FP extload into load/fpextend.
-    for (MVT VT : MVT::fp_valuetypes()) {
-      setLoadExtAction(ISD::EXTLOAD, VT, MVT::f32, Expand);
-    }
 
     // We don't have conversion from i32/i64 to f64
     setLoadExtAction(ISD::EXTLOAD,  MVT::f32, MVT::i32, Expand);
@@ -141,51 +130,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::i64, Expand);
     setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::i64, Expand);
 
-    static const MVT::SimpleValueType VectorIntTypes[] = {
-      MVT::v2i8, MVT::v2i16, MVT::v4i8, MVT::v2i32, MVT::v4i32
-    };
-    for (MVT VT : VectorIntTypes) {
-      // Expand the following operations for the current type by default.
-      setOperationAction(ISD::ADD,  VT, Expand);
-      setOperationAction(ISD::AND,  VT, Expand);
-      setOperationAction(ISD::FP_TO_SINT, VT, Expand);
-      setOperationAction(ISD::FP_TO_UINT, VT, Expand);
-      setOperationAction(ISD::MUL,  VT, Expand);
-      setOperationAction(ISD::MULHU, VT, Expand);
-      setOperationAction(ISD::MULHS, VT, Expand);
-      setOperationAction(ISD::OR,   VT, Expand);
-      setOperationAction(ISD::SHL,  VT, Expand);
-      setOperationAction(ISD::SRA,  VT, Expand);
-      setOperationAction(ISD::SRL,  VT, Expand);
-      setOperationAction(ISD::ROTL, VT, Expand);
-      setOperationAction(ISD::ROTR, VT, Expand);
-      setOperationAction(ISD::SUB,  VT, Expand);
-      setOperationAction(ISD::SINT_TO_FP, VT, Expand);
-      setOperationAction(ISD::UINT_TO_FP, VT, Expand);
-      setOperationAction(ISD::SDIV, VT, Expand);
-      setOperationAction(ISD::UDIV, VT, Expand);
-      setOperationAction(ISD::SREM, VT, Expand);
-      setOperationAction(ISD::UREM, VT, Expand);
-      setOperationAction(ISD::SMUL_LOHI, VT, Expand);
-      setOperationAction(ISD::UMUL_LOHI, VT, Expand);
-      setOperationAction(ISD::SDIVREM, VT, Custom);
-      setOperationAction(ISD::UDIVREM, VT, Expand);
-      setOperationAction(ISD::ADDC, VT, Expand);
-      setOperationAction(ISD::SUBC, VT, Expand);
-      setOperationAction(ISD::ADDE, VT, Expand);
-      setOperationAction(ISD::SUBE, VT, Expand);
-      setOperationAction(ISD::SELECT, VT, Expand);
-      setOperationAction(ISD::VSELECT, VT, Expand);
-      setOperationAction(ISD::SELECT_CC, VT, Expand);
-      setOperationAction(ISD::XOR,  VT, Expand);
-      setOperationAction(ISD::BSWAP, VT, Expand);
-      setOperationAction(ISD::CTPOP, VT, Expand);
-      setOperationAction(ISD::CTTZ, VT, Expand);
-      setOperationAction(ISD::CTLZ, VT, Expand);
-      setOperationAction(ISD::VECTOR_SHUFFLE, VT, Expand);
-    }
-
-    // For now - expand 64-bit ops that were not implemented yet
+    // For now - expand i64 ops that were not implemented yet
     setOperationAction(ISD::MUL,       MVT::i64,  Expand);
     setOperationAction(ISD::SMUL_LOHI, MVT::i64,  Expand);
     setOperationAction(ISD::UMUL_LOHI, MVT::i64,  Expand);
@@ -195,23 +140,35 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::UREM,      MVT::i64,  Expand);
     setOperationAction(ISD::SDIVREM,   MVT::i64,  Expand);
     setOperationAction(ISD::UDIVREM,   MVT::i64,  Expand);
-    setOperationAction(ISD::SELECT_CC, MVT::i64,  Expand);
-    setOperationAction(ISD::SETCC,     MVT::i64,  Expand);
-    setOperationAction(ISD::FADD,      MVT::f64,  Expand);
-    setOperationAction(ISD::FSUB,      MVT::f64,  Expand);
-    setOperationAction(ISD::FMUL,      MVT::f64,  Expand);
-    setOperationAction(ISD::FDIV,      MVT::f64,  Expand);
 
-    // Expand BR_CC and SELECT_CC for floats as not all comparisons are implemented
-    for (MVT VT : MVT::fp_valuetypes()) {
-      setOperationAction(ISD::BR_CC,     VT, Expand);
-      setOperationAction(ISD::SELECT_CC, VT, Expand);
-      setOperationAction(ISD::SETCC,     VT, Expand);
-    }
+    // Same for f64
+    setOperationAction(ISD::FADD,       MVT::f64,  Expand);
+    setOperationAction(ISD::FSUB,       MVT::f64,  Expand);
+    setOperationAction(ISD::FMUL,       MVT::f64,  Expand);
+    setOperationAction(ISD::FDIV,       MVT::f64,  Expand);
+    setOperationAction(ISD::BR_CC,      MVT::f64,  Expand);
+    setOperationAction(ISD::SELECT,     MVT::f64,  Expand);
+    setOperationAction(ISD::FP_TO_UINT, MVT::f64,  Expand);
+    setOperationAction(ISD::FP_TO_SINT, MVT::f64,  Expand);
+    setOperationAction(ISD::SINT_TO_FP, MVT::i64,  Expand);
+    setOperationAction(ISD::UINT_TO_FP, MVT::i64,  Expand);
+    setOperationAction(ISD::FP_EXTEND,  MVT::f32,  Expand);
+    setOperationAction(ISD::FP_ROUND,   MVT::f64,  Expand);
+
     // Custom operations, see below
     setOperationAction(ISD::GlobalAddress,  MVT::i32, Custom);
     setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
     setOperationAction(ISD::ConstantPool,   MVT::i32, Custom);
+    setOperationAction(ISD::SELECT_CC,      MVT::i32, Custom);
+    setOperationAction(ISD::SELECT_CC,      MVT::f32, Custom);
+    setOperationAction(ISD::SETCC,          MVT::i32, Custom);
+    setOperationAction(ISD::SETCC,          MVT::f32, Custom);
+    setOperationAction(ISD::SETCC,          MVT::i64, Custom);
+    setOperationAction(ISD::SETCC,          MVT::f64, Custom);
+    setOperationAction(ISD::SELECT,         MVT::i32, Custom);
+    setOperationAction(ISD::SELECT,         MVT::f32, Custom);
+    setOperationAction(ISD::SELECT,         MVT::i64, Custom);
+    setOperationAction(ISD::SELECT,         MVT::f64, Custom);
   }
 
 SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
@@ -226,6 +183,14 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     case ISD::ConstantPool:
       return LowerConstantPool(Op, DAG);
       break;
+    case ISD::SELECT:
+      return LowerSelect(Op, DAG);
+      break;
+    case ISD::SELECT_CC:
+      return LowerSelectCC(Op, DAG);
+      break;
+    case ISD::SETCC:
+      return LowerSetCC(Op, DAG);
   }
   return SDValue();
 }
@@ -233,6 +198,101 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
 //===----------------------------------------------------------------------===//
 //  Lower helper functions
 //===----------------------------------------------------------------------===//
+static EpiphanyCC::CondCodes ConvertCC(SDValue CC, const SDLoc &DL, SDValue &RHS, bool &swap) {
+  // Get condition code
+  ISD::CondCode code = cast<CondCodeSDNode>(CC)->get();
+  // Get used reg class
+  MVT Ty = RHS.getSimpleValueType();
+  // Choose condition
+  switch (code) {
+    default:
+      llvm_unreachable("Unknown condition code: " + code);
+      break;
+    case ISD::SETEQ:
+    case ISD::SETOEQ:
+    case ISD::SETUEQ:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BEQ;
+      } else {
+        return EpiphanyCC::COND_EQ;
+      }
+      break;
+    case ISD::SETNE:
+    case ISD::SETONE:
+    case ISD::SETUNE:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BNE;
+      } else {
+        return EpiphanyCC::COND_NE;
+      }
+      break;
+    case ISD::SETGE:
+    case ISD::SETOGE:
+      if (Ty.isFloatingPoint()) {
+        swap = true;
+        return EpiphanyCC::COND_BLT;
+      } else {
+        return EpiphanyCC::COND_GTE;
+      }
+      break;
+    case ISD::SETUGE:
+      if (Ty.isFloatingPoint()) {
+        swap = true;
+        return EpiphanyCC::COND_BLT;
+      } else {
+        return EpiphanyCC::COND_GTEU;
+      }
+      break;
+    case ISD::SETGT:
+    case ISD::SETOGT:
+      if (Ty.isFloatingPoint()) {
+        swap = true;
+        return EpiphanyCC::COND_BLTE;
+      } else {
+        return EpiphanyCC::COND_GT;
+      }
+      break;
+    case ISD::SETUGT:
+      if (Ty.isFloatingPoint()) {
+        swap = true;
+        return EpiphanyCC::COND_BLTE;
+      } else {
+        return EpiphanyCC::COND_GTU;
+      }
+      break;
+    case ISD::SETLE:
+    case ISD::SETOLE:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BLTE;
+      } else {
+        return EpiphanyCC::COND_LTE;
+      }
+      break;
+    case ISD::SETULE:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BLTE;
+      } else {
+        return EpiphanyCC::COND_LTEU;
+      }
+      break;
+    case ISD::SETLT:
+    case ISD::SETOLT:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BLT;
+      } else {
+        return EpiphanyCC::COND_LT;
+      }
+      break;
+    case ISD::SETULT:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BLT;
+      } else {
+        return EpiphanyCC::COND_LTU;
+      }
+      break;
+  }
+}
+
 bool EpiphanyTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
   return false;
 }
@@ -285,6 +345,92 @@ SDValue EpiphanyTargetLowering::LowerConstantPool(SDValue Op,
   SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
   return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
 }
+
+SDValue EpiphanyTargetLowering::LowerSelectCC(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+
+  // Get operands
+  SDValue LHS    = Op.getOperand(0);
+  SDValue RHS    = Op.getOperand(1);
+  SDValue TrueV  = Op.getOperand(2);
+  SDValue FalseV = Op.getOperand(3);
+  SDValue Cond   = Op.getOperand(4);
+
+  // Get condition code
+  bool swap = false;
+  ::EpiphanyCC::CondCodes CC = ConvertCC(Cond, DL, RHS, swap);
+  if (swap) {
+    std::swap(LHS, RHS);
+  }
+  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
+
+  // Set the flag
+  SDValue Flag;
+  MVT RTy = RHS.getSimpleValueType();
+  MVT LTy = LHS.getSimpleValueType();
+  if (RTy.isInteger() && LTy.isInteger()) {
+    Flag = DAG.getNode(ISD::SUB, DL, RTy, LHS, RHS);
+  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint()) {
+    Flag = DAG.getNode(ISD::FSUB, DL, RTy, LHS, RHS);
+  }
+  assert(Flag && "Can't get op for provided type"); 
+
+  SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Glue);
+  return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, TrueV, FalseV, TargetCC, Flag);
+}
+
+SDValue EpiphanyTargetLowering::LowerSelect(SDValue Op, SelectionDAG &DAG) const {
+
+  SDLoc DL(Op);
+  // Get operands
+  SDValue Cmp = Op.getOperand(0);
+  SDValue True  = Op.getOperand(1);
+  SDValue False = Op.getOperand(2);
+  assert(Cmp.getNumOperands() == 3 && "Strange number of operand in the first SELECT argument");
+  SDValue Cond = Cmp.getOperand(2);
+
+  // Get condition code
+  bool swap = false;
+  ::EpiphanyCC::CondCodes CC = ConvertCC(Cond, DL, True, swap);
+  if (swap) {
+    std::swap(True, False);
+  }
+  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
+  SDVTList VTs     = DAG.getVTList(Op.getValueType(), MVT::Glue);
+  return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, True, False, TargetCC, False);
+}
+
+SDValue EpiphanyTargetLowering::LowerSetCC(SDValue Op, SelectionDAG &DAG) const {
+
+  SDLoc DL(Op);
+  // Get operands
+  SDValue LHS    = Op.getOperand(0);
+  SDValue RHS    = Op.getOperand(1);
+  SDValue Cond   = Op.getOperand(2);
+
+  // Get condition code
+  bool swap = false;
+  ::EpiphanyCC::CondCodes CC = ConvertCC(Cond, DL, RHS, swap);
+  if (swap) {
+    std::swap(LHS, RHS);
+  }
+  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
+
+  // Set the flag
+  SDValue Flag;
+  MVT RTy = RHS.getSimpleValueType();
+  MVT LTy = LHS.getSimpleValueType();
+  if (RTy.isInteger() && LTy.isInteger()) {
+    Flag = DAG.getNode(ISD::SUB, DL, RTy, LHS, RHS);
+  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint()) {
+    Flag = DAG.getNode(ISD::FSUB, DL, RTy, LHS, RHS);
+  }
+  assert(Flag && "Can't get op for provided type"); 
+
+  SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Glue);
+  return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, DAG.getConstant(1, DL, MVT::i32), DAG.getConstant(0, DL, MVT::i32), TargetCC, Flag);
+}
+
 //===----------------------------------------------------------------------===//
 //  Misc Lower Operation implementation
 //===----------------------------------------------------------------------===//

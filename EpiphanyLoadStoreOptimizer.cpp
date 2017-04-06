@@ -297,7 +297,8 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
             sra = TRI->getMatchingSuperReg (MIReg, Epiphany::isub_lo, &Epiphany::GPR64RegClass);
             srb = TRI->getMatchingSuperReg (Reg, Epiphany::isub_hi, &Epiphany::GPR64RegClass);
           }
-          if (!(sra && srb)) {
+          // If we can't find corresponding superreg for both - out
+          if (!(sra && srb) || (sra != srb)) {
             trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
             MemInsns.push_back(&MI);
             continue;

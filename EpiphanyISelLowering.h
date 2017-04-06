@@ -40,13 +40,14 @@ namespace llvm {
       RTS,
       RTI,
 
-      // Wrapper for mov and movt instructions 
+      // Wrapper for mov, movt and mov<cc> instructions 
       MOV,
       MOVT,
+      MOVCC,
 
       // Store and load instruction wrappers
       STORE,
-      LOAD
+      LOAD,
     };
   }
 
@@ -141,6 +142,9 @@ namespace llvm {
       SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerSelectCC(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerSelect(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerSetCC(SDValue Op, SelectionDAG &DAG) const;
 
       //- must be exist even without function all
       SDValue LowerFormalArguments(SDValue Chain,
