@@ -358,10 +358,14 @@ let hasExtraSrcRegAllocReq = 1, Constraints = "$src = $Rd" in {
   def MOVCCi64 : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, GPR64:$sub), []>;
   def MOVCCf64 : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, FPR64:$sub), []>;
 }
-def : Pat<(i32 (MOVCC (i32 GPR32:$true), (i32 GPR32:$false), (i32 imm:$cc), (i32 GPR32:$sub))), (i32 (MOVCCi32 (i32 GPR32:$true), (i32 GPR32:$false), (i32 cc:$cc), (i32 GPR32:$sub)))>;
-def : Pat<(i32 (MOVCC (i32 GPR32:$true), (i32 GPR32:$false), (i32 imm:$cc), (i64 GPR64:$sub))), (i32 (MOVCCi64 (i32 GPR32:$true), (i32 GPR32:$false), (i32 cc:$cc), (i64 GPR64:$sub)))>;
-def : Pat<(i32 (MOVCC (i32 GPR32:$true), (i32 GPR32:$false), (i32 imm:$cc), (f32 FPR32:$sub))), (i32 (MOVCCf32 (i32 GPR32:$true), (i32 GPR32:$false), (i32 cc:$cc), (f32 FPR32:$sub)))>;
-def : Pat<(i32 (MOVCC (i32 GPR32:$true), (i32 GPR32:$false), (i32 imm:$cc), (f64 FPR64:$sub))), (i32 (MOVCCf64 (i32 GPR32:$true), (i32 GPR32:$false), (i32 cc:$cc), (f64 FPR64:$sub)))>;
+def : Pat<(i32 (MOVCC (i32 GPR32:$true), (i32 GPR32:$false), (i32 i32immSExt32:$cc), (i32 GPR32:$sub))), 
+          (i32 (MOVCCi32 (i32 GPR32:$true), (i32 GPR32:$false), (i32 cc:$cc), (i32 GPR32:$sub)))>;
+def : Pat<(i32 (MOVCC (i32 GPR32:$true), (i32 GPR32:$false), (i32 i32immSExt32:$cc), (i64 GPR64:$sub))), 
+          (i32 (MOVCCi64 (i32 GPR32:$true), (i32 GPR32:$false), (i32 cc:$cc), (i64 GPR64:$sub)))>;
+def : Pat<(i32 (MOVCC (i32 GPR32:$true), (i32 GPR32:$false), (i32 i32immSExt32:$cc), (f32 FPR32:$sub))), 
+          (i32 (MOVCCf32 (i32 GPR32:$true), (i32 GPR32:$false), (i32 cc:$cc), (f32 FPR32:$sub)))>;
+def : Pat<(i32 (MOVCC (i32 GPR32:$true), (i32 GPR32:$false), (i32 i32immSExt32:$cc), (f64 FPR64:$sub))), 
+          (i32 (MOVCCf64 (i32 GPR32:$true), (i32 GPR32:$false), (i32 cc:$cc), (f64 FPR64:$sub)))>;
 
 //===----------------------------------------------------------------------===//
 // Branching
@@ -470,8 +474,7 @@ def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),
 // Sub64 patfrag, as we will need it in many places later
 def SUBrr_r64_pat : OutPatFrag<(ops node:$Rn, node:$Rm), 
   (REG_SEQUENCE GPR64,
-  (i32 (COPY (SUBrr_r32 (LoReg $Rn), (LoReg $Rm)))), 
-  isub_lo,
+  (i32 (COPY (SUBrr_r32 (LoReg $Rn), (LoReg $Rm)))), isub_lo,
   (i32 (COPY (SUBrr_r32 (HiReg $Rn), 
     (SUBri_r32 (HiReg $Rm), 
       (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (SUBrr_r32 (LoReg $Rn), (LoReg $Rm))))))), 
@@ -484,8 +487,7 @@ def SUBCrr_r64 : Pat<(i64 (subc GPR64:$Rn, GPR64:$Rm)), (SUBrr_r64_pat GPR64:$Rn
 // COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
 def ADDCrr_r64 : Pat<(i64 (addc GPR64:$Rn, GPR64:$Rm)), 
   (REG_SEQUENCE GPR64,
-  (i32 (COPY (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), 
-  isub_lo,
+  (i32 (COPY (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), isub_lo,
   (i32 (COPY (ADDrr_r32 (HiReg GPR64:$Rn), 
     (ADDri_r32 (HiReg GPR64:$Rm), 
       (MOVCCi32rr (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code, (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm))))))), 
@@ -517,4 +519,19 @@ def : Pat<(brcc SETGT,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:
 def : Pat<(brcc SETGE,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_GTE.Code,  (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
 def : Pat<(brcc SETLT,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_LT.Code,   (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
 def : Pat<(brcc SETLE,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_LTE.Code,  (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
+
+def ZERO_EXTENDi64 : Pat<(i64 (zext GPR32:$Rn)), 
+                        (REG_SEQUENCE GPR64, 
+                        (MOVi32ri 0), isub_hi, 
+                        (MOVi32rr GPR32:$Rn), isub_lo)>;
+
+def SIGN_EXTENDi64 : Pat<(i64 (sext GPR32:$Rn)), 
+                        (REG_SEQUENCE GPR64, 
+                        (i32 (COPY (ASR32ri GPR32:$Rn, 31))), isub_hi, 
+                        (MOVi32rr GPR32:$Rn), isub_lo)>;
+
+def ANY_EXTENDi64 : Pat<(i64 (anyext GPR32:$Rn)), 
+                        (REG_SEQUENCE GPR64, 
+                        (i32 (COPY (ASR32ri GPR32:$Rn, 31))), isub_hi, 
+                        (MOVi32rr GPR32:$Rn), isub_lo)>;
 

@@ -117,18 +117,28 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setTruncStoreAction(MVT::f64, MVT::f32, Expand);
 
     // We don't have conversion from i32/i64 to f64
+    setLoadExtAction(ISD::EXTLOAD,  MVT::i64, MVT::i32, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::i64, MVT::i32, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::i64, MVT::i32, Expand);
     setLoadExtAction(ISD::EXTLOAD,  MVT::f32, MVT::i32, Expand);
     setLoadExtAction(ISD::ZEXTLOAD, MVT::f32, MVT::i32, Expand);
     setLoadExtAction(ISD::SEXTLOAD, MVT::f32, MVT::i32, Expand);
     setLoadExtAction(ISD::EXTLOAD,  MVT::f32, MVT::i64, Expand);
     setLoadExtAction(ISD::ZEXTLOAD, MVT::f32, MVT::i64, Expand);
     setLoadExtAction(ISD::SEXTLOAD, MVT::f32, MVT::i64, Expand);
+    setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::f32, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::f32, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::f32, Expand);
     setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::i32, Expand);
     setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::i32, Expand);
     setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::i32, Expand);
     setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::i64, Expand);
     setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::i64, Expand);
     setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::i64, Expand);
+
+    setOperationAction(ISD::EXTLOAD,  MVT::f64, Expand);
+    setOperationAction(ISD::SEXTLOAD, MVT::f64, Expand);
+    setOperationAction(ISD::ZEXTLOAD, MVT::f64, Expand);
 
     // For now - expand i64 ops that were not implemented yet
     setOperationAction(ISD::MUL,       MVT::i64,  Expand);
@@ -152,7 +162,6 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::FP_TO_SINT, MVT::f64,  Expand);
     setOperationAction(ISD::SINT_TO_FP, MVT::i64,  Expand);
     setOperationAction(ISD::UINT_TO_FP, MVT::i64,  Expand);
-    setOperationAction(ISD::FP_EXTEND,  MVT::f32,  Expand);
     setOperationAction(ISD::FP_ROUND,   MVT::f64,  Expand);
 
     // Custom operations, see below
@@ -169,6 +178,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SELECT,         MVT::f32, Custom);
     setOperationAction(ISD::SELECT,         MVT::i64, Custom);
     setOperationAction(ISD::SELECT,         MVT::f64, Custom);
+    setOperationAction(ISD::FP_EXTEND,      MVT::f64, Custom);
   }
 
 SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
@@ -191,6 +201,10 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
       break;
     case ISD::SETCC:
       return LowerSetCC(Op, DAG);
+      break;
+    case ISD::FP_EXTEND:
+      return LowerFpExtend(Op, DAG);
+      break;
   }
   return SDValue();
 }
@@ -429,6 +443,15 @@ SDValue EpiphanyTargetLowering::LowerSetCC(SDValue Op, SelectionDAG &DAG) const 
 
   SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Glue);
   return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, DAG.getConstant(1, DL, MVT::i32), DAG.getConstant(0, DL, MVT::i32), TargetCC, Flag);
+}
+
+SDValue EpiphanyTargetLowering::LowerFpExtend(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  // Get external extention function
+  RTLIB::Libcall LC;
+  LC = RTLIB::getFPEXT(Op.getOperand(0).getValueType(), Op.getValueType());
+  SDValue SrcVal = Op.getOperand(0);
+  return makeLibCall(DAG, LC, Op.getValueType(), SrcVal, /* isSigned = */ false, DL).first;
 }
 
 //===----------------------------------------------------------------------===//

@@ -142,6 +142,7 @@ namespace llvm {
       SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerFpExtend(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSelectCC(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSelect(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSetCC(SDValue Op, SelectionDAG &DAG) const;

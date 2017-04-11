@@ -251,12 +251,16 @@ bool EpiphanyInstrInfo::reverseBranchCondition(SmallVectorImpl<MachineOperand> &
   switch(CC) {
     default:
       llvm_unreachable("Wrong branch condition code!");
+      break;
     case EpiphanyCC::COND_BLT:
     case EpiphanyCC::COND_BLTE:
-      llvm_unreachable("Unimplemented reverse conditions");
+      // can't be reversed
+      return true;
+      break;
     case EpiphanyCC::COND_NONE:
     case EpiphanyCC::COND_L:
       llvm_unreachable("Unconditional branch cant be reversed");
+      break;
     case EpiphanyCC::COND_BEQ:
       CC = EpiphanyCC::COND_BNE;
       break;

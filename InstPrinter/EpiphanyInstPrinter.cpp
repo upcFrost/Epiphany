@@ -57,6 +57,8 @@ static unsigned getShift(unsigned int OpCode) {
       case Epiphany::STRi32_r16:
       case Epiphany::LDRi32_r32:
       case Epiphany::STRi32_r32:
+      case Epiphany::LDRf32:
+      case Epiphany::STRf32:
       case Epiphany::LDRi32_idx_add_r16:
       case Epiphany::STRi32_idx_add_r16:
       case Epiphany::LDRi32_idx_add_r32:
