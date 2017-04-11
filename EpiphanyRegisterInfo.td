@@ -140,8 +140,10 @@ let Namespace = "Epiphany" in {
 //===----------------------------------------------------------------------===//
 
 // General purpose (first 7 only)
-def GPR16 : RegisterClass<"Epiphany", [i32, v4i8, v2i16], 32, (add (sequence "R%u", 0, 7))>;
-def FPR16 : RegisterClass<"Epiphany", [f32], 32, (add (sequence "R%u", 0, 7))>;
+let AllocationPriority = 2, Size = 32, CopyCost = 1 in {
+  def GPR16 : RegisterClass<"Epiphany", [i32, v4i8, v2i16], 32, (add (sequence "R%u", 0, 7))>;
+  def FPR16 : RegisterClass<"Epiphany", [f32], 32, (add (sequence "R%u", 0, 7))>;
+}
 
 // General purpose 32 bit
 def GPR32 : RegisterClass<"Epiphany", [i32, v4i8, v2i16], 32, (add
@@ -171,6 +173,10 @@ def GPR32 : RegisterClass<"Epiphany", [i32, v4i8, v2i16], 32, (add
   // Reordering - putting GPR16 regs to the end to lower register pressure
   let AltOrders = [(add (sub GPR32, R0, R1, R2, R3, R4, R5, R6, R7, R8), R0, R1, R2, R3, R4, R5, R6, R7, R8)];
   let AltOrderSelect = [{ return 1; }];
+
+  let AllocationPriority = 2;
+  let Size = 32;
+  let CopyCost = 1;
 }
 
 def FPR32 : RegisterClass<"Epiphany", [f32], 32, (add GPR32)>;

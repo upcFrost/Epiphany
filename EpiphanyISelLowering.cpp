@@ -504,7 +504,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
     } else { // VA.isRegLoc()
       assert(VA.isMemLoc());
       DEBUG(dbgs() << "Arg is a memory loc\n");
-      int FI = MFI.CreateFixedObject(VA.getLocVT().getSizeInBits()/8, VA.getLocMemOffset(), true);
+      int FI = MFI.CreateFixedObject(VA.getLocVT().getSizeInBits()/8, VA.getLocMemOffset() + Subtarget.stackOffset(), true);
       SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
       ArgValue = DAG.getLoad(VA.getLocVT(), DL, Chain, FIN, MachinePointerInfo::getFixedStack(MF, FI));
     }
@@ -697,7 +697,7 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
     DEBUG(dbgs() << "Argument will be passed using memory loc\n");
 
     // Deal with memory-stored args
-    SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset(), DL, /* isTarget = */ false);
+    SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset() + Subtarget.stackOffset(), DL, /* isTarget = */ false);
     SDValue DstAddr = DAG.getNode(ISD::ADD, DL, getPointerTy(DAG.getDataLayout()), StackPtr, PtrOff);
 
     if (Flags.isByVal()) {

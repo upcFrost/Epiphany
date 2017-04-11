@@ -29,8 +29,7 @@ namespace llvm {
 
     public:
       explicit EpiphanyFrameLowering(const EpiphanySubtarget &sti)
-        : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 32, 0, 32),
-        STI(sti) {}
+        : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 32, 0, 32), STI(sti) {}
 
       /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
       /// the function.
