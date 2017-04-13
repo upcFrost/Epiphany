@@ -48,6 +48,9 @@ namespace llvm {
       // Store and load instruction wrappers
       STORE,
       LOAD,
+
+      // SUB instruction is used in some compares
+      SUB
     };
   }
 

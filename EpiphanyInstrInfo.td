@@ -272,6 +272,9 @@ let Defs = [STATUS] in {
   def BITR32ri : Bitr32ri<0b1110, 0b11111, i32>;
 }
 
+def SUB : SDNode<"EpiphanyISD::SUB",   SDTIntBinOp, [SDNPOptInGlue]>;
+def     : Pat<(i32 (SUB GPR32:$Rn, i32immSExt11:$imm)), (i32 (COPY (SUBri_r32 GPR32:$Rn, imm:$imm)))>;
+
 //===----------------------------------------------------------------------===//
 // IntToFloat and Abs
 //===----------------------------------------------------------------------===//
@@ -352,7 +355,7 @@ def : Pat<(i32 (MOVT GPR32:$Rd, tblockaddress:$dst)), (MOVTi32ri GPR32:$Rd, tblo
 def : Pat<(i32 (MOVT GPR32:$Rd, tconstpool:$dst)),    (MOVTi32ri GPR32:$Rd, tconstpool:$dst)>;
 
 
-let hasExtraSrcRegAllocReq = 1, Constraints = "$src = $Rd" in {
+let hasExtraSrcRegAllocReq = 1, Constraints = "$src = $Rd", Uses = [STATUS] in {
   def MOVCCi32 : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, GPR32:$sub), []>;
   def MOVCCf32 : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, FPR32:$sub), []>;
   def MOVCCi64 : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc, GPR64:$sub), []>;

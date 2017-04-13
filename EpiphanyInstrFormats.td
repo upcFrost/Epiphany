@@ -830,6 +830,18 @@ class Mov32rr<string instr_asm, list<dag> pattern, RegisterClass RegClass>
     let isReMaterializable = 1;
 }
 
+class MovCond16rr<dag outs, dag ins, list<dag> pattern>
+    : Normal16<outs, ins, !strconcat("mov$cc", "\t$Rd, $Rn"), pattern, IaluItin> {
+    bits<3> Rd;
+    bits<3> Rn;
+    bits<4> cc;
+    
+    let Inst{15-13} = Rd{2-0};
+    let Inst{12-10} = Rn{2-0};
+    let Inst{9-8} = 0b00;
+    let Inst{7-4} = cc;
+    let Inst{3-0} = 0b0010;
+}
 class MovCond32rr<dag outs, dag ins, list<dag> pattern>
     : Normal32<outs, ins, !strconcat("mov$cc", "\t$Rd, $Rn"), pattern, IaluItin> {
     bits<6> Rd;
@@ -843,7 +855,7 @@ class MovCond32rr<dag outs, dag ins, list<dag> pattern>
     let Inst{12-10} = Rn{2-0};
     let Inst{9-8} = 0b00;
     let Inst{7-4} = cc;
-    let Inst{3-0} = 0b0010;
+    let Inst{3-0} = 0b1111;
 }
 
 // Special MOVFS/MOVTS

@@ -52,6 +52,7 @@ const char *EpiphanyTargetLowering::getTargetNodeName(unsigned Opcode) const {
     case EpiphanyISD::MOVCC:          return "EpiphanyISD::MOVCC";
     case EpiphanyISD::STORE:          return "EpiphanyISD::STORE";
     case EpiphanyISD::LOAD:           return "EpiphanyISD::LOAD";
+    case EpiphanyISD::SUB:            return "EpiphanyISD::AND";
 
     default:                          return NULL;
   }
@@ -307,6 +308,44 @@ static EpiphanyCC::CondCodes ConvertCC(SDValue CC, const SDLoc &DL, SDValue &RHS
   }
 }
 
+static RTLIB::Libcall getDoubleCmp(SDValue cond) {
+  // Get condition code
+  ISD::CondCode code = cast<CondCodeSDNode>(cond)->get();
+
+   // Choose function
+  switch (code) {
+    default:
+      llvm_unreachable("Unknown condition code: " + code);
+      break;
+    case ISD::SETEQ:
+    case ISD::SETOEQ:
+    case ISD::SETUEQ:
+      return RTLIB::OEQ_F64;
+    case ISD::SETGE:
+    case ISD::SETUGE:
+    case ISD::SETOGE:
+      return RTLIB::OGE_F64;
+    case ISD::SETGT:
+    case ISD::SETOGT:
+    case ISD::SETUGT:
+      return RTLIB::OGT_F64;
+    case ISD::SETLE:
+    case ISD::SETOLE:
+    case ISD::SETULE:
+      return RTLIB::OLE_F64;
+    case ISD::SETLT:
+    case ISD::SETOLT:
+    case ISD::SETULT:
+      return RTLIB::OLT_F64;
+    case ISD::SETNE:
+    case ISD::SETONE:
+    case ISD::SETUNE:
+      return RTLIB::UNE_F64;
+  }
+ 
+
+}
+
 bool EpiphanyTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
   return false;
 }
@@ -360,6 +399,8 @@ SDValue EpiphanyTargetLowering::LowerConstantPool(SDValue Op,
   return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
 }
 
+/// LowerSelectCC
+//  Lower conditional selection. Similar to movcc + cmp
 SDValue EpiphanyTargetLowering::LowerSelectCC(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
 
@@ -370,29 +411,42 @@ SDValue EpiphanyTargetLowering::LowerSelectCC(SDValue Op, SelectionDAG &DAG) con
   SDValue FalseV = Op.getOperand(3);
   SDValue Cond   = Op.getOperand(4);
 
-  // Get condition code
-  bool swap = false;
-  ::EpiphanyCC::CondCodes CC = ConvertCC(Cond, DL, RHS, swap);
-  if (swap) {
-    std::swap(LHS, RHS);
-  }
-  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
+  // Get operand types
+  MVT RTy = RHS.getSimpleValueType();
+  MVT LTy = LHS.getSimpleValueType();
 
   // Set the flag
   SDValue Flag;
-  MVT RTy = RHS.getSimpleValueType();
-  MVT LTy = LHS.getSimpleValueType();
   if (RTy.isInteger() && LTy.isInteger()) {
     Flag = DAG.getNode(ISD::SUB, DL, RTy, LHS, RHS);
-  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint()) {
+  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint() && RTy != MVT::f64) {
     Flag = DAG.getNode(ISD::FSUB, DL, RTy, LHS, RHS);
+  } else if (RTy == MVT::f64) {
+    RTLIB::Libcall LC = getDoubleCmp(Cond);
+    SmallVector<SDValue, 2> Ops({LHS, RHS});
+    Flag = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ true, DL).first;
+    // Use integer sub to set the flag, see GCC Soft-Float Library Routines
+    SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::Glue);
+    Flag = DAG.getNode(EpiphanyISD::SUB, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
   }
-  assert(Flag && "Can't get op for provided type"); 
 
+  // Get condition code
+  bool swap = false;
+  ::EpiphanyCC::CondCodes CC = ConvertCC(Cond, DL, Flag, swap);
+  if (swap) {
+    std::swap(TrueV, FalseV);
+  }
+
+  // Prepare conditional move
+  assert(Flag && "Can't get op for provided type"); 
+  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
   SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Glue);
   return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, TrueV, FalseV, TargetCC, Flag);
 }
 
+
+/// LowerSelect
+//  Select one of two options based on the flag. In general it is equal to movcc
 SDValue EpiphanyTargetLowering::LowerSelect(SDValue Op, SelectionDAG &DAG) const {
 
   SDLoc DL(Op);
@@ -414,6 +468,9 @@ SDValue EpiphanyTargetLowering::LowerSelect(SDValue Op, SelectionDAG &DAG) const
   return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, True, False, TargetCC, False);
 }
 
+
+/// LowerSetCC
+//  Lower conditional set operation. In general it is equal to movcc + cmp
 SDValue EpiphanyTargetLowering::LowerSetCC(SDValue Op, SelectionDAG &DAG) const {
 
   SDLoc DL(Op);
@@ -422,27 +479,45 @@ SDValue EpiphanyTargetLowering::LowerSetCC(SDValue Op, SelectionDAG &DAG) const 
   SDValue RHS    = Op.getOperand(1);
   SDValue Cond   = Op.getOperand(2);
 
-  // Get condition code
-  bool swap = false;
-  ::EpiphanyCC::CondCodes CC = ConvertCC(Cond, DL, RHS, swap);
-  if (swap) {
-    std::swap(LHS, RHS);
-  }
-  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
+  // Get operand types
+  MVT RTy = RHS.getSimpleValueType();
+  MVT LTy = LHS.getSimpleValueType();
+
+  // Create result values
+  SDValue TrueV  = DAG.getConstant(1, DL, MVT::i32);
+  SDValue FalseV = DAG.getConstant(0, DL, MVT::i32);
 
   // Set the flag
   SDValue Flag;
-  MVT RTy = RHS.getSimpleValueType();
-  MVT LTy = LHS.getSimpleValueType();
   if (RTy.isInteger() && LTy.isInteger()) {
+    // For i32 use sub
     Flag = DAG.getNode(ISD::SUB, DL, RTy, LHS, RHS);
-  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint()) {
+  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint() && RTy != MVT::f64) {
+    // For f32 use fsub
     Flag = DAG.getNode(ISD::FSUB, DL, RTy, LHS, RHS);
+  } else if (RTy == MVT::f64) {
+    // For f64 make call to the external lib
+    RTLIB::Libcall LC = getDoubleCmp(Cond);
+    SmallVector<SDValue, 2> Ops({LHS, RHS});
+    Flag = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ false, DL, 
+        /* doesNotReturn = */ false, /* isReturnValueUsed = */ true).first;
+    // Use integer sub to set the flag, see GCC Soft-Float Library Routines
+    SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::Glue);
+    Flag = DAG.getNode(EpiphanyISD::SUB, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
   }
-  assert(Flag && "Can't get op for provided type"); 
 
+  // Get condition code
+  bool swap = false;
+  ::EpiphanyCC::CondCodes CC = ConvertCC(Cond, DL, Flag, swap);
+  if (swap) {
+    std::swap(TrueV, FalseV);
+  }
+
+  // Prepare conditional move
+  assert(Flag && "Can't get op for provided type"); 
+  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
   SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Glue);
-  return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, DAG.getConstant(1, DL, MVT::i32), DAG.getConstant(0, DL, MVT::i32), TargetCC, Flag);
+  return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, TrueV, FalseV, TargetCC, Flag);
 }
 
 SDValue EpiphanyTargetLowering::LowerFpExtend(SDValue Op, SelectionDAG &DAG) const {
