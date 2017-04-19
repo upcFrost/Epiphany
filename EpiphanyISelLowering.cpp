@@ -169,6 +169,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::GlobalAddress,  MVT::i32, Custom);
     setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
     setOperationAction(ISD::ConstantPool,   MVT::i32, Custom);
+
     setOperationAction(ISD::SELECT_CC,      MVT::i32, Custom);
     setOperationAction(ISD::SELECT_CC,      MVT::f32, Custom);
     setOperationAction(ISD::SETCC,          MVT::i32, Custom);

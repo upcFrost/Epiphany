@@ -195,21 +195,30 @@ def EpiphanyMemAsmOperand : AsmOperandClass {
 def mem3 : Operand<iPTR> {
   let PrintMethod = "printMemOperand";
   let MIOperandInfo = (ops GPR16:$Rn, imm3:$imm);
-  let EncoderMethod = "getMemEncoding";
+  let EncoderMethod = "getMemEncoding<true>";
   let ParserMatchClass = EpiphanyMemAsmOperand;
 }
+// Memory with sign only in bit 11
 def mem11 : Operand<iPTR> {
   let PrintMethod = "printMemOperand";
   let MIOperandInfo = (ops GPR32:$Rn, simm12:$imm);
-  let EncoderMethod = "getMemEncoding";
+  let EncoderMethod = "getMemEncoding<true>";
   let ParserMatchClass = EpiphanyMemAsmOperand;
 }
 // Postmodify operand
 def pmem11 : Operand<iPTR> {
   let PrintMethod = "printPostModifyOperand";
   let MIOperandInfo = (ops GPR32:$Rn, simm12:$imm);
-  let EncoderMethod = "getMemEncoding";
+  let EncoderMethod = "getMemEncoding<true>";
 }
+// Memory op with full signed imm (not only in bit 11)
+def smem11 : Operand<iPTR> {
+  let PrintMethod = "printMemOperand";
+  let MIOperandInfo = (ops GPR32:$Rn, simm12:$imm);
+  let EncoderMethod = "getMemEncoding<false>";
+  let ParserMatchClass = EpiphanyMemAsmOperand;
+}
+
 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
@@ -268,6 +277,9 @@ class LS16_general<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opc
   let Inst{6-5} = opsize.Value;
   let Inst{4} = LS.Value;
   let Inst{3-0} = opcode;
+
+  // TS Flags for load size match
+  let TSFlags{1-2} = opsize.Value;
 }
 
 class LS32_general<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opcode, LS_bit LS, LS_size opsize, InstrItinClass itin>
@@ -282,6 +294,9 @@ class LS32_general<dag outs, dag ins, string asm, list<dag> pattern, bits<4> opc
   let Inst{6-5} = opsize.Value;
   let Inst{4} = LS.Value;
   let Inst{3-0} = opcode;
+
+  // TS Flags for load size match
+  let TSFlags{1-2} = opsize.Value;
 }
 
 // Memory Load/Store

@@ -77,6 +77,8 @@ static unsigned getShift(unsigned int OpCode) {
         break;
       case Epiphany::LDRi64:
       case Epiphany::STRi64:
+      case Epiphany::LDRi64_pmd:
+      case Epiphany::STRi64_pmd:
       case Epiphany::LDRf64:
       case Epiphany::STRf64:
         Shift = 3;

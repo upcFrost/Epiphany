@@ -172,8 +172,11 @@ def STRf32t  : StoreDisp32<0, FPR32, AlignedStore<truncstoref32>, LS_word,  f32>
 def LDRf32   : LoadDisp32<0,  FPR32, AlignedLoad<load>,   LS_word,  f32>;
 def STRf32   : StoreDisp32<0, FPR32, AlignedStore<store>, LS_word,  f32>;
 
-def LDRi64   : LoadDisp32<0, GPR64, AlignedLoad<load>,    LS_dword, i64>;
-def STRi64   : StoreDisp32<0, GPR64, AlignedStore<store>, LS_dword, i64>;
+def LDRi64     : LoadDisp32<0, GPR64, AlignedLoad<load>,    LS_dword, i64>;
+def LDRi64_pmd : LoadPmd32<0, GPR64, AlignedLoad<load>, LS_dword, i64>;
+def STRi64     : StoreDisp32<0, GPR64, AlignedStore<store>, LS_dword, i64>;
+def STRi64_pmd : StorePmd32<0, GPR64, AlignedStore<store>, LS_dword, i64>;
+
 def LDRv2i32 : LoadDisp32<0, GPR64, AlignedLoad<load>,    LS_dword, v2i32>;
 def STRv2i32 : StoreDisp32<0, GPR64, AlignedStore<store>, LS_dword, v2i32>;
 
@@ -298,7 +301,7 @@ def MOVf16ri_r32 : Mov32ri<"mov", (ins f32imm:$Imm), [(set (f32 FPR32:$Rd), f32i
 def MOVf32ri_r32 : Pat<(f32imm32:$imm), (f32 (MOVTf32ri (MOVf16ri_r32 (LO16 $imm)), (HI16 $imm)))>;
 
 // Special instruction to move memory pointer to the reg
-def MOViPTR  : AddrMath32ri<(outs GPR32:$Rd), (ins mem11:$imm), "add \t$Rd, $imm", [(set GPR32:$Rd, addr11:$imm)],   0b0011011, IaluItin>;
+def MOViPTR  : AddrMath32ri<(outs GPR32:$Rd), (ins smem11:$imm), "add \t$Rd, $imm", [(set GPR32:$Rd, addr11:$imm)],   0b0011011, IaluItin>;
 def : Pat<(or (i32 GPR32:$src), 0xffff0000), (MOVTi32ri (i32 GPR32:$src), 0xffff)>;
 
 // SIMD patterns

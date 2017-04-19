@@ -50,12 +50,15 @@ namespace EpiphanyII {
     // Epiphany instructions.
     //
 
+    // Normal-pseudo - TSFlags bit 0
     // Pseudo - This represents an instruction that is a pseudo instruction
     // or one that has not been implemented yet.  It is illegal to code generate
     // it, but tolerated for intermediate implementation stages.
     Normal   = 0,
     Pseudo   = 1,
-    FormMask = 15
+    FormMask = 1,
+    // Size masks - TSFlags bits 1 and 2
+    SizeMask = 6
   };
 }
 

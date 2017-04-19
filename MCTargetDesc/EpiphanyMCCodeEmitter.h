@@ -71,18 +71,20 @@ namespace llvm {
     // If the machine operand requires relocation,
     // record the relocation and return zero.
     unsigned getJumpTargetOpValue(const MCInst &MI, unsigned OpNo,
-        SmallVectorImpl<MCFixup> &Fixups,
-        const MCSubtargetInfo &STI) const;
+        SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
     // getMachineOpValue - Return binary encoding of operand. If the machin
     // operand requires relocation, record the relocation and return zero.
     unsigned getMachineOpValue(const MCInst &MI, const MCOperand &MO,
-        SmallVectorImpl<MCFixup> &Fixups,
-        const MCSubtargetInfo &STI) const;
+        SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
+    // Memory encoding
+    template<bool modOffset> unsigned getMemEncoding(const MCInst &MI, unsigned OpNo,
+        SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
+      return getMemEncoding(MI, OpNo, Fixups, STI, modOffset);
+    }
     unsigned getMemEncoding(const MCInst &MI, unsigned OpNo,
-        SmallVectorImpl<MCFixup> &Fixups,
-        const MCSubtargetInfo &STI) const;
+        SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI, bool modOffset) const;
 
     unsigned getExprOpValue(const MCExpr *Expr, SmallVectorImpl<MCFixup> &Fixups,
         const MCSubtargetInfo &STI) const;
