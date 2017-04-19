@@ -29,7 +29,7 @@ namespace llvm {
 
     public:
       explicit EpiphanyFrameLowering(const EpiphanySubtarget &sti)
-        : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 32, 0, 32), STI(sti) {}
+        : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 16, 0, 16), STI(sti) {}
 
       /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
       /// the function.
@@ -37,6 +37,7 @@ namespace llvm {
       void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 
       void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs, RegScavenger *RS) const override;
+      int getFrameIndexReference(const MachineFunction &MF, int FI, unsigned &FrameReg) const override;
 
       bool spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
           const std::vector<CalleeSavedInfo> &CSI, const TargetRegisterInfo *TRI) const override;

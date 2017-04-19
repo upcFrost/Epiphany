@@ -231,7 +231,9 @@ static unsigned getShift(unsigned int OpCode) {
       Shift = 2;
       break;
     case Epiphany::LDRi64:
+    case Epiphany::LDRi64_pmd:
     case Epiphany::STRi64:
+    case Epiphany::STRi64_pmd:
     case Epiphany::LDRf64:
     case Epiphany::STRf64:
       Shift = 3;
@@ -244,18 +246,22 @@ static unsigned getShift(unsigned int OpCode) {
 /// getMemEncoding - Return binary encoding of memory related operand.
 /// If the offset operand requires relocation, record the relocation.
 unsigned EpiphanyMCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo,
-    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
+    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI, bool modOffset) const {
   // Base register is encoded in bits 21-16, offset is encoded in bits 15-0.
   if (!MI.getOperand(OpNo).isReg()) {
     MI.getOperand(OpNo).print(errs());
     llvm_unreachable("Wrong operand type in getMemEncoding");
   }
 
-  // Get value shift for load/store instructions
+  // Get register bits
   unsigned RegBits = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI) << 16;
-  unsigned OffBits = getMachineOpValue(MI, MI.getOperand(OpNo+1), Fixups, STI) >> getShift(MI.getOpcode());
-  // Value should be always greater than 0, sign is regulated by bit 11
-  OffBits = (OffBits >> 11) == 0 ? OffBits : (OffBits^0xFFFF) + 1 | (1 << 11);
+  unsigned OffBits = getMachineOpValue(MI, MI.getOperand(OpNo+1), Fixups, STI);
+
+  if (modOffset) {
+    OffBits = OffBits >> getShift(MI.getOpcode());
+    // Value should be always greater than 0, sign is regulated by bit 11
+    OffBits = (OffBits >> 11) == 0 ? OffBits : (OffBits^0xFFFF) + 1 | (1 << 11);
+  }
 
   return (OffBits & 0xFFFF) | RegBits;
 }

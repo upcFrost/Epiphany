@@ -95,6 +95,7 @@ eliminateFrameIndex(MachineBasicBlock::iterator MBBI, int SPAdj,
 	MachineInstr &MI = *MBBI;
 	MachineFunction &MF = *MI.getParent()->getParent();
 	MachineFrameInfo &MFI = MF.getFrameInfo();
+  const EpiphanyFrameLowering *FL = getFrameLowering(MF);
 	EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
 
 	unsigned i = 0;
@@ -139,15 +140,10 @@ eliminateFrameIndex(MachineBasicBlock::iterator MBBI, int SPAdj,
     }
   }
 
-	// Calculate final offset.
-	// - There is no need to change the offset if the frame object is one of the
-	//   following: an outgoing argument, pointer to a dynamically allocated
-	//   stack space or a $gp restore location,
-	// - If the frame object is any of the following, its offset must be adjusted
-	//   by adding the size of the stack:
-	//   incoming argument, callee-saved register location or local variable.
+	// Calculate final offset. In fact, just an spOffset is good to use here, 
+  // but with the offset from FP
 	int64_t Offset;
-	Offset = spOffset + (int64_t)stackSize;
+	Offset = spOffset;
 	Offset += MI.getOperand(i+1).getImm();
 	DEBUG(errs() << "Offset     : " << Offset << "\n" << "<--------->\n");
 
