@@ -81,6 +81,9 @@ bool EpiphanyInstrInfo::isUnpredicatedTerminator(const MachineInstr &MI) const {
 // Analyze if branch can be removed/modified
 bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB, 
     MachineBasicBlock *&FBB, SmallVectorImpl<MachineOperand> &Cond, bool AllowModify) const {
+  DEBUG(dbgs()<< "\n<----------------->";);
+  DEBUG(dbgs()<< "\nAnalyzing block " << MBB.getNumber() << "\n";);
+  DEBUG(MBB.dump(););
   // Start from the bottom of the block and work up, examining the
   // terminator instructions.
   MachineBasicBlock::iterator I = MBB.end();
@@ -127,11 +130,13 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
 
       // Delete the JMP if it's equivalent to a fall-through.
       if (MBB.isLayoutSuccessor(I->getOperand(0).getMBB())) {
+        DEBUG(dbgs()<< "\n<----------------->";);
         DEBUG(dbgs()<< "\nErasing the jump to successor block " << MBB.getNumber() << "\n";);
         TBB = nullptr;
         I->eraseFromParent();
         I = MBB.end();
         UnCondBrIter = MBB.end();
+        DEBUG(MBB.getParent()->dump(););
         continue;
       }
 
@@ -141,7 +146,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
     }
 
     // Handle conditional branches.
-    if (I->getOpcode() != Epiphany::BCC32) {
+    if (I->getOpcode() != Epiphany::BCCi32 && I->getOpcode() != Epiphany::BCCf32 && I->getOpcode() != Epiphany::BCCi64) {
       continue;
     }
     EpiphanyCC::CondCodes BranchCode = static_cast<EpiphanyCC::CondCodes>(I->getOperand(1).getImm());
@@ -181,8 +186,9 @@ unsigned EpiphanyInstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemov
   assert(!BytesRemoved && "code size not handled");
 
   // Branches to handle
-  DEBUG(dbgs() << "\nRemoving branches out of BB#" << MBB.getNumber());
-  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCC32};
+  DEBUG(dbgs()<< "\n<----------------->";);
+  DEBUG(dbgs() << "\nRemoving branches out of BB#" << MBB.getNumber() << "\n");
+  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCCi32, Epiphany::BCCf32, Epiphany::BCCi64};
   MachineBasicBlock::iterator I = MBB.end();
   unsigned Count = 0;
 
@@ -202,12 +208,16 @@ unsigned EpiphanyInstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemov
     ++Count;
   }
 
+  DEBUG(MBB.getParent()->dump(););
   return Count;
 }
 
 unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
     MachineBasicBlock *TBB, MachineBasicBlock *FBB,	ArrayRef<MachineOperand> Cond,
     const DebugLoc &DL, int *BytesAdded) const {
+  DEBUG(dbgs()<< "\n<----------------->";);
+  DEBUG(dbgs() << "\nInserting branch into BB#" << MBB.getNumber() << "\n");
+
   // Shouldn't be a fall through.
   assert(TBB && "InsertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 1 || Cond.size() == 0) &&
@@ -223,7 +233,7 @@ unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
 
   // Conditional branch.
   unsigned Count = 0;
-  BuildMI(&MBB, DL, get(Epiphany::BCC32)).addMBB(TBB).addImm(Cond[0].getImm()).addReg(Epiphany::R0);
+  BuildMI(&MBB, DL, get(Epiphany::BCCi32)).addMBB(TBB).addImm(Cond[0].getImm()).addReg(Epiphany::R0);
   ++Count;
 
   if (FBB) {
@@ -231,6 +241,7 @@ unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
     BuildMI(&MBB, DL, get(Epiphany::BNONE32)).addMBB(FBB);
     ++Count;
   }
+  DEBUG(MBB.getParent()->dump(););
   return Count;
 }
 
@@ -240,14 +251,22 @@ bool EpiphanyInstrInfo::reverseBranchCondition(SmallVectorImpl<MachineOperand> &
   switch(CC) {
     default:
       llvm_unreachable("Wrong branch condition code!");
-    case EpiphanyCC::COND_BEQ:
-    case EpiphanyCC::COND_BNE:
+      break;
     case EpiphanyCC::COND_BLT:
     case EpiphanyCC::COND_BLTE:
-      llvm_unreachable("Unimplemented reverse conditions");
+      // can't be reversed
+      return true;
+      break;
     case EpiphanyCC::COND_NONE:
     case EpiphanyCC::COND_L:
       llvm_unreachable("Unconditional branch cant be reversed");
+      break;
+    case EpiphanyCC::COND_BEQ:
+      CC = EpiphanyCC::COND_BNE;
+      break;
+    case EpiphanyCC::COND_BNE:
+      CC = EpiphanyCC::COND_BEQ;
+      break;
     case EpiphanyCC::COND_EQ:
       CC = EpiphanyCC::COND_NE;
       break;
@@ -336,6 +355,27 @@ bool EpiphanyInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
 //-------------------------------------------------------------------
 // Load/Store
 //-------------------------------------------------------------------
+// Is this a candidate for ld/st merging or pairing?  For example, we don't
+// touch volatiles or load/stores that have a hint to avoid pair formation.
+bool EpiphanyInstrInfo::isCandidateToMergeOrPair(MachineInstr &MI) const {
+  // If this is a volatile load/store, don't mess with it.
+  if (MI.hasOrderedMemoryRef())
+    return false;
+
+  // Make sure this is a reg+imm (as opposed to an address reloc).
+  assert(MI.getOperand(1).isReg() && "Expected a reg operand.");
+  if (!MI.getOperand(2).isImm())
+    return false;
+
+  // Can't merge/pair if the instruction modifies the base register.
+  // e.g., ldr r0, [r0]
+  unsigned BaseReg = MI.getOperand(1).getReg();
+  const TargetRegisterInfo *TRI = &getRegisterInfo();
+  if (MI.modifiesRegister(BaseReg, TRI))
+    return false;
+
+  return true;
+}
 
 /// isLoadFromStackSlot - If the specified machine instruction is a direct
 /// load from a stack slot, return the virtual or physical register number of
@@ -346,9 +386,26 @@ unsigned EpiphanyInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
     int &FrameIndex) const {
   // Load instructions
   unsigned inst[] = {
-    Epiphany::LDRi8_r32,  Epiphany::LDRi8u_r32, 
-    Epiphany::LDRi16_r32, Epiphany::LDRi16u_r32, 
-    Epiphany::LDRi32_r32, Epiphany::LDRf32
+    Epiphany::LDRi16e_r16,
+    Epiphany::LDRi16e_r32,
+    Epiphany::LDRi16e_idx_add_r16,
+    Epiphany::LDRi16e_idx_add_r32,
+    Epiphany::LDRi16e_idx_sub_r32,
+    Epiphany::LDRi16e_pm_add_r16,
+    Epiphany::LDRi16e_pm_add_r32,
+    Epiphany::LDRi16e_pm_sub_r32,
+    Epiphany::LDRi16e_pmd_r32,
+    Epiphany::LDRi32_r16,
+    Epiphany::LDRi32_r32,
+    Epiphany::LDRi32_idx_add_r16,
+    Epiphany::LDRi32_idx_add_r32,
+    Epiphany::LDRi32_idx_sub_r32,
+    Epiphany::LDRi32_pm_add_r16,
+    Epiphany::LDRi32_pm_add_r32,
+    Epiphany::LDRi32_pm_sub_r32,
+    Epiphany::LDRi32_pmd_r32,
+    Epiphany::LDRi64,
+    Epiphany::LDRf64
   };
   DEBUG(dbgs() << "\nisLoadToStackSlot for "; MI.print(dbgs()));
   // Check if current opcode is one of those
@@ -357,6 +414,7 @@ unsigned EpiphanyInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
   if (found) {
     if (MI.getOperand(1).isFI() && MI.getOperand(2).isImm() && MI.getOperand(2).getImm() == 0) {
       FrameIndex = MI.getOperand(1).getIndex();
+      DEBUG(dbgs() << "\nFound load op for "; MI.print(dbgs()));
       return MI.getOperand(0).getReg();
     }
   }
@@ -371,8 +429,26 @@ unsigned EpiphanyInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 unsigned EpiphanyInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
     int &FrameIndex) const {
   unsigned inst[] = {
-    Epiphany::STRi8_r32,  Epiphany::STRi16_r32,
-    Epiphany::STRi32_r32, Epiphany::STRf32
+    Epiphany::STRi16_r16,
+    Epiphany::STRi16_r32,
+    Epiphany::STRi16_idx_add_r16,
+    Epiphany::STRi16_idx_add_r32,
+    Epiphany::STRi16_idx_sub_r32,
+    Epiphany::STRi16_pm_add_r16,
+    Epiphany::STRi16_pm_add_r32,
+    Epiphany::STRi16_pm_sub_r32,
+    Epiphany::STRi16_pmd_r32,
+    Epiphany::STRi32_r16,
+    Epiphany::STRi32_r32,
+    Epiphany::STRi32_idx_add_r16,
+    Epiphany::STRi32_idx_add_r32,
+    Epiphany::STRi32_idx_sub_r32,
+    Epiphany::STRi32_pm_add_r16,
+    Epiphany::STRi32_pm_add_r32,
+    Epiphany::STRi32_pm_sub_r32,
+    Epiphany::STRi32_pmd_r32,
+    Epiphany::STRi64,
+    Epiphany::STRf64
   };
   DEBUG(dbgs() << "\nisStoreToStackSlot for "; MI.print(dbgs()));
   // Check if current opcode is one of those
@@ -381,6 +457,7 @@ unsigned EpiphanyInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
   if (found) {
     if (MI.getOperand(0).isFI() && MI.getOperand(1).isImm() && MI.getOperand(1).getImm() == 0) {
       FrameIndex = MI.getOperand(0).getIndex();
+      DEBUG(dbgs() << "\nFound store op for "; MI.print(dbgs()));
       return MI.getOperand(2).getReg();
     }
   }
@@ -393,7 +470,24 @@ void EpiphanyInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     const TargetRegisterClass *Rd, const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
   // Get instruction, for stack slots (FP/SP) we can only use 32-bit instructions
-  unsigned STRi32_r32 = Epiphany::STRi32_r32;
+  unsigned Opc;
+  // Choose instruction
+  if (Epiphany::GPR16RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::STRi32_r32;
+  } else if (Epiphany::GPR32RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::STRi32_r32;
+  } else if (Epiphany::FPR32RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::STRf32;
+  } else if (Epiphany::GPR64RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::STRi64;
+  } else if (Epiphany::FPR64RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::STRf64;
+  }
+
+  if (!Opc) {
+    DEBUG(dbgs() << "\nFail ahead!\n";);
+  }
+  assert(Opc && "Can't load reg, unknown reg class");
 
   // Get function and frame info
   if (MI != MBB.end()) DL = MI->getDebugLoc();
@@ -408,7 +502,7 @@ void EpiphanyInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
       MFI.getObjectAlignment(FrameIdx));
 
   // Build instruction
-  BuildMI(MBB, MI, DL, get(STRi32_r32)).addReg(SrcReg, getKillRegState(KillSrc))
+  BuildMI(MBB, MI, DL, get(Opc)).addReg(SrcReg, getKillRegState(KillSrc))
     .addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
 }
 
@@ -416,8 +510,24 @@ void EpiphanyInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MI, unsigned DestReg, int FrameIdx,
     const TargetRegisterClass *Rd, const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
-  // Get instruction, we can only use 32-bit instructions
-  unsigned LDRi32_r32 = Epiphany::LDRi32_r32;
+  // Choose instruction
+  unsigned Opc;
+  if (Epiphany::GPR16RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::LDRi32_r32;
+  } else if (Epiphany::GPR32RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::LDRi32_r32;
+  } else if (Epiphany::FPR32RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::LDRf32;
+  } else if (Epiphany::GPR64RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::LDRi64;
+  } else if (Epiphany::FPR64RegClass.hasSubClassEq(Rd)) {
+    Opc = Epiphany::LDRf64;
+  }
+
+  if (!Opc) {
+    DEBUG(dbgs() << "\nFail ahead!\n";);
+  }
+  assert(Opc && "Can't load reg, unknown reg class");
 
   // Get function and frame info
   if (MI != MBB.end()) DL = MI->getDebugLoc();
@@ -431,7 +541,80 @@ void EpiphanyInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
       MFI.getObjectAlignment(FrameIdx));
 
   // Build instruction
-  BuildMI(MBB, MI, DL, get(LDRi32_r32), DestReg).addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
+  BuildMI(MBB, MI, DL, get(Opc), DestReg).addFrameIndex(FrameIdx).addImm(0).addMemOperand(MMO);
+}
+
+static MachineMemOperand* extractMemOp(MachineSDNode *Load) {
+  MachineMemOperand **IMemOp = Load->memoperands_begin();
+  MachineMemOperand* MMO = nullptr;
+
+  if(IMemOp) {
+    MMO = *IMemOp;
+    assert(++IMemOp == Load->memoperands_end() &&
+        "Expect a single memory operand in a load");
+  }
+
+  return MMO;
+}
+
+// gets the chain operand from an SDNode.
+static SDValue getChainOperand(SDNode *Node) {
+  // Loop past any glue nodes.
+  assert(Node->getNumOperands() &&
+         "Expect non-zero operand count on SDNode in chain");
+  unsigned OpIndex  = Node->getNumOperands() - 1;
+  while(OpIndex && Node->getOperand(OpIndex).getValueType() == MVT::Glue) {
+    --OpIndex;
+  }
+
+  // OpIndex is now the index of the last non-glue operand.
+  SDValue ChainOp = Node->getOperand(OpIndex);
+  assert(ChainOp.getValueType() == MVT::Other &&
+         "Expected Chain Operand on mayLoad MachineSDNode!");
+  return ChainOp;
+}
+
+bool EpiphanyInstrInfo::areLoadsFromSameBasePtr(SDNode *Load1, SDNode *Load2,
+    int64_t &Offset1, int64_t &Offset2) const {
+
+  // Only interested in MachineSDNodes
+  if(!Load1->isMachineOpcode() || !Load2->isMachineOpcode()) {
+    return false;
+  }
+
+  const MCInstrDesc &MCIDesc1 = get(Load1->getMachineOpcode());
+  const MCInstrDesc &MCIDesc2 = get(Load2->getMachineOpcode());
+  // Only interested in 'real' loads.
+  if (MCIDesc1.isPseudo() || !MCIDesc1.mayLoad() || MCIDesc2.isPseudo() || !MCIDesc2.mayLoad()) {
+    return false;
+  }
+
+  // only interested in Loads in the same chain.
+  if(getChainOperand(Load1) != getChainOperand(Load2)) {
+    return false;
+  }
+
+  // Get the memory operands
+  MachineSDNode *MachineLoad1 = dyn_cast<MachineSDNode>(Load1);
+  MachineSDNode *MachineLoad2 = dyn_cast<MachineSDNode>(Load2);
+  assert(MachineLoad1 && MachineLoad1);
+  MachineMemOperand *MemOp1 = extractMemOp(MachineLoad1);
+  MachineMemOperand *MemOp2 = extractMemOp(MachineLoad2);
+
+  // Not every load will have its MMO properly set. For example the loads
+  // created from intrinsic calls may not have them set.
+  if(!MemOp1 || !MemOp2)
+    return false;
+
+  // Check that the memory ops use the same base value
+  if(MemOp1->getValue() == MemOp2->getValue()) {
+    Offset1 = MemOp1->getOffset();
+    Offset2 = MemOp2->getOffset();
+    return true;
+  }
+
+  // Loads are off different base values.
+  return false;
 }
 
 void EpiphanyInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
@@ -439,16 +622,51 @@ void EpiphanyInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     const DebugLoc &DL, unsigned DestReg,
     unsigned SrcReg, bool KillSrc) const {
   unsigned Opc = 0;
+  unsigned BeginIdx = 0;
+  unsigned SubRegs = 0;
 
   // TODO: Should make it work for all 4 ways (i32 <-> f32)
   if (Epiphany::GPR32RegClass.contains(DestReg, SrcReg)) { // Copy between regs
     Opc = Epiphany::MOVi32rr;
   } else if (Epiphany::FPR32RegClass.contains(DestReg, SrcReg)) {
     Opc = Epiphany::MOVf32rr;
+  } else if (Epiphany::GPR64RegClass.contains(DestReg, SrcReg)) { // Copy between regs
+    Opc = Epiphany::MOVi32rr;
+    SubRegs = 2;
+    BeginIdx = Epiphany::isub_hi;
+  } else if (Epiphany::FPR64RegClass.contains(DestReg, SrcReg)) {
+    Opc = Epiphany::MOVf32rr;
+    SubRegs = 2;
+    BeginIdx = Epiphany::isub_hi;
   }
+
   assert(Opc && "Cannot copy registers");
 
-  BuildMI(MBB, I, DL, get(Opc), DestReg).addReg(SrcReg, getKillRegState(KillSrc));
+  if (SubRegs == 0) {
+    // 32-bit reg copy
+    DEBUG(dbgs() << "Expanding 32-bit copy\n";);
+    BuildMI(MBB, I, DL, get(Opc), DestReg).addReg(SrcReg, getKillRegState(KillSrc));
+  } else {
+    // 64-bit reg copy
+    const TargetRegisterInfo *TRI = &getRegisterInfo();
+    MachineInstrBuilder Mov;
+    DEBUG(dbgs() << "Expanding 64-bit copy\n";);
+    for (unsigned i = 0; i != SubRegs; ++i) {
+      // Get subregs
+      DEBUG(dbgs() << "Expanding subreg " << i << "\n";);
+      unsigned DstSub = TRI->getSubReg(DestReg, BeginIdx + i);
+      unsigned SrcSub = TRI->getSubReg(SrcReg, BeginIdx + i);
+      assert(DstSub && SrcSub && "Bad sub-register");
+      // Build op
+      Mov = BuildMI(MBB, I, DL, get(Opc), DstSub).addReg(SrcSub, getKillRegState(KillSrc));
+    }
+    // Add implicit super-register defs and kills to the last instruction.
+    Mov->addRegisterDefined(DestReg, TRI);
+    if (KillSrc) {
+      Mov->addRegisterKilled(SrcReg, TRI);
+    }
+  }
+
 }
 
 //@adjustStackPtr
@@ -458,7 +676,7 @@ void EpiphanyInstrInfo::adjustStackPtr(unsigned SP, int64_t Amount,
     MachineBasicBlock::iterator I) const {
   DebugLoc DL = I != MBB.end() ? I->getDebugLoc() : DebugLoc();
   unsigned IP = Epiphany::IP;
-  unsigned ADDri = Epiphany::ADD32ri;
+  unsigned ADDri = Epiphany::ADDri_r32;
   unsigned ADDrr = Epiphany::ADDrr_r32;
   unsigned MOVi32ri = Epiphany::MOVi32ri;
   unsigned MOVTi32ri = Epiphany::MOVTi32ri;

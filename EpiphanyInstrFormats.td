@@ -133,6 +133,7 @@ class ImmAsmOperand : AsmOperandClass { let RenderMethod = "addImmOperands"; }
 //}
 //let ParserMethod = "ParseFimmOperand" in {
   def Fimm16_Operand : ImmAsmOperand { let Name = "Fimm16"; let PredicateMethod = "isSImm<16>"; }
+  def Fimm32_Operand : ImmAsmOperand { let Name = "Fimm32"; let PredicateMethod = "isSImm<32>"; }
 //}
 
 // Immediates
@@ -151,7 +152,7 @@ let OperandType = "OPERAND_IMMEDIATE" in {
 }
 
 // Floating-point immediate.
-def fpimm16 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP16Imm(N->getValueAPF()) != -1; }], 
+def f32imm16 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP16Imm(N->getValueAPF()) != -1; }], 
     SDNodeXForm<fpimm, [{
       APFloat InVal = N->getValueAPF();
       uint32_t enc = Epiphany_AM::getFP16Imm(InVal);
@@ -160,15 +161,30 @@ def fpimm16 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP16I
   let ParserMatchClass = Fimm16_Operand;
 }
 
-// Node immediate fits as N-bit sign extended on target immediate.
-def immUExt5   : PatLeaf<(imm), [{ return isInt<5>(N->getZExtValue()); }]>;
-def immUExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getZExtValue()); }]>;
-def immUExt24  : PatLeaf<(imm), [{ return isInt<24>(N->getZExtValue()); }]>;
+def f32imm32 : Operand<f32>, PatLeaf<(f32 fpimm), [{ return Epiphany_AM::getFP32Imm(N->getValueAPF()) != -1; }],
+    SDNodeXForm<fpimm, [{
+      APFloat InVal = N->getValueAPF();
+      uint32_t enc = Epiphany_AM::getFP32Imm(InVal);
+      return CurDAG->getTargetConstant(enc, SDLoc(N), MVT::i32);
+    }]>> {
+  let ParserMatchClass = Fimm32_Operand;
+}
 
-def immSExt3   : PatLeaf<(imm), [{ return isInt<3>(N->getSExtValue()); }]>;
-def immSExt8   : PatLeaf<(imm), [{ return isInt<8>(N->getSExtValue()); }]>;
-def immSExt11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
-def immSExt16  : PatLeaf<(imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+// Node immediate fits as N-bit sign extended on target immediate.
+def immUExt5   : PatLeaf<(i32 imm), [{ return isInt<5>(N->getZExtValue()); }]>;
+def immUExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getZExtValue()); }]>;
+def immUExt24  : PatLeaf<(i32 imm), [{ return isInt<24>(N->getZExtValue()); }]>;
+
+def i32immSExt3   : PatLeaf<(i32 imm), [{ return isInt<3>(N->getSExtValue());  }]>;
+def i32immSExt8   : PatLeaf<(i32 imm), [{ return isInt<8>(N->getSExtValue());  }]>;
+def i32immSExt11  : PatLeaf<(i32 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
+def i32immSExt16  : PatLeaf<(i32 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+def i32immSExt32  : PatLeaf<(i32 imm), [{ return isInt<32>(N->getSExtValue()); }]>;
+def i64immSExt3   : PatLeaf<(i64 imm), [{ return isInt<3>(N->getSExtValue());  }]>;
+def i64immSExt11  : PatLeaf<(i64 imm), [{ return isInt<11>(N->getSExtValue()); }]>;
+def i64immSExt16  : PatLeaf<(i64 imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+def i64immSExt32  : PatLeaf<(i64 imm), [{ return isInt<32>(N->getSExtValue()); }]>;
+def i64immSExt64  : PatLeaf<(i64 imm), [{ return isInt<64>(N->getSExtValue()); }]>;
 
 // Memory operand for asm parser
 def EpiphanyMemAsmOperand : AsmOperandClass {
@@ -213,10 +229,6 @@ class AlignedStore<PatFrag Node> :
   StoreSDNode *SD = cast<StoreSDNode>(N);
   return SD->getMemoryVT().getSizeInBits()/8 <= SD->getAlignment();
 }]>;
-
-// Load/Store PatFrags.
-def load_a          : AlignedLoad<load>;
-def store_a         : AlignedStore<store>;
 
 class LS_bit<bits<1> LS, string asm> {
   bits<1> Value = LS;
@@ -278,8 +290,8 @@ def addr11 : ComplexPattern<iPTR, 2, "SelectAddr</* is16bit = */false>", [framei
 
 //-----------Displacement (Rd <-> (Rn + imm)) ----------//
 
-class LoadDisp16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize>
-    : LS16_general<(outs RegClass:$Rd), (ins mem3:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr3:$addr))], 0b0100, LoadBit, LoadSize, LoadItin> {
+class LoadDisp16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, ValueType Ty>
+    : LS16_general<(outs RegClass:$Rd), (ins mem3:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set (Ty RegClass:$Rd), (LoadType addr3:$addr))], 0b0100, LoadBit, LoadSize, LoadItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -287,20 +299,22 @@ class LoadDisp16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size L
   let Inst{9-7}   = addr{2-0}; // imm3
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let mayLoad = 1; 
 }
 
-class StoreDisp16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize>
-    : LS16_general<(outs), (ins RegClass:$Rd, mem3:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr3:$addr)], 0b0100, StoreBit, StoreSize, StoreItin> {
+class StoreDisp16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, ValueType Ty>
+    : LS16_general<(outs), (ins RegClass:$Rd, mem3:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType (Ty RegClass:$Rd), addr3:$addr)], 0b0100, StoreBit, StoreSize, StoreItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
   let Inst{12-10} = addr{18-16}; // Rn
   let Inst{9-7}   = addr{2-0}; // imm3
   let isPseudo    = Pseudo;
+  let mayStore    = 1;
 }
 
-class LoadDisp32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize>
-    : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set RegClass:$Rd, (LoadType addr11:$addr))], 0b1100, LoadBit, LoadSize, LoadItin> {
+class LoadDisp32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, ValueType Ty>
+    : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set (Ty RegClass:$Rd), (LoadType addr11:$addr))], 0b1100, LoadBit, LoadSize, LoadItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -312,10 +326,11 @@ class LoadDisp32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size L
   let Inst{24}    = addr{11};    // imm sign bit
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let mayLoad = 1;
 }
 
-class StoreDisp32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize>
-    : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType RegClass:$Rd, addr11:$addr)], 0b1100, StoreBit, StoreSize, StoreItin> {
+class StoreDisp32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, ValueType Ty>
+    : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType (Ty RegClass:$Rd), addr11:$addr)], 0b1100, StoreBit, StoreSize, StoreItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> addr;
 
@@ -326,13 +341,13 @@ class StoreDisp32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size
   let Inst{25}    = 0b0;
   let Inst{24}    = addr{11};    // imm sign bit
   let isPseudo    = Pseudo;
+  let mayStore = 1;
 }
-
 
 //-----------Index (Rd <-> (Rn + Rm)) ----------//
-class LoadIdx16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub>
+class LoadIdx16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub, ValueType Ty>
     : LS16_general<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$Rn,", AddSub.Asm, "$Rm]"),
-                   [(set RegClass:$Rd, (LoadType (AddSub.Op RegClass:$Rn, RegClass:$Rm)))], 0b0001, LoadBit, LoadSize, LoadItin> {
+                   [(set (Ty RegClass:$Rd), (LoadType (AddSub.Op (Ty RegClass:$Rn), (Ty RegClass:$Rm))))], 0b0001, LoadBit, LoadSize, LoadItin> {
   bits<3> Rn;
   bits<3> Rm;
 
@@ -340,22 +355,24 @@ class LoadIdx16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Lo
   let Inst{9-7}   = Rm;
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let mayLoad = 1;
 }
 
-class StoreIdx16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub>
+class StoreIdx16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub, ValueType Ty>
     : LS16_general<(outs), (ins RegClass:$Rd, RegClass:$Rn, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, [$Rn,", AddSub.Asm, "$Rm]"),
-                   [(StoreType RegClass:$Rd, (AddSub.Op RegClass:$Rn, RegClass:$Rm))], 0b0001, StoreBit, StoreSize, StoreItin> {
+                   [(StoreType (Ty RegClass:$Rd), (AddSub.Op (Ty RegClass:$Rn), (Ty RegClass:$Rm)))], 0b0001, StoreBit, StoreSize, StoreItin> {
   bits<3> Rn;
   bits<3> Rm;
 
   let Inst{12-10} = Rn;
   let Inst{9-7}   = Rm;
   let isPseudo    = Pseudo;
+  let mayStore = 1;
 }
 
-class LoadIdx32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub>
+class LoadIdx32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub, ValueType Ty>
     : LS32_general<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$Rn,", AddSub.Asm, "$Rm]"), 
-                   [(set RegClass:$Rd, (LoadType (AddSub.Op RegClass:$Rn, RegClass:$Rm)))], 0b1001, LoadBit, LoadSize, LoadItin> {
+                   [(set (Ty RegClass:$Rd), (LoadType (AddSub.Op (Ty RegClass:$Rn), (Ty RegClass:$Rm))))], 0b1001, LoadBit, LoadSize, LoadItin> {
   bits<6> Rn;
   bits<6> Rm;
 
@@ -367,11 +384,12 @@ class LoadIdx32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Lo
   let Inst{9-7}   = Rm{2-0};
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let mayLoad = 1;
 }
 
-class StoreIdx32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub>
+class StoreIdx32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub, ValueType Ty>
     : LS32_general<(outs), (ins RegClass:$Rd, RegClass:$Rn, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, [$Rn,", AddSub.Asm, "$Rm]"), 
-                   [(StoreType RegClass:$Rd, (AddSub.Op RegClass:$Rn, RegClass:$Rm))], 0b1001, StoreBit, StoreSize, StoreItin> {
+                   [(StoreType (Ty RegClass:$Rd), (AddSub.Op (Ty RegClass:$Rn), (Ty RegClass:$Rm)))], 0b1001, StoreBit, StoreSize, StoreItin> {
   bits<6> Rn;
   bits<6> Rm;
 
@@ -382,11 +400,12 @@ class StoreIdx32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size 
   let Inst{12-10} = Rn{2-0};
   let Inst{9-7}   = Rm{2-0};
   let isPseudo    = Pseudo;
+  let mayStore = 1;
 }
 
 //----------- Postmodify (Rd <-> [Rn] -> Rd + Rm) ----------//
 // TODO: Add patterns
-class LoadPm16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub>
+class LoadPm16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub, ValueType Ty>
     : LS16_general<(outs RegClass:$Rd, RegClass:$Rn), (ins RegClass:$base, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$Rn],", AddSub.Asm, "$Rm"), 
                    [], 0b0101, LoadBit, LoadSize, LoadItin> {
   bits<3> Rn;
@@ -397,9 +416,10 @@ class LoadPm16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Loa
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
   let Constraints = "$base = $Rn";
+  let mayLoad = 1;
 }
 
-class StorePm16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub>
+class StorePm16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub, ValueType Ty>
     : LS16_general<(outs RegClass:$Rn), (ins RegClass:$Rd, RegClass:$base, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
                    [], 0b0101, StoreBit, StoreSize, StoreItin> {
   bits<3> Rn;
@@ -409,9 +429,10 @@ class StorePm16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size S
   let Inst{9-7}   = Rm;
   let isPseudo    = Pseudo;
   let Constraints = "$base = $Rn";
+  let mayStore = 1;
 }
 
-class LoadPm32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub>
+class LoadPm32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub, ValueType Ty>
     : LS32_general<(outs RegClass:$Rd, RegClass:$Rn), (ins RegClass:$base, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
                    [], 0b1101, LoadBit, LoadSize, LoadItin> {
   bits<6> Rn;
@@ -426,9 +447,10 @@ class LoadPm32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Loa
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
   let Constraints = "$base = $Rn";
+  let mayLoad = 1;
 }
 
-class StorePm32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub>
+class StorePm32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub, ValueType Ty>
     : LS32_general<(outs RegClass:$Rn), (ins RegClass:$Rd, RegClass:$base, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
                    [], 0b1101, StoreBit, StoreSize, StoreItin> {
   bits<6> Rn;
@@ -442,11 +464,12 @@ class StorePm32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size S
   let Inst{9-7}   = Rm{2-0};
   let isPseudo    = Pseudo;
   let Constraints = "$base = $Rn";
+  let mayStore = 1;
 }
 
 //----------- Postmodify-Disp (Rd <-> [Rn] -> Rd + imm) ----------//
 // TODO: Add patterns
-class LoadPmd32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize>
+class LoadPmd32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, ValueType Ty>
     : LS32_general<(outs RegClass:$Rd, RegClass:$Rn), (ins pmem11:$imm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $imm"), [], 0b1100, LoadBit, LoadSize, LoadItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> imm;
@@ -459,9 +482,10 @@ class LoadPmd32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Lo
   let Inst{24}    = imm{11};    // imm sign bit
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let mayLoad = 1;
 }
 
-class StorePmd32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize>
+class StorePmd32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, ValueType Ty>
     : LS32_general<(outs RegClass:$Rn), (ins RegClass:$Rd, pmem11:$imm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $imm"), [], 0b1100, StoreBit, StoreSize, StoreItin> {
   // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
   bits<22> imm;
@@ -473,6 +497,7 @@ class StorePmd32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size 
   let Inst{25}    = 0b1;
   let Inst{24}    = imm{11};    // imm sign bit
   let isPseudo    = Pseudo;
+  let mayStore = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -518,13 +543,13 @@ class Math32rr<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode,
 // Arithmetic operations with registers: Floating/Integer
 //===----------------------------------------------------------------------===//
 
-class SimpleMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+class SimpleMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, ValueType Ty> :
   Math16rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
-          [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, IaluItin> {}
+          [(set (Ty RegClass:$Rd), (OpNode (Ty RegClass:$Rn), (Ty RegClass:$Rm)))], opcode, IaluItin> {}
 
-class SimpleMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass> :
+class SimpleMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, ValueType Ty> :
   Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"),
-          [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, IaluItin> {
+          [(set (Ty RegClass:$Rd), (OpNode (Ty RegClass:$Rn), (Ty RegClass:$Rm)))], opcode, IaluItin> {
   let Inst{19-16} = 0b1010;
 }
 
@@ -532,25 +557,25 @@ class SimpleMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterCl
 // Arithmetic operations with registers: Float
 //===----------------------------------------------------------------------===//
 
-class ComplexMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, InstrItinClass itin> :
+class ComplexMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, InstrItinClass itin, ValueType Ty> :
   Math16rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"), 
-           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, itin> {}
+           [(set (Ty RegClass:$Rd), (OpNode (Ty RegClass:$Rn), (Ty RegClass:$Rm)))], opcode, itin> {}
 
-class ComplexMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, InstrItinClass itin> :
+class ComplexMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, InstrItinClass itin, ValueType Ty> :
   Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"), 
-           [(set RegClass:$Rd, (OpNode RegClass:$Rn, RegClass:$Rm))], opcode, itin> {
+           [(set (Ty RegClass:$Rd), (OpNode (Ty RegClass:$Rn), (Ty RegClass:$Rm)))], opcode, itin> {
   let Inst{19-16} = 0b0111;
 }
 
-class ComplexMath2_16rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode OpNode2, RegisterClass RegClass, InstrItinClass itin> :
+class ComplexMath2_16rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode OpNode2, RegisterClass RegClass, InstrItinClass itin, ValueType Ty> :
   Math16rr<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"), 
-           [(set RegClass:$Rd, (OpNode RegClass:$src, (OpNode2 RegClass:$Rn, RegClass:$Rm)))], opcode, itin> {
+           [(set (Ty RegClass:$Rd), (OpNode RegClass:$src, (OpNode2 (Ty RegClass:$Rn), (Ty RegClass:$Rm))))], opcode, itin> {
   let Constraints = "$src = $Rd";
 }
 
-class ComplexMath2_32rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode OpNode2, RegisterClass RegClass, InstrItinClass itin> :
+class ComplexMath2_32rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode OpNode2, RegisterClass RegClass, InstrItinClass itin, ValueType Ty> :
   Math32rr<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"), 
-           [(set RegClass:$Rd, (OpNode RegClass:$src, (OpNode2 RegClass:$Rn, RegClass:$Rm)))], opcode, itin> {
+           [(set (Ty RegClass:$Rd), (OpNode RegClass:$src, (OpNode2 (Ty RegClass:$Rn), (Ty RegClass:$Rm))))], opcode, itin> {
   let Constraints = "$src = $Rd";
   let Inst{19-16} = 0b0111;
 }
@@ -559,8 +584,8 @@ class ComplexMath2_32rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode 
 // Arithmetic operations with registers: IntToFloat and Abs
 //===----------------------------------------------------------------------===//
 
-class IntToFloat32<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opcode, InstrItinClass itin>
-    : Normal32<outs, ins, asm, pattern, itin> {
+class IntToFloat32<dag outs, dag ins, string asm, RegisterClass From, RegisterClass To, SDNode Op, bits<7> opcode, InstrItinClass itin, ValueType TyFrom, ValueType TyTo>
+    : Normal32<outs, ins, asm, [(set (TyTo To:$Rd), (Op (TyFrom From:$Rn)))], itin> {
   bits<6> Rd;
   bits<6> Rn;
  
@@ -637,17 +662,17 @@ class AddrMath32ri<dag outs, dag ins, string asm, list<dag> pattern, bits<7> opc
 // Arithmetic operations with immediates: Integer
 //===----------------------------------------------------------------------===//
 
-class IntMath16ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
+class IntMath_r16_i32<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type, ValueType Ty>
     : Math16ri<(outs GPR16:$Rd), (ins GPR16:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
-          [(set GPR16:$Rd, (OpNode GPR16:$Rn, imm_type:$Imm))], opcode, IaluItin> {}
+          [(set (Ty GPR16:$Rd), (OpNode (Ty GPR16:$Rn), imm_type:$Imm))], opcode, IaluItin> {}
 
-class IntMath32ri<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type> 
-    : Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
-          [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], opcode, IaluItin> {}
+class IntMath_r32_i32<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type, ValueType Ty> 
+    : Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, ".l\t$Rd, $Rn, $Imm"),
+          [(set (Ty GPR32:$Rd), (OpNode (Ty GPR32:$Rn), imm_type:$Imm))], opcode, IaluItin> {}
 
-class ShiftMath16ri<bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
+class ShiftMath16ri<bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type, ValueType Ty>
     : Normal16<(outs GPR16:$Rd), (ins GPR16:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"), 
-            [(set GPR16:$Rd, (OpNode GPR16:$Rn, imm_type:$Imm))], IaluItin> {
+            [(set (Ty GPR16:$Rd), (OpNode (Ty GPR16:$Rn), imm_type:$Imm))], IaluItin> {
   bits<3> Rd;
   bits<3> Rn;
   bits<5> Imm;
@@ -658,9 +683,9 @@ class ShiftMath16ri<bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od,
   let Inst{4-0}   = opcode;
 }
 
-class ShiftMath32ri<bits<4> leftcode, bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type>
-    : Normal32<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"), 
-            [(set GPR32:$Rd, (OpNode GPR32:$Rn, imm_type:$Imm))], IaluItin> {
+class ShiftMath32ri<bits<4> leftcode, bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type, ValueType Ty>
+    : Normal32<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, ".l\t$Rd, $Rn, $Imm"), 
+            [(set (Ty GPR32:$Rd), (OpNode (Ty GPR32:$Rn), imm_type:$Imm))], IaluItin> {
   bits<6> Rd;
   bits<6> Rn;
   bits<5> Imm;
@@ -673,6 +698,37 @@ class ShiftMath32ri<bits<4> leftcode, bits<5> opcode, string instr_asm, SDNode O
   let Inst{9-5}   = Imm;
   let Inst{4-0}   = opcode;
 }
+
+class Bitr16ri<bits<5> opcode, ValueType Ty>
+    : Normal16<(outs GPR16:$Rd), (ins GPR16:$Rn), "bitr\t$Rd, $Rn", 
+            [(set (Ty GPR16:$Rd), (bitreverse (Ty GPR16:$Rn)))], IaluItin> {
+  bits<3> Rd;
+  bits<3> Rn;
+
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Rn{2-0};
+  let Inst{6-5}   = 0;
+  let Inst{4-0}   = opcode;
+}
+
+class Bitr32ri<bits<4> leftcode, bits<5> opcode, ValueType Ty>
+    : Normal32<(outs GPR32:$Rd), (ins GPR32:$Rn), "bitr.l\t$Rd, $Rn", 
+            [(set (Ty GPR32:$Rd), (bitreverse (Ty GPR32:$Rn)))], IaluItin> {
+  bits<6> Rd;
+  bits<6> Rn;
+
+  let Inst{31-29} = Rd{5-3};
+  let Inst{28-26} = Rn{5-3};
+  let Inst{19-16} = leftcode;
+  let Inst{15-13} = Rd{2-0};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = Rn{2-0};
+  let Inst{6-5}   = 0;
+  let Inst{4-0}   = opcode;
+}
+
+
 
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
@@ -774,6 +830,18 @@ class Mov32rr<string instr_asm, list<dag> pattern, RegisterClass RegClass>
     let isReMaterializable = 1;
 }
 
+class MovCond16rr<dag outs, dag ins, list<dag> pattern>
+    : Normal16<outs, ins, !strconcat("mov$cc", "\t$Rd, $Rn"), pattern, IaluItin> {
+    bits<3> Rd;
+    bits<3> Rn;
+    bits<4> cc;
+    
+    let Inst{15-13} = Rd{2-0};
+    let Inst{12-10} = Rn{2-0};
+    let Inst{9-8} = 0b00;
+    let Inst{7-4} = cc;
+    let Inst{3-0} = 0b0010;
+}
 class MovCond32rr<dag outs, dag ins, list<dag> pattern>
     : Normal32<outs, ins, !strconcat("mov$cc", "\t$Rd, $Rn"), pattern, IaluItin> {
     bits<6> Rd;
@@ -787,7 +855,7 @@ class MovCond32rr<dag outs, dag ins, list<dag> pattern>
     let Inst{12-10} = Rn{2-0};
     let Inst{9-8} = 0b00;
     let Inst{7-4} = cc;
-    let Inst{3-0} = 0b0010;
+    let Inst{3-0} = 0b1111;
 }
 
 // Special MOVFS/MOVTS
@@ -847,7 +915,7 @@ let OperandType = "OPERAND_PCREL" in {
   def branchtarget     : Operand<OtherVT> { let EncoderMethod = "getBranchTargetOpValue"; }
   def branchlinktarget : Operand<iPTR>    { let EncoderMethod = "getBranchTargetOpValue"; }
 }
-def cc : Operand<i8> {
+def cc : Operand<i32>, ImmLeaf<i32, [{ return (Imm >= 0 && Imm < 16); }]> {
   let PrintMethod = "printCondCode";
 }
 

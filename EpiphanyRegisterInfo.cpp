@@ -69,8 +69,16 @@ BitVector EpiphanyRegisterInfo::getReservedRegs(const MachineFunction &MF) const
 	Reserved.set(Epiphany::R29);
 	Reserved.set(Epiphany::R30);
 	Reserved.set(Epiphany::ZERO);
-
 	Reserved.set(Epiphany::STATUS);
+
+  // 64 bit with same subregs
+  Reserved.set(Epiphany::D4);
+  Reserved.set(Epiphany::D5);
+  Reserved.set(Epiphany::D6);
+  Reserved.set(Epiphany::D7);
+  Reserved.set(Epiphany::D8);
+  Reserved.set(Epiphany::D14);
+  Reserved.set(Epiphany::D15);
 
 	return Reserved;
 }

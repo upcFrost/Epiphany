@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 // Functional units across Epiphany chips sets
 //===----------------------------------------------------------------------===//
+// IALU units
 def FE : FuncUnit;
 def IM : FuncUnit;
 def DE : FuncUnit;
@@ -18,6 +19,16 @@ def E1 : FuncUnit;
 def E2 : FuncUnit;
 def E3 : FuncUnit;
 def E4 : FuncUnit;
+
+// IALU2/FPU units
+def FE_2 : FuncUnit;
+def IM_2 : FuncUnit;
+def DE_2 : FuncUnit;
+def RA_2 : FuncUnit;
+def E1_2 : FuncUnit;
+def E2_2 : FuncUnit;
+def E3_2 : FuncUnit;
+def E4_2 : FuncUnit;
 
 //===----------------------------------------------------------------------===//
 // Instruction Itinerary classes used for Epiphany (p58, epiphany_arch_ref.pdf)
@@ -30,7 +41,7 @@ def StoreItin   : InstrItinClass;
 def ControlItin : InstrItinClass;
 def BranchItin  : InstrItinClass;
 
-def EpiphanyGenericItineraries : ProcessorItineraries<[FE, IM, DE, RA, E1, E2, E3, E4], [], [
+def EpiphanyGenericItineraries : ProcessorItineraries<[FE, IM, DE, RA, E1, E2, E3, E4, FE_2, IM_2, DE_2, RA_2, E1_2, E2_2, E3_2, E4_2], [], [
   // IALU instructions take steps FE-E1, 1 cycle per step
   // Read on cycle 3, result at cycle 4 (after issue)
   InstrItinData<IaluItin    , [InstrStage<1, [FE]>, 
@@ -42,23 +53,23 @@ def EpiphanyGenericItineraries : ProcessorItineraries<[FE, IM, DE, RA, E1, E2, E
 
   // IALU2 instructions take steps FE-E1, 1 cycle per step
   // Read on cycle 3, result at cycle 4 (after issue)
-  InstrItinData<Ialu2Itin   , [InstrStage<1, [FE]>, 
-                               InstrStage<1, [IM]>,
-                               InstrStage<1, [DE]>, 
-                               InstrStage<1, [RA]>, 
-                               InstrStage<1, [E1]>],
+  InstrItinData<Ialu2Itin   , [InstrStage<1, [FE_2]>, 
+                               InstrStage<1, [IM_2]>,
+                               InstrStage<1, [DE_2]>, 
+                               InstrStage<1, [RA_2]>, 
+                               InstrStage<1, [E1_2]>],
                                [4, 3]>,
 
   // FPU instructions take steps FE-E4, 1 cycle per step
   // Read on cycle 3, result at cycle 7 (after issue)
-  InstrItinData<FpuItin     , [InstrStage<1, [FE]>, 
-                               InstrStage<1, [IM]>,
-                               InstrStage<1, [DE]>, 
-                               InstrStage<1, [RA]>, 
-                               InstrStage<1, [E1]>, 
-                               InstrStage<1, [E2]>, 
-                               InstrStage<1, [E3]>, 
-                               InstrStage<1, [E4]>],
+  InstrItinData<FpuItin     , [InstrStage<1, [FE_2]>, 
+                               InstrStage<1, [IM_2]>,
+                               InstrStage<1, [DE_2]>, 
+                               InstrStage<1, [RA_2]>, 
+                               InstrStage<1, [E1_2]>, 
+                               InstrStage<1, [E2_2]>, 
+                               InstrStage<1, [E3_2]>, 
+                               InstrStage<1, [E4_2]>],
                                [7, 3]>,
 
   // LOAD instructions take steps FE-E2, 1 cycle per step 

@@ -73,7 +73,7 @@ bool EpiphanyDAGToDAGISel::SelectAddr(SDNode *Parent, SDValue Addr, SDValue &Bas
     EVT VT = LS->getMemoryVT();
     if (VT.getSizeInBits() / 8 > LS->getAlignment()) {
       assert("Unaligned loads/stores not supported for this type.");
-      if (VT == MVT::f32)
+      if (!VT.isInteger())
         return false;
     }
   }

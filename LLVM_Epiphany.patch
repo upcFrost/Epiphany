@@ -1,18 +1,17 @@
-diff -Naur llvm-3.9.1.src.orig/CMakeLists.txt llvm-3.9.1.src/CMakeLists.txt
---- llvm-3.9.1.src.orig/CMakeLists.txt	2016-09-13 16:44:50.000000000 +0300
-+++ llvm-3.9.1.src/CMakeLists.txt	2017-02-04 00:54:55.780860041 +0300
-@@ -223,6 +223,7 @@
+diff -Naur llvm-4.0.0.src.orig/CMakeLists.txt llvm-4.0.0.src/CMakeLists.txt
+--- llvm-4.0.0.src.orig/CMakeLists.txt	2017-01-13 00:12:41.000000000 +0200
++++ llvm-4.0.0.src/CMakeLists.txt	2017-03-16 12:26:19.549648332 +0200
+@@ -326,6 +326,7 @@
    AMDGPU
    ARM
    BPF
 +  Epiphany
    Hexagon
+   Lanai
    Mips
-   MSP430
-
-diff -Naur llvm-3.9.1.src.orig/include/llvm/ADT/Triple.h llvm-3.9.1.src/include/llvm/ADT/Triple.h
---- llvm-3.9.1.src.orig/include/llvm/ADT/Triple.h	2016-07-24 13:34:15.000000000 +0300
-+++ llvm-3.9.1.src/include/llvm/ADT/Triple.h	2017-02-04 00:54:55.780860041 +0300
+diff -Naur llvm-4.0.0.src.orig/include/llvm/ADT/Triple.h llvm-4.0.0.src/include/llvm/ADT/Triple.h
+--- llvm-4.0.0.src.orig/include/llvm/ADT/Triple.h	2016-11-23 21:03:54.000000000 +0200
++++ llvm-4.0.0.src/include/llvm/ADT/Triple.h	2017-03-16 12:26:19.549648332 +0200
 @@ -53,6 +53,7 @@
      avr,            // AVR: Atmel AVR microcontroller
      bpfel,          // eBPF or extended BPF or 64-bit BPF (little endian)
@@ -21,11 +20,10 @@ diff -Naur llvm-3.9.1.src.orig/include/llvm/ADT/Triple.h llvm-3.9.1.src/include/
      hexagon,        // Hexagon: hexagon
      mips,           // MIPS: mips, mipsallegrex
      mipsel,         // MIPSEL: mipsel, mipsallegrexel
-
-diff -Naur llvm-3.9.1.src.orig/include/llvm/Object/ELFObjectFile.h llvm-3.9.1.src/include/llvm/Object/ELFObjectFile.h
---- llvm-3.9.1.src.orig/include/llvm/Object/ELFObjectFile.h	2016-07-16 01:27:55.000000000 +0300
-+++ llvm-3.9.1.src/include/llvm/Object/ELFObjectFile.h	2017-02-04 00:54:55.780860041 +0300
-@@ -842,6 +842,8 @@
+diff -Naur llvm-4.0.0.src.orig/include/llvm/Object/ELFObjectFile.h llvm-4.0.0.src/include/llvm/Object/ELFObjectFile.h
+--- llvm-4.0.0.src.orig/include/llvm/Object/ELFObjectFile.h	2016-12-16 00:36:53.000000000 +0200
++++ llvm-4.0.0.src/include/llvm/Object/ELFObjectFile.h	2017-03-16 12:26:19.553648385 +0200
+@@ -903,6 +903,8 @@
        return "ELF32-iamcu";
      case ELF::EM_X86_64:
        return "ELF32-x86-64";
@@ -34,19 +32,18 @@ diff -Naur llvm-3.9.1.src.orig/include/llvm/Object/ELFObjectFile.h llvm-3.9.1.sr
      case ELF::EM_ARM:
        return (IsLittleEndian ? "ELF32-arm-little" : "ELF32-arm-big");
      case ELF::EM_AVR:
-
-diff -Naur llvm-3.9.1.src.orig/include/llvm/Support/ELF.h llvm-3.9.1.src/include/llvm/Support/ELF.h
---- llvm-3.9.1.src.orig/include/llvm/Support/ELF.h	2016-07-16 01:27:55.000000000 +0300
-+++ llvm-3.9.1.src/include/llvm/Support/ELF.h	2017-02-04 00:54:55.781860041 +0300
-@@ -312,6 +312,7 @@
-   EM_AMDGPU        = 224, // AMD GPU architecture
-   EM_LANAI         = 244, // Lanai 32-bit processor
-   EM_BPF           = 247, // Linux kernel bpf virtual machine
+diff -Naur llvm-4.0.0.src.orig/include/llvm/Support/ELF.h llvm-4.0.0.src/include/llvm/Support/ELF.h
+--- llvm-4.0.0.src.orig/include/llvm/Support/ELF.h	2016-12-27 21:59:29.000000000 +0200
++++ llvm-4.0.0.src/include/llvm/Support/ELF.h	2017-03-16 12:27:38.426729836 +0200
+@@ -310,6 +310,7 @@
+   EM_RISCV = 243,         // RISC-V
+   EM_LANAI = 244,         // Lanai 32-bit processor
+   EM_BPF = 247,           // Linux kernel bpf virtual machine
 +  EM_ADAPTEVA_EPIPHANY = 0x1223, // Adapteva's Epiphany architecture
  
    // A request has been made to the maintainer of the official registry for
    // such numbers for an official value for WebAssembly. As soon as one is
-@@ -532,6 +533,11 @@
+@@ -522,6 +523,11 @@
  #include "ELFRelocs/Mips.def"
  };
  
@@ -57,11 +54,11 @@ diff -Naur llvm-3.9.1.src.orig/include/llvm/Support/ELF.h llvm-3.9.1.src/include
 +
  // Special values for the st_other field in the symbol table entry for MIPS.
  enum {
-   STO_MIPS_OPTIONAL        = 0x04,  // Symbol whose definition is optional
-
-diff -Naur llvm-3.9.1.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def llvm-3.9.1.src/include/llvm/Support/ELFRelocs/Epiphany.def
---- llvm-3.9.1.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def	1970-01-01 03:00:00.000000000 +0300
-+++ llvm-3.9.1.src/include/llvm/Support/ELFRelocs/Epiphany.def	2017-02-05 01:33:48.406731506 +0300
+   STO_MIPS_OPTIONAL = 0x04,  // Symbol whose definition is optional
+diff -Naur llvm-4.0.0.src.orig/include/llvm/Support/ELF.h.rej llvm-4.0.0.src/include/llvm/Support/ELF.h.rej
+diff -Naur llvm-4.0.0.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def llvm-4.0.0.src/include/llvm/Support/ELFRelocs/Epiphany.def
+--- llvm-4.0.0.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def	1970-01-01 02:00:00.000000000 +0200
++++ llvm-4.0.0.src/include/llvm/Support/ELFRelocs/Epiphany.def	2017-03-16 12:26:19.553648385 +0200
 @@ -0,0 +1,33 @@
 +#ifndef ELF_RELOC
 +#error "ELF_RELOC must be defined"
@@ -96,10 +93,10 @@ diff -Naur llvm-3.9.1.src.orig/include/llvm/Support/ELFRelocs/Epiphany.def llvm-
 +/* 8 bit immediate for MOV.S R,IMM8.  */
 +ELF_RELOC(R_EPIPHANY_IMM8,    13)
 +
-diff -Naur llvm-3.9.1.src.orig/lib/Object/ELF.cpp llvm-3.9.1.src/lib/Object/ELF.cpp
---- llvm-3.9.1.src.orig/lib/Object/ELF.cpp	2016-07-16 01:27:55.000000000 +0300
-+++ llvm-3.9.1.src/lib/Object/ELF.cpp	2017-02-04 00:54:55.781860041 +0300
-@@ -118,6 +118,13 @@
+diff -Naur llvm-4.0.0.src.orig/lib/Object/ELF.cpp llvm-4.0.0.src/lib/Object/ELF.cpp
+--- llvm-4.0.0.src.orig/lib/Object/ELF.cpp	2016-11-01 18:59:37.000000000 +0200
++++ llvm-4.0.0.src/lib/Object/ELF.cpp	2017-03-16 12:26:19.553648385 +0200
+@@ -132,6 +132,13 @@
        break;
      }
      break;
@@ -113,10 +110,9 @@ diff -Naur llvm-3.9.1.src.orig/lib/Object/ELF.cpp llvm-3.9.1.src/lib/Object/ELF.
    default:
      break;
    }
-
-diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support/Triple.cpp
---- llvm-3.9.1.src.orig/lib/Support/Triple.cpp	2016-07-24 13:34:15.000000000 +0300
-+++ llvm-3.9.1.src/lib/Support/Triple.cpp	2017-02-04 00:54:55.792860041 +0300
+diff -Naur llvm-4.0.0.src.orig/lib/Support/Triple.cpp llvm-4.0.0.src/lib/Support/Triple.cpp
+--- llvm-4.0.0.src.orig/lib/Support/Triple.cpp	2016-11-23 21:03:54.000000000 +0200
++++ llvm-4.0.0.src/lib/Support/Triple.cpp	2017-03-16 12:26:19.553648385 +0200
 @@ -28,6 +28,7 @@
    case avr:            return "avr";
    case bpfel:          return "bpfel";
@@ -125,7 +121,7 @@ diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support
    case hexagon:        return "hexagon";
    case mips:           return "mips";
    case mipsel:         return "mipsel";
-@@ -97,6 +98,8 @@
+@@ -100,6 +101,8 @@
  
    case hexagon:     return "hexagon";
  
@@ -134,7 +130,7 @@ diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support
    case amdgcn:      return "amdgcn";
    case r600:        return "r600";
  
-@@ -247,6 +250,7 @@
+@@ -256,6 +259,7 @@
      .Case("armeb", armeb)
      .Case("avr", avr)
      .StartsWith("bpf", BPFArch)
@@ -142,7 +138,7 @@ diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support
      .Case("mips", mips)
      .Case("mipsel", mipsel)
      .Case("mips64", mips64)
-@@ -363,6 +367,7 @@
+@@ -375,6 +379,7 @@
      .Case("arm64", Triple::aarch64)
      .Case("arm", Triple::arm)
      .Case("armeb", Triple::armeb)
@@ -150,7 +146,7 @@ diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support
      .Case("thumb", Triple::thumb)
      .Case("thumbeb", Triple::thumbeb)
      .Case("avr", Triple::avr)
-@@ -588,6 +593,7 @@
+@@ -608,6 +613,7 @@
    case Triple::bpfeb:
    case Triple::bpfel:
    case Triple::hexagon:
@@ -158,7 +154,7 @@ diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support
    case Triple::lanai:
    case Triple::hsail:
    case Triple::hsail64:
-@@ -1126,6 +1132,7 @@
+@@ -1149,6 +1155,7 @@
    case llvm::Triple::arm:
    case llvm::Triple::armeb:
    case llvm::Triple::hexagon:
@@ -166,7 +162,7 @@ diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support
    case llvm::Triple::le32:
    case llvm::Triple::mips:
    case llvm::Triple::mipsel:
-@@ -1205,6 +1212,7 @@
+@@ -1231,6 +1238,7 @@
    case Triple::arm:
    case Triple::armeb:
    case Triple::hexagon:
@@ -174,7 +170,7 @@ diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support
    case Triple::kalimba:
    case Triple::le32:
    case Triple::mips:
-@@ -1250,6 +1258,7 @@
+@@ -1279,6 +1287,7 @@
    case Triple::UnknownArch:
    case Triple::avr:
    case Triple::hexagon:
@@ -182,10 +178,9 @@ diff -Naur llvm-3.9.1.src.orig/lib/Support/Triple.cpp llvm-3.9.1.src/lib/Support
    case Triple::kalimba:
    case Triple::lanai:
    case Triple::msp430:
-
-diff -Naur llvm-3.9.1.src.orig/lib/Target/LLVMBuild.txt llvm-3.9.1.src/lib/Target/LLVMBuild.txt
---- llvm-3.9.1.src.orig/lib/Target/LLVMBuild.txt	2016-05-05 17:35:40.000000000 +0300
-+++ llvm-3.9.1.src/lib/Target/LLVMBuild.txt	2017-02-04 00:54:55.801860041 +0300
+diff -Naur llvm-4.0.0.src.orig/lib/Target/LLVMBuild.txt llvm-4.0.0.src/lib/Target/LLVMBuild.txt
+--- llvm-4.0.0.src.orig/lib/Target/LLVMBuild.txt	2016-11-01 19:27:54.000000000 +0200
++++ llvm-4.0.0.src/lib/Target/LLVMBuild.txt	2017-03-16 12:26:19.553648385 +0200
 @@ -24,6 +24,7 @@
   AArch64
   AVR

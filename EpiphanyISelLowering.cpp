@@ -49,8 +49,10 @@ const char *EpiphanyTargetLowering::getTargetNodeName(unsigned Opcode) const {
     case EpiphanyISD::RTS:            return "EpiphanyISD::RTS";
     case EpiphanyISD::MOV:            return "EpiphanyISD::MOV";
     case EpiphanyISD::MOVT:           return "EpiphanyISD::MOVT";
+    case EpiphanyISD::MOVCC:          return "EpiphanyISD::MOVCC";
     case EpiphanyISD::STORE:          return "EpiphanyISD::STORE";
     case EpiphanyISD::LOAD:           return "EpiphanyISD::LOAD";
+    case EpiphanyISD::SUB:            return "EpiphanyISD::AND";
 
     default:                          return NULL;
   }
@@ -65,6 +67,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     addRegisterClass(MVT::i32, &Epiphany::GPR16RegClass);
     addRegisterClass(MVT::i32, &Epiphany::GPR32RegClass);
     addRegisterClass(MVT::f32, &Epiphany::FPR32RegClass);
+    addRegisterClass(MVT::i64, &Epiphany::GPR64RegClass);
+    addRegisterClass(MVT::f64, &Epiphany::FPR64RegClass);
 
     //- Set .align 2
     // It will emit .align 2 later
@@ -82,20 +86,100 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setStackPointerRegisterToSaveRestore(Epiphany::SP);
 
     // Provide ops that we don't have
-    setOperationAction(ISD::SDIV,      MVT::i32,  Expand);
-    setOperationAction(ISD::SREM,      MVT::i32,  Expand);
-    setOperationAction(ISD::UDIV,      MVT::i32,  Expand);
-    setOperationAction(ISD::UREM,      MVT::i32,  Expand);
-    setOperationAction(ISD::SDIVREM,   MVT::i32,  Expand);
-    setOperationAction(ISD::UDIVREM,   MVT::i32,  Expand);
-    setOperationAction(ISD::MULHS,     MVT::i32,  Expand);
-    setOperationAction(ISD::MULHU,     MVT::i32,  Expand);
-    setOperationAction(ISD::UMUL_LOHI, MVT::i32,  Expand);
-    setOperationAction(ISD::SMUL_LOHI, MVT::i32,  Expand);
+    setOperationAction(ISD::SDIV,       MVT::i32,  Expand);
+    setOperationAction(ISD::SREM,       MVT::i32,  Expand);
+    setOperationAction(ISD::UDIV,       MVT::i32,  Expand);
+    setOperationAction(ISD::UREM,       MVT::i32,  Expand);
+    setOperationAction(ISD::SDIVREM,    MVT::i32,  Expand);
+    setOperationAction(ISD::UDIVREM,    MVT::i32,  Expand);
+    setOperationAction(ISD::MULHS,      MVT::i32,  Expand);
+    setOperationAction(ISD::MULHU,      MVT::i32,  Expand);
+    setOperationAction(ISD::UMUL_LOHI,  MVT::i32,  Expand);
+    setOperationAction(ISD::SMUL_LOHI,  MVT::i32,  Expand);
+    setOperationAction(ISD::UINT_TO_FP, MVT::i32,  Expand);
+
+    for (MVT VT : MVT::fp_valuetypes()) {
+      setOperationAction(ISD::FDIV,  VT,  Expand);
+      setOperationAction(ISD::FSQRT, VT,  Expand);
+      setOperationAction(ISD::FSIN,  VT,  Expand);
+      setOperationAction(ISD::FCOS,  VT,  Expand);
+      setOperationAction(ISD::FLOG,  VT,  Expand);
+      setOperationAction(ISD::FEXP,  VT,  Expand);
+      setOperationAction(ISD::FPOW,  VT,  Expand);
+      setOperationAction(ISD::FREM,  VT,  Expand);
+    }
+
+    for (MVT VT : MVT::all_valuetypes()) {
+      setOperationAction(ISD::FP_TO_UINT, VT, Expand);
+      setOperationAction(ISD::FP_TO_SINT, VT, Expand);
+    }
+
+    // Turn FP truncstore into trunc + store.
+    setTruncStoreAction(MVT::f64, MVT::f32, Expand);
+
+    // We don't have conversion from i32/i64 to f64
+    setLoadExtAction(ISD::EXTLOAD,  MVT::i64, MVT::i32, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::i64, MVT::i32, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::i64, MVT::i32, Expand);
+    setLoadExtAction(ISD::EXTLOAD,  MVT::f32, MVT::i32, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::f32, MVT::i32, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::f32, MVT::i32, Expand);
+    setLoadExtAction(ISD::EXTLOAD,  MVT::f32, MVT::i64, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::f32, MVT::i64, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::f32, MVT::i64, Expand);
+    setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::f32, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::f32, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::f32, Expand);
+    setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::i32, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::i32, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::i32, Expand);
+    setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::i64, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::i64, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::i64, Expand);
+
+    setOperationAction(ISD::EXTLOAD,  MVT::f64, Expand);
+    setOperationAction(ISD::SEXTLOAD, MVT::f64, Expand);
+    setOperationAction(ISD::ZEXTLOAD, MVT::f64, Expand);
+
+    // For now - expand i64 ops that were not implemented yet
+    setOperationAction(ISD::MUL,       MVT::i64,  Expand);
+    setOperationAction(ISD::SMUL_LOHI, MVT::i64,  Expand);
+    setOperationAction(ISD::UMUL_LOHI, MVT::i64,  Expand);
+    setOperationAction(ISD::SDIV,      MVT::i64,  Expand);
+    setOperationAction(ISD::SREM,      MVT::i64,  Expand);
+    setOperationAction(ISD::UDIV,      MVT::i64,  Expand);
+    setOperationAction(ISD::UREM,      MVT::i64,  Expand);
+    setOperationAction(ISD::SDIVREM,   MVT::i64,  Expand);
+    setOperationAction(ISD::UDIVREM,   MVT::i64,  Expand);
+
+    // Same for f64
+    setOperationAction(ISD::FADD,       MVT::f64,  Expand);
+    setOperationAction(ISD::FSUB,       MVT::f64,  Expand);
+    setOperationAction(ISD::FMUL,       MVT::f64,  Expand);
+    setOperationAction(ISD::FDIV,       MVT::f64,  Expand);
+    setOperationAction(ISD::BR_CC,      MVT::f64,  Expand);
+    setOperationAction(ISD::SELECT,     MVT::f64,  Expand);
+    setOperationAction(ISD::FP_TO_UINT, MVT::f64,  Expand);
+    setOperationAction(ISD::FP_TO_SINT, MVT::f64,  Expand);
+    setOperationAction(ISD::SINT_TO_FP, MVT::i64,  Expand);
+    setOperationAction(ISD::UINT_TO_FP, MVT::i64,  Expand);
+    setOperationAction(ISD::FP_ROUND,   MVT::f64,  Expand);
 
     // Custom operations, see below
     setOperationAction(ISD::GlobalAddress,  MVT::i32, Custom);
     setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
+    setOperationAction(ISD::ConstantPool,   MVT::i32, Custom);
+    setOperationAction(ISD::SELECT_CC,      MVT::i32, Custom);
+    setOperationAction(ISD::SELECT_CC,      MVT::f32, Custom);
+    setOperationAction(ISD::SETCC,          MVT::i32, Custom);
+    setOperationAction(ISD::SETCC,          MVT::f32, Custom);
+    setOperationAction(ISD::SETCC,          MVT::i64, Custom);
+    setOperationAction(ISD::SETCC,          MVT::f64, Custom);
+    setOperationAction(ISD::SELECT,         MVT::i32, Custom);
+    setOperationAction(ISD::SELECT,         MVT::f32, Custom);
+    setOperationAction(ISD::SELECT,         MVT::i64, Custom);
+    setOperationAction(ISD::SELECT,         MVT::f64, Custom);
+    setOperationAction(ISD::FP_EXTEND,      MVT::f64, Custom);
   }
 
 SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
@@ -106,6 +190,22 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
       break;
     case ISD::ExternalSymbol:
       return LowerExternalSymbol(Op, DAG);
+      break;
+    case ISD::ConstantPool:
+      return LowerConstantPool(Op, DAG);
+      break;
+    case ISD::SELECT:
+      return LowerSelect(Op, DAG);
+      break;
+    case ISD::SELECT_CC:
+      return LowerSelectCC(Op, DAG);
+      break;
+    case ISD::SETCC:
+      return LowerSetCC(Op, DAG);
+      break;
+    case ISD::FP_EXTEND:
+      return LowerFpExtend(Op, DAG);
+      break;
   }
   return SDValue();
 }
@@ -113,6 +213,139 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
 //===----------------------------------------------------------------------===//
 //  Lower helper functions
 //===----------------------------------------------------------------------===//
+static EpiphanyCC::CondCodes ConvertCC(SDValue CC, const SDLoc &DL, SDValue &RHS, bool &swap) {
+  // Get condition code
+  ISD::CondCode code = cast<CondCodeSDNode>(CC)->get();
+  // Get used reg class
+  MVT Ty = RHS.getSimpleValueType();
+  // Choose condition
+  switch (code) {
+    default:
+      llvm_unreachable("Unknown condition code: " + code);
+      break;
+    case ISD::SETEQ:
+    case ISD::SETOEQ:
+    case ISD::SETUEQ:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BEQ;
+      } else {
+        return EpiphanyCC::COND_EQ;
+      }
+      break;
+    case ISD::SETNE:
+    case ISD::SETONE:
+    case ISD::SETUNE:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BNE;
+      } else {
+        return EpiphanyCC::COND_NE;
+      }
+      break;
+    case ISD::SETGE:
+    case ISD::SETOGE:
+      if (Ty.isFloatingPoint()) {
+        swap = true;
+        return EpiphanyCC::COND_BLT;
+      } else {
+        return EpiphanyCC::COND_GTE;
+      }
+      break;
+    case ISD::SETUGE:
+      if (Ty.isFloatingPoint()) {
+        swap = true;
+        return EpiphanyCC::COND_BLT;
+      } else {
+        return EpiphanyCC::COND_GTEU;
+      }
+      break;
+    case ISD::SETGT:
+    case ISD::SETOGT:
+      if (Ty.isFloatingPoint()) {
+        swap = true;
+        return EpiphanyCC::COND_BLTE;
+      } else {
+        return EpiphanyCC::COND_GT;
+      }
+      break;
+    case ISD::SETUGT:
+      if (Ty.isFloatingPoint()) {
+        swap = true;
+        return EpiphanyCC::COND_BLTE;
+      } else {
+        return EpiphanyCC::COND_GTU;
+      }
+      break;
+    case ISD::SETLE:
+    case ISD::SETOLE:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BLTE;
+      } else {
+        return EpiphanyCC::COND_LTE;
+      }
+      break;
+    case ISD::SETULE:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BLTE;
+      } else {
+        return EpiphanyCC::COND_LTEU;
+      }
+      break;
+    case ISD::SETLT:
+    case ISD::SETOLT:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BLT;
+      } else {
+        return EpiphanyCC::COND_LT;
+      }
+      break;
+    case ISD::SETULT:
+      if (Ty.isFloatingPoint()) {
+        return EpiphanyCC::COND_BLT;
+      } else {
+        return EpiphanyCC::COND_LTU;
+      }
+      break;
+  }
+}
+
+static RTLIB::Libcall getDoubleCmp(SDValue cond) {
+  // Get condition code
+  ISD::CondCode code = cast<CondCodeSDNode>(cond)->get();
+
+   // Choose function
+  switch (code) {
+    default:
+      llvm_unreachable("Unknown condition code: " + code);
+      break;
+    case ISD::SETEQ:
+    case ISD::SETOEQ:
+    case ISD::SETUEQ:
+      return RTLIB::OEQ_F64;
+    case ISD::SETGE:
+    case ISD::SETUGE:
+    case ISD::SETOGE:
+      return RTLIB::OGE_F64;
+    case ISD::SETGT:
+    case ISD::SETOGT:
+    case ISD::SETUGT:
+      return RTLIB::OGT_F64;
+    case ISD::SETLE:
+    case ISD::SETOLE:
+    case ISD::SETULE:
+      return RTLIB::OLE_F64;
+    case ISD::SETLT:
+    case ISD::SETOLT:
+    case ISD::SETULT:
+      return RTLIB::OLT_F64;
+    case ISD::SETNE:
+    case ISD::SETONE:
+    case ISD::SETUNE:
+      return RTLIB::UNE_F64;
+  }
+ 
+
+}
+
 bool EpiphanyTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
   return false;
 }
@@ -124,26 +357,176 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   int64_t Offset = cast<GlobalAddressSDNode>(Op)->getOffset();
   auto PTY = getPointerTy(DAG.getDataLayout());
 
-  // For now let's think that it's all 32bit 
-  /*  if (GV->hasInternalLinkage() || GV->hasLocalLinkage()) {*/
-  //SDValue Addr = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset);
-  //return DAG.getNode(EpiphanyISD::MOV, DL, PTY, Addr);
-  /*} else {*/
   SDValue AddrLow  = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_LOW);
   SDValue AddrHigh = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_HIGH);
   SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
   return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
   //}
-}
+  }
 
 SDValue EpiphanyTargetLowering::LowerExternalSymbol(SDValue Op,
     SelectionDAG &DAG) const {
-  SDLoc dl(Op);
-  const char *Sym = cast<ExternalSymbolSDNode>(Op)->getSymbol();
-  auto PtrVT = getPointerTy(DAG.getDataLayout());
-  SDValue Result = DAG.getTargetExternalSymbol(Sym, PtrVT);
+  SDLoc DL(Op);
 
-  return DAG.getNode(EpiphanyISD::MOV, dl, PtrVT, Result);
+  const char *Sym = cast<ExternalSymbolSDNode>(Op)->getSymbol();
+  auto PTY = getPointerTy(DAG.getDataLayout());
+
+  SDValue AddrLow  = DAG.getTargetExternalSymbol(Sym, PTY, EpiphanyII::MO_LOW);
+  SDValue AddrHigh = DAG.getTargetExternalSymbol(Sym, PTY, EpiphanyII::MO_HIGH);
+  SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+  return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
+}
+
+SDValue EpiphanyTargetLowering::LowerConstantPool(SDValue Op,
+    SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  ConstantPoolSDNode *CP = cast<ConstantPoolSDNode>(Op);
+  EVT PTY = Op.getValueType();
+
+  // Get constant pool address
+  SDValue AddrLow;
+  SDValue AddrHigh;
+  if (CP->isMachineConstantPoolEntry()) {
+    AddrLow  = DAG.getTargetConstantPool(CP->getMachineCPVal(), PTY, CP->getAlignment(), CP->getOffset(), EpiphanyII::MO_LOW);
+    AddrHigh = DAG.getTargetConstantPool(CP->getMachineCPVal(), PTY, CP->getAlignment(), CP->getOffset(), EpiphanyII::MO_HIGH);
+  } else {
+    AddrLow  = DAG.getTargetConstantPool(CP->getConstVal(), PTY, CP->getAlignment(), CP->getOffset(), EpiphanyII::MO_LOW);
+    AddrHigh = DAG.getTargetConstantPool(CP->getConstVal(), PTY, CP->getAlignment(), CP->getOffset(), EpiphanyII::MO_HIGH);
+  }
+
+  // Move address to the register
+  SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+  return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
+}
+
+/// LowerSelectCC
+//  Lower conditional selection. Similar to movcc + cmp
+SDValue EpiphanyTargetLowering::LowerSelectCC(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+
+  // Get operands
+  SDValue LHS    = Op.getOperand(0);
+  SDValue RHS    = Op.getOperand(1);
+  SDValue TrueV  = Op.getOperand(2);
+  SDValue FalseV = Op.getOperand(3);
+  SDValue Cond   = Op.getOperand(4);
+
+  // Get operand types
+  MVT RTy = RHS.getSimpleValueType();
+  MVT LTy = LHS.getSimpleValueType();
+
+  // Set the flag
+  SDValue Flag;
+  if (RTy.isInteger() && LTy.isInteger()) {
+    Flag = DAG.getNode(ISD::SUB, DL, RTy, LHS, RHS);
+  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint() && RTy != MVT::f64) {
+    Flag = DAG.getNode(ISD::FSUB, DL, RTy, LHS, RHS);
+  } else if (RTy == MVT::f64) {
+    RTLIB::Libcall LC = getDoubleCmp(Cond);
+    SmallVector<SDValue, 2> Ops({LHS, RHS});
+    Flag = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ true, DL).first;
+    // Use integer sub to set the flag, see GCC Soft-Float Library Routines
+    SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::Glue);
+    Flag = DAG.getNode(EpiphanyISD::SUB, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
+  }
+
+  // Get condition code
+  bool swap = false;
+  ::EpiphanyCC::CondCodes CC = ConvertCC(Cond, DL, Flag, swap);
+  if (swap) {
+    std::swap(TrueV, FalseV);
+  }
+
+  // Prepare conditional move
+  assert(Flag && "Can't get op for provided type"); 
+  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
+  SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Glue);
+  return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, TrueV, FalseV, TargetCC, Flag);
+}
+
+
+/// LowerSelect
+//  Select one of two options based on the flag. In general it is equal to movcc
+SDValue EpiphanyTargetLowering::LowerSelect(SDValue Op, SelectionDAG &DAG) const {
+
+  SDLoc DL(Op);
+  // Get operands
+  SDValue Cmp = Op.getOperand(0);
+  SDValue True  = Op.getOperand(1);
+  SDValue False = Op.getOperand(2);
+  assert(Cmp.getNumOperands() == 3 && "Strange number of operand in the first SELECT argument");
+  SDValue Cond = Cmp.getOperand(2);
+
+  // Get condition code
+  bool swap = false;
+  ::EpiphanyCC::CondCodes CC = ConvertCC(Cond, DL, True, swap);
+  if (swap) {
+    std::swap(True, False);
+  }
+  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
+  SDVTList VTs     = DAG.getVTList(Op.getValueType(), MVT::Glue);
+  return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, True, False, TargetCC, False);
+}
+
+
+/// LowerSetCC
+//  Lower conditional set operation. In general it is equal to movcc + cmp
+SDValue EpiphanyTargetLowering::LowerSetCC(SDValue Op, SelectionDAG &DAG) const {
+
+  SDLoc DL(Op);
+  // Get operands
+  SDValue LHS    = Op.getOperand(0);
+  SDValue RHS    = Op.getOperand(1);
+  SDValue Cond   = Op.getOperand(2);
+
+  // Get operand types
+  MVT RTy = RHS.getSimpleValueType();
+  MVT LTy = LHS.getSimpleValueType();
+
+  // Create result values
+  SDValue TrueV  = DAG.getConstant(1, DL, MVT::i32);
+  SDValue FalseV = DAG.getConstant(0, DL, MVT::i32);
+
+  // Set the flag
+  SDValue Flag;
+  if (RTy.isInteger() && LTy.isInteger()) {
+    // For i32 use sub
+    Flag = DAG.getNode(ISD::SUB, DL, RTy, LHS, RHS);
+  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint() && RTy != MVT::f64) {
+    // For f32 use fsub
+    Flag = DAG.getNode(ISD::FSUB, DL, RTy, LHS, RHS);
+  } else if (RTy == MVT::f64) {
+    // For f64 make call to the external lib
+    RTLIB::Libcall LC = getDoubleCmp(Cond);
+    SmallVector<SDValue, 2> Ops({LHS, RHS});
+    Flag = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ false, DL, 
+        /* doesNotReturn = */ false, /* isReturnValueUsed = */ true).first;
+    // Use integer sub to set the flag, see GCC Soft-Float Library Routines
+    SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::Glue);
+    Flag = DAG.getNode(EpiphanyISD::SUB, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
+  }
+
+  // Get condition code
+  bool swap = false;
+  ::EpiphanyCC::CondCodes CC = ConvertCC(Cond, DL, Flag, swap);
+  if (swap) {
+    std::swap(TrueV, FalseV);
+  }
+
+  // Prepare conditional move
+  assert(Flag && "Can't get op for provided type"); 
+  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
+  SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Glue);
+  return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, TrueV, FalseV, TargetCC, Flag);
+}
+
+SDValue EpiphanyTargetLowering::LowerFpExtend(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  // Get external extention function
+  RTLIB::Libcall LC;
+  LC = RTLIB::getFPEXT(Op.getOperand(0).getValueType(), Op.getValueType());
+  SDValue SrcVal = Op.getOperand(0);
+  return makeLibCall(DAG, LC, Op.getValueType(), SrcVal, /* isSigned = */ false, DL).first;
 }
 
 //===----------------------------------------------------------------------===//
@@ -219,7 +602,7 @@ EpiphanyTargetLowering::LowerFormalArguments(SDValue Chain,
     } else { // VA.isRegLoc()
       assert(VA.isMemLoc());
       DEBUG(dbgs() << "Arg is a memory loc\n");
-      int FI = MFI.CreateFixedObject(VA.getLocVT().getSizeInBits()/8, VA.getLocMemOffset(), true);
+      int FI = MFI.CreateFixedObject(VA.getLocVT().getSizeInBits()/8, VA.getLocMemOffset() + Subtarget.stackOffset(), true);
       SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
       ArgValue = DAG.getLoad(VA.getLocVT(), DL, Chain, FIN, MachinePointerInfo::getFixedStack(MF, FI));
     }
@@ -381,7 +764,7 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
             Arg = DAG.getNode(ISD::BITCAST, DL, LocVT, Arg);
           else if (ValVT == MVT::f64 && LocVT == MVT::i32) {
             llvm_unreachable("Unimplemented yet!");
-              continue;
+            continue;
           }
         }
         // Nothing to do
@@ -412,7 +795,7 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
     DEBUG(dbgs() << "Argument will be passed using memory loc\n");
 
     // Deal with memory-stored args
-    SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset(), DL, /* isTarget = */ false);
+    SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset() + Subtarget.stackOffset(), DL, /* isTarget = */ false);
     SDValue DstAddr = DAG.getNode(ISD::ADD, DL, getPointerTy(DAG.getDataLayout()), StackPtr, PtrOff);
 
     if (Flags.isByVal()) {
@@ -461,7 +844,10 @@ EpiphanyTargetLowering::LowerCall(CallLoweringInfo &CLI, SmallVectorImpl<SDValue
   } else if (ExternalSymbolSDNode *S = dyn_cast<ExternalSymbolSDNode>(Callee)) {
     DEBUG(dbgs() << "\nArgument is an external symbol");
     const char *Sym = S->getSymbol();
-    Callee = DAG.getTargetExternalSymbol(Sym, PTY);
+    SDValue AddrLow  = DAG.getTargetExternalSymbol(Sym, PTY, EpiphanyII::MO_LOW);
+    SDValue AddrHigh = DAG.getTargetExternalSymbol(Sym, PTY, EpiphanyII::MO_HIGH);
+    Callee = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+    Callee = DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Callee, AddrHigh);
   }
 
   // We produce the following DAG scheme for the actual call instruction:
@@ -517,7 +903,7 @@ EpiphanyTargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
   // Assign locations to each value returned by this call according to EpiphanyCallingConv.td
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs, *DAG.getContext());
-  CCInfo.AnalyzeCallResult(Ins, CC_Epiphany_Assign);
+  CCInfo.AnalyzeCallResult(Ins, RetCC_Epiphany);
 
   // For each argument check if some modification is needed
   for (unsigned i = 0; i != RVLocs.size(); ++i) {

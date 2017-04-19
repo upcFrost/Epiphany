@@ -22,18 +22,15 @@ def CC_Epiphany_Assign : CallingConv<[
   CCIfType<[f16], CCPromoteToType<f32>>,
   // First try to assign to the first 8 regs so that we will be able to use 16-bit instr
   CCIfType<[i32,f32], CCAssignToReg<[R0, R1, R2, R3]>>,
-  // Then, try to use any general purpose caller-saved regs
-  CCIfType<[i32,f32], CCAssignToReg<[R16, R17, R18, R19, R20, R21, R22, R23, R24, R25, R26, R27]>>,
-  CCIfType<[i32,f32], CCAssignToReg<[R32, R33, R34, R35, R36, R37, R38, R39, R40, R41, R42, R43]>>,
-  CCIfType<[i32,f32], CCAssignToReg<[R44, R45, R46, R47, R48, R49, R50, R51, R52, R53, R54, R55, R56, R57, R58, R59, R60, R61, R62, R63]>>,
-  // Then, callee-saved regs
-  CCIfType<[i32,f32], CCAssignToReg<[R4, R5, R6, R7, R8]>>,
 
   // If still no luck - save to stack
   CCIfType<[i32,f32], CCAssignToStack<4, 4>>,
 
-  // Pass 64-bit only in stack
-  CCIfType<[i64,f64], CCAssignToStack<8, 8>>
+  // Pass 64-bit within 2 first regs or in the stack
+  CCIfType<[i64,f64], CCAssignToReg<[D0, D1]>>,
+  CCIfType<[i64,f64], CCAssignToStack<8, 8>>,
+
+  CCAssignToStack<8, 8>
 ]>;
 
 //===----------------------------------------------------------------------===//
@@ -47,7 +44,8 @@ def RetCC_Epiphany : CallingConv<[
   // Alternatively, they are assigned to the stack in 4-byte aligned units.
   CCIfType<[i32,f32], CCAssignToStack<4, 4>>,
 
-  // Pass 64-bit only in stack
+  // Pass 64-bit within 2 first regs or in the stack
+  CCIfType<[i64,f64], CCAssignToReg<[D0, D1]>>,
   CCIfType<[i64,f64], CCAssignToStack<8, 8>>,
 
   CCAssignToStack<8, 8>

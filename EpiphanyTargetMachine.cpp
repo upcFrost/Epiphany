@@ -100,6 +100,7 @@ public:
   bool addInstSelector() override;
   void addPreRegAlloc() override;
   void addPreSched2() override;
+  void addPreEmitPass() override;
 
   const EpiphanySubtarget &getEpiphanySubtarget() const {
     return *getEpiphanyTargetMachine().getSubtargetImpl();
@@ -132,3 +133,6 @@ void EpiphanyPassConfig::addPreSched2() {
   addPass(&IfConverterID, false);
 }
 
+void EpiphanyPassConfig::addPreEmitPass() {
+  addPass(createEpiphanyLoadStoreOptimizationPass());
+}

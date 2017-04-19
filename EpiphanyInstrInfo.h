@@ -50,6 +50,10 @@ namespace llvm {
     void adjustStackPtr(unsigned SP, int64_t Amount, MachineBasicBlock &MBB,
         MachineBasicBlock::iterator I) const;
 
+    // Is this a candidate for ld/st merging or pairing?  For example, we don't
+    // touch volatiles or load/stores that have a hint to avoid pair formation.
+    bool isCandidateToMergeOrPair(MachineInstr &MI) const;
+
     /// isLoadFromStackSlot - If the specified machine instruction is a direct
     /// load from a stack slot, return the virtual or physical register number of
     /// the destination along with the FrameIndex of the loaded stack slot.  If
@@ -65,6 +69,13 @@ namespace llvm {
     /// any side effects other than storing to the stack slot.
     unsigned isStoreToStackSlot(const MachineInstr &MI,
         int &FrameIndex) const override;
+
+    /// This is used by the pre-regalloc scheduler to determine if two loads are
+    ///  loading from the same base address. It should only return true if the base
+    /// pointers are the same and the only differences between the two addresses
+    /// are the offset. It also returns the offsets by reference.
+    bool areLoadsFromSameBasePtr(SDNode *Load1, SDNode *Load2,
+        int64_t &Offset1, int64_t &Offset2) const override;
 
     void storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
         unsigned SrcReg, bool KillSrc, int FrameIdx, const TargetRegisterClass *Rd,
