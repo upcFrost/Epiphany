@@ -183,6 +183,12 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SELECT_CC,      MVT::i32, Custom);
     setOperationAction(ISD::SELECT_CC,      MVT::f32, Custom);
     setOperationAction(ISD::FP_EXTEND,      MVT::f64, Custom);
+
+    // Libraries for fast math
+    if (EnableFastMath) {
+      setLibcallName(RTLIB::DIV_F32, "__fast_recipsf2");
+      setOperationAction(ISD::FDIV, MVT::f32, Custom);
+    }
   }
 
 SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
@@ -212,8 +218,37 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     case ISD::BR_CC:
       return LowerBrCC(Op, DAG);
       break;
+    case ISD::FDIV:
+      return LowerFastDiv(Op, DAG);
+      break;
   }
   return SDValue();
+}
+
+//===----------------------------------------------------------------------===//
+//  Fast arithmetics lowering
+//===----------------------------------------------------------------------===//
+SDValue EpiphanyTargetLowering::LowerFastDiv(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+
+  // Get operands
+  SDValue LHS   = Op.getOperand(0);
+  SDValue RHS   = Op.getOperand(1);
+
+  // Prepare lib call
+  RTLIB::Libcall LC = RTLIB::DIV_F32;
+  SDValue Callee = DAG.getExternalSymbol(getLibcallName(LC),
+      getPointerTy(DAG.getDataLayout()));
+
+  assert(LHS.getSimpleValueType() == MVT::f32 && RHS.getSimpleValueType() == MVT::f32 && 
+      "Wrong value type in float fast division!");
+
+  // Call the library
+  SmallVector<SDValue, 2> Ops({RHS, Callee});
+  std::pair<SDValue, SDValue> Divisor = makeLibCall(DAG, LC, MVT::f32, Ops, /* isSigned = */ true, DL);
+
+  // Multiply by divident
+  return DAG.getNode(ISD::FMUL, DL, MVT::f32, Divisor.first, LHS, Divisor.second);
 }
 
 //===----------------------------------------------------------------------===//
