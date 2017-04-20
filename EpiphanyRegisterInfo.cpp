@@ -144,6 +144,9 @@ eliminateFrameIndex(MachineBasicBlock::iterator MBBI, int SPAdj,
   // but with the offset from FP
 	int64_t Offset;
 	Offset = spOffset;
+  if (FrameReg == Epiphany::SP) {
+    Offset += stackSize;
+  }
 	Offset += MI.getOperand(i+1).getImm();
 	DEBUG(errs() << "Offset     : " << Offset << "\n" << "<--------->\n");
 
