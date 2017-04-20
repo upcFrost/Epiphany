@@ -45,6 +45,9 @@ namespace llvm {
       MOVT,
       MOVCC,
 
+      // Conditional branch wrapper
+      BRCC,
+
       // Store and load instruction wrappers
       STORE,
       LOAD,
@@ -149,6 +152,7 @@ namespace llvm {
       SDValue LowerSelectCC(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSelect(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSetCC(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerBrCC(SDValue Op, SelectionDAG &DAG) const;
 
       //- must be exist even without function all
       SDValue LowerFormalArguments(SDValue Chain,

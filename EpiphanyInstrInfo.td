@@ -376,6 +376,9 @@ def : Pat<(i32 (MOVCC (i32 GPR32:$true), (i32 GPR32:$false), (i32 i32immSExt32:$
 //===----------------------------------------------------------------------===//
 // Branching
 //===----------------------------------------------------------------------===//
+def SDT_BRCC  : SDTypeProfile<0, 3, [SDTCisVT<0, OtherVT>, SDTCisVT<1, i32>]>;
+def BRCC      : SDNode<"EpiphanyISD::BRCC",  SDT_BRCC, [SDNPHasChain, SDNPInGlue]>;
+
 // Return
 let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
   def RTS : Pseudo32<(outs), (ins), [(EpiphanyRet)]>;
@@ -393,35 +396,11 @@ let isBarrier = 1, hasDelaySlot = 0 in {
 }
 
 let isTerminator = 1, isBranch = 1, isBarrier = 1, hasDelaySlot = 0, Uses = [STATUS] in {
-  def BCCi32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR32:$Rd), []>;
-  def BCCi64    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR64:$Rd), []>;
-  def BCCf32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, FPR32:$Rd), []>;
+  def BCCi32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR32:$Rd), [(BRCC bb:$addr, i32immSExt32:$cc, (i32 GPR32:$Rd))]>;
+  def BCCi64    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR64:$Rd), [(BRCC bb:$addr, i32immSExt32:$cc, (i64 GPR64:$Rd))]>;
+  def BCCf32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, FPR32:$Rd), [(BRCC bb:$addr, i32immSExt32:$cc, (f32 FPR32:$Rd))]>;
+  def BCCf64    : BranchCC32<(ins branchtarget:$addr, cc:$cc, FPR64:$Rd), [(BRCC bb:$addr, i32immSExt32:$cc, (f64 FPR64:$Rd))]>;
 }
-
-// Patterns to use while replacing "brcc" (condition branch)
-def : Pat<(brcc SETEQ,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_EQ.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETNE,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_NE.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETUGT, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_GTU.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETUGE, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_GTEU.Code, (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETULE, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_LTEU.Code, (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETULT, (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_LTU.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETGT,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_GT.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETGE,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_GTE.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETLT,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_LT.Code,   (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-def : Pat<(brcc SETLE,  (i32 GPR32:$Rd), (i32 GPR32:$Rn), bb:$addr), (BCCi32 bb:$addr, COND_LTE.Code,  (SUBrr_r32 (i32 GPR32:$Rd), GPR32:$Rn))>;
-// f32 brcc
-def : Pat<(brcc SETOEQ, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BEQ.Code,  (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
-def : Pat<(brcc SETONE, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BNE.Code,  (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
-def : Pat<(brcc SETOLT, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BLT.Code,  (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
-def : Pat<(brcc SETOLE, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BLTE.Code, (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
-def : Pat<(brcc SETOGT, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BLTE.Code, (FSUBrr_r32 (f32 FPR32:$Rn), FPR32:$Rd))>;
-def : Pat<(brcc SETOGE, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BLT.Code,  (FSUBrr_r32 (f32 FPR32:$Rn), FPR32:$Rd))>;
-def : Pat<(brcc SETUEQ, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BEQ.Code,  (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
-def : Pat<(brcc SETUNE, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BNE.Code,  (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
-def : Pat<(brcc SETULT, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BLT.Code,  (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
-def : Pat<(brcc SETULE, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BLTE.Code, (FSUBrr_r32 (f32 FPR32:$Rd), FPR32:$Rn))>;
-def : Pat<(brcc SETUGT, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BLTE.Code, (FSUBrr_r32 (f32 FPR32:$Rn), FPR32:$Rd))>;
-def : Pat<(brcc SETUGE, (f32 FPR32:$Rd), (f32 FPR32:$Rn), bb:$addr), (BCCf32 bb:$addr, COND_BLT.Code,  (FSUBrr_r32 (f32 FPR32:$Rn), FPR32:$Rd))>;
 
 // Patterns to use while replacing "brcond"
 // brcond takes only 1 arg, which should be true or false
@@ -513,18 +492,6 @@ def : Pat<(i64 (shl GPR64:$Rn, (i32 32))),
           (MOVi32ri 0), isub_lo)>;
 
 def : Pat<(i32 (trunc GPR64:$Rn)), (LoReg GPR64:$Rn)>;
-
-// i64 brcc patterns
-def : Pat<(brcc SETEQ,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_EQ.Code,   (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
-def : Pat<(brcc SETNE,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_NE.Code,   (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
-def : Pat<(brcc SETUGT, (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_GTU.Code,  (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
-def : Pat<(brcc SETUGE, (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_GTEU.Code, (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
-def : Pat<(brcc SETULE, (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_LTEU.Code, (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
-def : Pat<(brcc SETULT, (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_LTU.Code,  (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
-def : Pat<(brcc SETGT,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_GT.Code,   (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
-def : Pat<(brcc SETGE,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_GTE.Code,  (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
-def : Pat<(brcc SETLT,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_LT.Code,   (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
-def : Pat<(brcc SETLE,  (i64 GPR64:$Rd), (i64 GPR64:$Rn), bb:$addr), (BCCi64 bb:$addr, COND_LTE.Code,  (SUBrr_r64_pat (i64 GPR64:$Rd), (i64 GPR64:$Rn)))>;
 
 def ZERO_EXTENDi64 : Pat<(i64 (zext GPR32:$Rn)), 
                         (REG_SEQUENCE GPR64, 
