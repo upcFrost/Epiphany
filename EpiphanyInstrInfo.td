@@ -188,6 +188,11 @@ def STRf64  : StoreDisp32<0, FPR64, AlignedStore<store>,         LS_dword, f64>;
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with registers
 //===----------------------------------------------------------------------===//
+
+// Node used in comparisons
+def SDT_SUB : SDTypeProfile<1, 2, []>;
+def SUB : SDNode<"EpiphanyISD::SUB",   SDT_SUB, [SDNPOptInGlue]>;
+
 multiclass SimpleMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
   def _r16 : SimpleMath16rr<opcode16, instr_asm, OpNode, GPR16, i32> { let Defs = [STATUS]; }
   def _r32 : SimpleMath32rr<opcode32, instr_asm, OpNode, GPR32, i32> { let Defs = [STATUS]; }
@@ -201,10 +206,13 @@ multiclass SimpleMath64<SDNode OpNode> {
                  (i32 (COPY (!cast<Instruction>(NAME # _r32) (HiReg GPR64:$Rn), (HiReg GPR64:$Rm)))), isub_hi)>;
 }
 
-defm ADDrr  : SimpleMath<0b0011010, 0b0011111, "add", add >;
-defm SUBrr  : SimpleMath<0b0111010, 0b0111111, "sub", sub >;
-defm ADDCrr : SimpleMath<0b0011010, 0b0011111, "add", addc>;
-defm SUBCrr : SimpleMath<0b0111010, 0b0111111, "sub", subc>;
+let isCompare = 1 in {
+  defm ADDrr  : SimpleMath<0b0011010, 0b0011111, "add", add >;
+  defm SUBrr  : SimpleMath<0b0111010, 0b0111111, "sub", sub >;
+  defm SUBcmpr: SimpleMath<0b0111010, 0b0111111, "sub", SUB >;
+  defm ADDCrr : SimpleMath<0b0011010, 0b0011111, "add", addc>;
+  defm SUBCrr : SimpleMath<0b0111010, 0b0111111, "sub", subc>;
+}
 defm ANDrr  : SimpleMath<0b1011010, 0b1011111, "and", and >, SimpleMath64<and>;
 defm ORRrr  : SimpleMath<0b1111010, 0b1111111, "orr", or  >, SimpleMath64<or >;
 defm EORrr  : SimpleMath<0b0001010, 0b0001111, "eor", xor >, SimpleMath64<xor>;
@@ -222,9 +230,10 @@ multiclass FPMath2<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode 
   def _r32 : ComplexMath2_32rr<opcode32, instr_asm, OpNode, fmul, FPR32, FpuItin, f32>;
 }
 let Defs = [STATUS] in {
-  defm FADDrr : FPMath<0b0000111, 0b0001111, "fadd", fadd>;
-  defm FSUBrr : FPMath<0b0010111, 0b0011111, "fsub", fsub>;
-  defm FMULrr : FPMath<0b0100111, 0b0101111, "fmul", fmul>;
+  defm FADDrr  : FPMath<0b0000111, 0b0001111, "fadd", fadd>;
+  defm FSUBrr  : FPMath<0b0010111, 0b0011111, "fsub", fsub>;
+  defm FSUBcmpr: FPMath<0b0010111, 0b0011111, "fsub", SUB>;
+  defm FMULrr  : FPMath<0b0100111, 0b0101111, "fmul", fmul>;
   defm FMADDrr : FPMath2<0b0110111, 0b0111111, "fmadd", fadd>;
   defm FMSUBrr : FPMath2<0b1000111, 0b1001111, "fmsub", fsub>;
 }
@@ -256,10 +265,13 @@ multiclass IntMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode 
 
 let Defs = [STATUS] in {
   // Addsub
-  defm ADDri  : IntMath<0b0010011, 0b0011011, "add", add >;
-  defm SUBri  : IntMath<0b0110011, 0b0111011, "sub", sub >;
-  defm ADDCri : IntMath<0b0010011, 0b0011011, "add", addc>;
-  defm SUBCri : IntMath<0b0110011, 0b0111011, "sub", subc>;
+  let isCompare = 1 in {
+    defm ADDri  : IntMath<0b0010011, 0b0011011, "add", add >;
+    defm SUBri  : IntMath<0b0110011, 0b0111011, "sub", sub >;
+    defm SUBcmpi: IntMath<0b0110011, 0b0111011, "sub", SUB >;
+    defm ADDCri : IntMath<0b0010011, 0b0011011, "add", addc>;
+    defm SUBCri : IntMath<0b0110011, 0b0111011, "sub", subc>;
+  }
 
   // Shifts i16
   def LSR16ri  : ShiftMath16ri<0b00110, "lsr",  srl,        imm5, immUExt5, i32>;
@@ -274,9 +286,6 @@ let Defs = [STATUS] in {
   def BITR16ri : Bitr16ri<0b11110, i32>;
   def BITR32ri : Bitr32ri<0b1110, 0b11111, i32>;
 }
-
-def SUB : SDNode<"EpiphanyISD::SUB",   SDTIntBinOp, [SDNPOptInGlue]>;
-def     : Pat<(i32 (SUB GPR32:$Rn, i32immSExt11:$imm)), (i32 (COPY (SUBri_r32 GPR32:$Rn, imm:$imm)))>;
 
 //===----------------------------------------------------------------------===//
 // IntToFloat and Abs
@@ -378,6 +387,8 @@ def : Pat<(i32 (MOVCC (i32 GPR32:$true), (i32 GPR32:$false), (i32 i32immSExt32:$
 //===----------------------------------------------------------------------===//
 def SDT_BRCC  : SDTypeProfile<0, 3, [SDTCisVT<0, OtherVT>, SDTCisVT<1, i32>]>;
 def BRCC      : SDNode<"EpiphanyISD::BRCC",  SDT_BRCC, [SDNPHasChain, SDNPInGlue]>;
+def SDT_BRCCT  : SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>, SDTCisVT<1, i32>]>;
+def BRCCT      : SDNode<"EpiphanyISD::BRCC",  SDT_BRCCT, [SDNPHasChain, SDNPInGlue]>;
 
 // Return
 let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
@@ -400,6 +411,11 @@ let isTerminator = 1, isBranch = 1, isBarrier = 0, hasDelaySlot = 0, Uses = [STA
   def BCCi64    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR64:$Rd), [(BRCC bb:$addr, i32immSExt32:$cc, (i64 GPR64:$Rd))]>;
   def BCCf32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, FPR32:$Rd), [(BRCC bb:$addr, i32immSExt32:$cc, (f32 FPR32:$Rd))]>;
   def BCCf64    : BranchCC32<(ins branchtarget:$addr, cc:$cc, FPR64:$Rd), [(BRCC bb:$addr, i32immSExt32:$cc, (f64 FPR64:$Rd))]>;
+
+
+  let AddedComplexity = 100 in {
+    def BCC : BranchCC32<(ins branchtarget:$addr, cc:$cc), [(BRCC bb:$addr, i32immSExt32:$cc, STATUS)]>;
+  }
 }
 
 // Patterns to use while replacing "brcond"

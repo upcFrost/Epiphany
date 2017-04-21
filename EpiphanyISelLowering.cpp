@@ -512,12 +512,16 @@ SDValue EpiphanyTargetLowering::LowerBrCC(SDValue Op, SelectionDAG &DAG) const {
   MVT LTy = LHS.getSimpleValueType();
 
   // Set flag
+  SDNodeFlags Flags;
+  Flags.setExact(true); Flags.setNoSignedWrap(true); Flags.setNoUnsignedWrap(true);
   SDValue Flag;
   ::EpiphanyCC::CondCodes CC;
   bool swap = false;
   if (RTy.isInteger() && LTy.isInteger()) {
     // Integer case, simple sub and get CC
-    Flag = DAG.getNode(ISD::SUB, DL, RTy, LHS, RHS);
+    SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
+    SmallVector<SDValue, 2> Ops({LHS, RHS});
+    Flag = DAG.getNode(EpiphanyISD::SUB, DL, LHS.getValueType(), Ops, &Flags);
     CC = ConvertCC(Cond, DL, LHS, swap);
   } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint() && RTy != MVT::f64) {
     // f32 case, swap LHS and RHS if needed because of CC, use FSUB
@@ -525,14 +529,16 @@ SDValue EpiphanyTargetLowering::LowerBrCC(SDValue Op, SelectionDAG &DAG) const {
     if (swap) {
       std::swap(LHS, RHS);
     }
-    Flag = DAG.getNode(ISD::FSUB, DL, RTy, LHS, RHS);
+    SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
+    SmallVector<SDValue, 2> Ops({LHS, RHS});
+    Flag = DAG.getNode(EpiphanyISD::SUB, DL, LHS.getValueType(), Ops, &Flags);
   } else if (RTy == MVT::f64) {
     // f64 case, use external lib
     RTLIB::Libcall LC = getDoubleCmp(Cond);
     SmallVector<SDValue, 2> Ops({LHS, RHS});
     Flag = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ true, DL).first;
     // Use integer sub to set the flag, see GCC Soft-Float Library Routines
-    SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::Glue);
+    SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::i32);
     Flag = DAG.getNode(EpiphanyISD::SUB, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
     CC = ConvertCC(Cond, DL, Flag, swap);
   }
@@ -540,8 +546,7 @@ SDValue EpiphanyTargetLowering::LowerBrCC(SDValue Op, SelectionDAG &DAG) const {
   // Prepare conditional move
   assert(Flag && "Can't get op for provided type"); 
   SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
-  SDVTList VTs = DAG.getVTList(Op.getValueType(), MVT::Glue);
-  return DAG.getNode(EpiphanyISD::BRCC, DL, VTs, Chain, Dest, TargetCC, Flag);
+  return DAG.getNode(EpiphanyISD::BRCC, DL, Op.getValueType(), Chain, Dest, TargetCC, Flag.getValue(0));
 }
 
 /// LowerSelectCC

@@ -625,7 +625,10 @@ void EpiphanyInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   unsigned BeginIdx = 0;
   unsigned SubRegs = 0;
 
-  // TODO: Should make it work for all 4 ways (i32 <-> f32)
+  // Do not copy SPECIAL regs
+  if (Epiphany::SPECIALRegClass.contains(DestReg) || Epiphany::SPECIALRegClass.contains(SrcReg))
+    return;
+
   if (Epiphany::GPR32RegClass.contains(DestReg, SrcReg)) { // Copy between regs
     Opc = Epiphany::MOVi32rr;
   } else if (Epiphany::FPR32RegClass.contains(DestReg, SrcReg)) {
