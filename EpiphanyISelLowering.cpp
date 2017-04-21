@@ -59,6 +59,8 @@ const char *EpiphanyTargetLowering::getTargetNodeName(unsigned Opcode) const {
     case EpiphanyISD::LOAD:           return "EpiphanyISD::LOAD";
     case EpiphanyISD::SUB:            return "EpiphanyISD::SUB";
     case EpiphanyISD::BRCC:           return "EpiphanyISD::BRCC";
+    case EpiphanyISD::FIX:            return "EpiphanyISD::FIX";
+    case EpiphanyISD::FLOAT:          return "EpiphanyISD::FLOAT";
 
     default:                          return NULL;
   }
@@ -102,7 +104,6 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::MULHU,      MVT::i32,  Expand);
     setOperationAction(ISD::UMUL_LOHI,  MVT::i32,  Expand);
     setOperationAction(ISD::SMUL_LOHI,  MVT::i32,  Expand);
-    setOperationAction(ISD::UINT_TO_FP, MVT::i32,  Expand);
 
     for (MVT VT : MVT::fp_valuetypes()) {
       setOperationAction(ISD::FDIV,  VT,  Expand);
@@ -113,11 +114,6 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
       setOperationAction(ISD::FEXP,  VT,  Expand);
       setOperationAction(ISD::FPOW,  VT,  Expand);
       setOperationAction(ISD::FREM,  VT,  Expand);
-    }
-
-    for (MVT VT : MVT::all_valuetypes()) {
-      setOperationAction(ISD::FP_TO_UINT, VT, Expand);
-      setOperationAction(ISD::FP_TO_SINT, VT, Expand);
     }
 
     // Turn FP truncstore into trunc + store.
@@ -164,10 +160,6 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::FMUL,       MVT::f64,  Expand);
     setOperationAction(ISD::FDIV,       MVT::f64,  Expand);
     setOperationAction(ISD::SELECT,     MVT::f64,  Expand);
-    setOperationAction(ISD::FP_TO_UINT, MVT::f64,  Expand);
-    setOperationAction(ISD::FP_TO_SINT, MVT::f64,  Expand);
-    setOperationAction(ISD::SINT_TO_FP, MVT::i64,  Expand);
-    setOperationAction(ISD::UINT_TO_FP, MVT::i64,  Expand);
     setOperationAction(ISD::FP_ROUND,   MVT::f64,  Expand);
 
     // Custom operations, see below
@@ -180,9 +172,18 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
       setOperationAction(ISD::SETCC,  Ty, Custom);
       setOperationAction(ISD::SELECT, Ty, Custom);
     }
-    setOperationAction(ISD::SELECT_CC,      MVT::i32, Custom);
-    setOperationAction(ISD::SELECT_CC,      MVT::f32, Custom);
-    setOperationAction(ISD::FP_EXTEND,      MVT::f64, Custom);
+    setOperationAction(ISD::BRCOND,    MVT::i32, Custom);
+    setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
+    setOperationAction(ISD::SELECT_CC, MVT::f32, Custom);
+    setOperationAction(ISD::FP_EXTEND, MVT::f64, Custom);
+
+        // Just expand all conversions, as they're getting on the nerves
+    for (MVT VT : MVT::all_valuetypes()) {
+      setOperationAction(ISD::FP_TO_UINT, VT, Custom);
+      setOperationAction(ISD::FP_TO_SINT, VT, Custom);
+      setOperationAction(ISD::UINT_TO_FP, VT, Custom);
+      setOperationAction(ISD::SINT_TO_FP, VT, Custom);
+    }
 
     // Libraries for fast math
     if (EnableFastMath) {
@@ -221,6 +222,14 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     case ISD::FDIV:
       return LowerFastDiv(Op, DAG);
       break;
+    case ISD::FP_TO_SINT:
+    case ISD::FP_TO_UINT:
+      return LowerFpToInt(Op, DAG);
+      break;
+    case ISD::UINT_TO_FP:
+    case ISD::SINT_TO_FP:
+      return LowerIntToFp(Op, DAG);
+      break;
   }
   return SDValue();
 }
@@ -249,6 +258,52 @@ SDValue EpiphanyTargetLowering::LowerFastDiv(SDValue Op, SelectionDAG &DAG) cons
 
   // Multiply by divident
   return DAG.getNode(ISD::FMUL, DL, MVT::f32, Divisor.first, LHS, Divisor.second);
+}
+
+SDValue EpiphanyTargetLowering::LowerIntToFp(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+
+  SDValue arg = Op.getOperand(0);
+  EVT ArgVT = arg.getValueType();
+  EVT ResVT = Op.getValueType();
+
+  // We have FIX op for f32 -> i32 conversion
+  if (ArgVT.getSimpleVT() == MVT::i32 && ResVT.getSimpleVT() == MVT::f32) {
+    return DAG.getNode(EpiphanyISD::FLOAT, DL, ResVT, arg);
+  }
+
+  RTLIB::Libcall LC;
+  if (Op.getOpcode() == ISD::SINT_TO_FP) {
+    LC = RTLIB::getSINTTOFP(ArgVT, ResVT);
+  } else {
+    LC = RTLIB::getUINTTOFP(ArgVT, ResVT);
+  }
+
+  SmallVector<SDValue, 2> Ops(Op->op_begin(), Op->op_end());
+  return makeLibCall(DAG, LC, ResVT, Ops, false, DL).first;
+}
+
+SDValue EpiphanyTargetLowering::LowerFpToInt(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+
+  SDValue arg = Op.getOperand(0);
+  EVT ArgVT = arg.getValueType();
+  EVT ResVT = Op.getValueType();
+
+  // We have FIX op for f32 -> i32 conversion
+  if (ArgVT.getSimpleVT() == MVT::f32 && ResVT.getSimpleVT() == MVT::i32) {
+    return DAG.getNode(EpiphanyISD::FIX, DL, ResVT, arg);
+  }
+
+  RTLIB::Libcall LC;
+  if (Op.getOpcode() == ISD::FP_TO_SINT) {
+    LC = RTLIB::getFPTOSINT(ArgVT, ResVT);
+  } else {
+    LC = RTLIB::getFPTOUINT(ArgVT, ResVT);
+  }
+
+  SmallVector<SDValue, 2> Ops(Op->op_begin(), Op->op_end());
+  return makeLibCall(DAG, LC, ResVT, Ops, false, DL).first;
 }
 
 //===----------------------------------------------------------------------===//

@@ -395,7 +395,7 @@ let isBarrier = 1, hasDelaySlot = 0 in {
   def BNONE32 : Branch32<(ins branchtarget:$addr), [(br bb:$addr)], COND_NONE>;
 }
 
-let isTerminator = 1, isBranch = 1, isBarrier = 1, hasDelaySlot = 0, Uses = [STATUS] in {
+let isTerminator = 1, isBranch = 1, isBarrier = 0, hasDelaySlot = 0, Uses = [STATUS] in {
   def BCCi32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR32:$Rd), [(BRCC bb:$addr, i32immSExt32:$cc, (i32 GPR32:$Rd))]>;
   def BCCi64    : BranchCC32<(ins branchtarget:$addr, cc:$cc, GPR64:$Rd), [(BRCC bb:$addr, i32immSExt32:$cc, (i64 GPR64:$Rd))]>;
   def BCCf32    : BranchCC32<(ins branchtarget:$addr, cc:$cc, FPR32:$Rd), [(BRCC bb:$addr, i32immSExt32:$cc, (f32 FPR32:$Rd))]>;
@@ -430,7 +430,7 @@ let isCall = 1, Defs = [LR], hasDelaySlot = 0, isBarrier = 0 in {
     let isBranch = 1;
   }
   
-  let isBarrier = 0 in {
+  let isBarrier = 0, isTerminator = 0 in {
     def JALR16 : JumpReg16<"jalr",   0b0101010010, [(EpiphanyCall GPR16:$Rn)], COND_NONE>;
     def JALR32 : JumpReg32<"jalr.l", 0b0101011111, [(EpiphanyCall GPR32:$Rn)], COND_NONE>;
   }

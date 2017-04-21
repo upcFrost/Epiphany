@@ -48,6 +48,10 @@ namespace llvm {
       // Conditional branch wrapper
       BRCC,
 
+      // FIX/FLOAT wrappers
+      FIX,
+      FLOAT,
+
       // Store and load instruction wrappers
       STORE,
       LOAD,
@@ -149,6 +153,8 @@ namespace llvm {
       SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpExtend(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerFpToInt(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerIntToFp(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFastDiv(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSelectCC(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSelect(SDValue Op, SelectionDAG &DAG) const;
