@@ -56,8 +56,8 @@ namespace llvm {
       STORE,
       LOAD,
 
-      // SUB instruction is used in some compares
-      SUB
+      // CMP instruction 
+      CMP
     };
   }
 
@@ -160,6 +160,7 @@ namespace llvm {
       SDValue LowerSelect(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSetCC(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerBrCC(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerBrCond(SDValue Op, SelectionDAG &DAG) const;
 
       //- must be exist even without function all
       SDValue LowerFormalArguments(SDValue Chain,

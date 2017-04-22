@@ -599,8 +599,8 @@ class ComplexMath2_32rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode 
 // Arithmetic operations with registers: IntToFloat and Abs
 //===----------------------------------------------------------------------===//
 
-class IntToFloat32<dag outs, dag ins, string asm, RegisterClass From, RegisterClass To, SDNode Op, bits<7> opcode, InstrItinClass itin, ValueType TyFrom, ValueType TyTo>
-    : Normal32<outs, ins, asm, [(set (TyTo To:$Rd), (Op (TyFrom From:$Rn)))], itin> {
+class IntToFloat32<dag outs, dag ins, string asm, bits<7> opcode, list<dag> pattern, InstrItinClass itin>
+    : Normal32<outs, ins, asm, pattern, itin> {
   bits<6> Rd;
   bits<6> Rn;
  

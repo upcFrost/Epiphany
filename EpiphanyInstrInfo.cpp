@@ -146,7 +146,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
     }
 
     // Handle conditional branches.
-    if (I->getOpcode() != Epiphany::BCCi32 && I->getOpcode() != Epiphany::BCCf32 && I->getOpcode() != Epiphany::BCCi64) {
+    if (I->getOpcode() != Epiphany::BCC) {
       continue;
     }
     EpiphanyCC::CondCodes BranchCode = static_cast<EpiphanyCC::CondCodes>(I->getOperand(1).getImm());
@@ -188,7 +188,7 @@ unsigned EpiphanyInstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemov
   // Branches to handle
   DEBUG(dbgs()<< "\n<----------------->";);
   DEBUG(dbgs() << "\nRemoving branches out of BB#" << MBB.getNumber() << "\n");
-  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCCi32, Epiphany::BCCf32, Epiphany::BCCi64};
+  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCC};
   MachineBasicBlock::iterator I = MBB.end();
   unsigned Count = 0;
 
@@ -233,7 +233,7 @@ unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
 
   // Conditional branch.
   unsigned Count = 0;
-  BuildMI(&MBB, DL, get(Epiphany::BCCi32)).addMBB(TBB).addImm(Cond[0].getImm()).addReg(Epiphany::R0);
+  BuildMI(&MBB, DL, get(Epiphany::BCC)).addMBB(TBB).addImm(Cond[0].getImm());
   ++Count;
 
   if (FBB) {
