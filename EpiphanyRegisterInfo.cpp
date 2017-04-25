@@ -146,6 +146,10 @@ eliminateFrameIndex(MachineBasicBlock::iterator MBBI, int SPAdj,
 	Offset = spOffset;
   if (FrameReg == Epiphany::SP) {
     Offset += stackSize;
+    // Skip saved FP/LR if we have calls
+    if (MFI.hasCalls()) {
+      Offset += 8;
+    }
   }
 	Offset += MI.getOperand(i+1).getImm();
 	DEBUG(errs() << "Offset     : " << Offset << "\n" << "<--------->\n");

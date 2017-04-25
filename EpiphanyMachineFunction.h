@@ -42,6 +42,8 @@ public:
     MaxCallFrameSize(0),
     CallsEhReturn(false), 
     CallsEhDwarf(false),
+    HasFpuInst(false),
+    HasIalu2Inst(false),
     EmitNOAT(false)
     {}
 
@@ -72,6 +74,11 @@ public:
 
   unsigned getMaxCallFrameSize() const { return MaxCallFrameSize; }
   void setMaxCallFrameSize(unsigned S) { MaxCallFrameSize = S; }
+
+  void setHasFpuInst(bool hasInst) { HasFpuInst = hasInst; }
+  bool getHasFpuInst() { return HasFpuInst; }
+  void setHasIalu2Inst(bool hasInst) { HasIalu2Inst = hasInst; }
+  bool getHasIalu2Inst() { return HasFpuInst; }
 
 private:
   virtual void anchor();
@@ -104,6 +111,10 @@ private:
   int EhDataRegFI[2];
 
   bool EmitNOAT;
+
+  // Boolean flags to use in custom optimization passes
+  bool HasFpuInst;
+  bool HasIalu2Inst;
 
 };
 //@1 }

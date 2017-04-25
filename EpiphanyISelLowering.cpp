@@ -118,6 +118,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
 
     // Turn FP truncstore into trunc + store.
     setTruncStoreAction(MVT::f64, MVT::f32, Expand);
+    setTruncStoreAction(MVT::i64, MVT::i32, Expand);
 
     // We don't have conversion from i32/i64 to f64
     setLoadExtAction(ISD::EXTLOAD,  MVT::i64, MVT::i32, Expand);
@@ -407,6 +408,29 @@ static EpiphanyCC::CondCodes ConvertCC(SDValue CC, const SDLoc &DL, SDValue &RHS
   }
 }
 
+static ISD::CondCode getUnsignedToSigned(SDValue cond) {
+  // Get condition code
+  ISD::CondCode code = cast<CondCodeSDNode>(cond)->get();
+
+  // Choose function
+  switch (code) {
+    default:
+      return code;
+    case ISD::SETUEQ:
+      return ISD::SETEQ;
+    case ISD::SETUGE:
+      return ISD::SETGE;
+    case ISD::SETUGT:
+      return ISD::SETGT;
+    case ISD::SETULE:
+      return ISD::SETLE;
+    case ISD::SETULT:
+      return ISD::SETLT;
+    case ISD::SETUNE:
+      return ISD::SETNE;
+  }
+}
+
 static RTLIB::Libcall getDoubleCmp(SDValue cond) {
   // Get condition code
   ISD::CondCode code = cast<CondCodeSDNode>(cond)->get();
@@ -441,8 +465,6 @@ static RTLIB::Libcall getDoubleCmp(SDValue cond) {
     case ISD::SETUNE:
       return RTLIB::UNE_F64;
   }
-
-
 }
 
 bool EpiphanyTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
@@ -537,37 +559,51 @@ SDValue EpiphanyTargetLowering::LowerBrCC(SDValue Op, SelectionDAG &DAG) const {
 
   // Set flag
   SDValue Flag;
-  ::EpiphanyCC::CondCodes CC;
-  bool swap = false;
-  if (RTy.isInteger() && LTy.isInteger()) {
-    // Integer case, simple sub and get CC
+  ::EpiphanyCC::CondCodes CCode;
+  bool swap            = false;
+  if (RTy == MVT::i32 && LTy == MVT::i32) {
+    // Simple i32 case
     SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
-    SmallVector<SDValue, 2> Ops({LHS, RHS});
-    Flag = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Ops);
-    CC = ConvertCC(Cond, DL, LHS, swap);
-  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint() && RTy != MVT::f64) {
-    // f32 case, swap LHS and RHS if needed because of CC, use FSUB
-    CC = ConvertCC(Cond, DL, LHS, swap);
+    Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
+    CCode        = ConvertCC(Cond, DL, LHS, swap);
+  } else if (RTy == MVT::f32 && LTy == MVT::f32) {
+    // Floating point f32 case
+    CCode        = ConvertCC(Cond, DL, LHS, swap);
     if (swap) {
       std::swap(LHS, RHS);
     }
     SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
-    SmallVector<SDValue, 2> Ops({LHS, RHS});
-    Flag = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Ops);
-  } else if (RTy == MVT::f64) {
-    // f64 case, use external lib
+    Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
+  } else if (RTy == MVT::i64 && LTy == MVT::i64) {
+    SDVTList VTs   = DAG.getVTList(MVT::i32, MVT::i32);
+    // Extract subregs
+    SDValue LHS_lo = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, LHS);
+    SDValue RHS_lo = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, RHS);
+    SDValue LHS_hi = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, LHS);
+    SDValue RHS_hi = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, RHS);
+    // Sub low and high regs
+    SDValue Low    = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS_lo, RHS_lo);
+    SDValue High   = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS_hi, RHS_hi);
+    // Sub borrow
+    SDValue TrueV  = DAG.getConstant(1, DL, MVT::i32);
+    SDValue FalseV = DAG.getConstant(0, DL, MVT::i32);
+    SDValue CC     = DAG.getConstant(::EpiphanyCC::COND_LT, DL, MVT::i32);
+    SDValue Borrow = DAG.getNode(EpiphanyISD::MOVCC, DL, MVT::i32, TrueV, FalseV, CC, Low.getValue(1));
+    Flag           = DAG.getNode(EpiphanyISD::CMP, DL, VTs, High, Borrow);
+    CCode          = ConvertCC(DAG.getCondCode(getUnsignedToSigned(Cond)), DL, Flag, swap);
+  } else if (RTy == MVT::f64 && LTy == MVT::f64) {
     RTLIB::Libcall LC = getDoubleCmp(Cond);
     SmallVector<SDValue, 2> Ops({LHS, RHS});
-    Flag = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ true, DL).first;
+    Flag              = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ true, DL).first;
     // Use integer sub to set the flag, see GCC Soft-Float Library Routines
-    SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::i32);
-    Flag = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
-    CC = ConvertCC(Cond, DL, Flag, swap);
+    SDVTList VTs      = DAG.getVTList(Flag.getValueType(), MVT::i32);
+    Flag              = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
+    CCode             = ConvertCC(Cond, DL, Flag, swap);
   }
 
   // Prepare conditional move
   assert(Flag && "Can't get op for provided type"); 
-  SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
+  SDValue TargetCC = DAG.getConstant(CCode, DL, MVT::i32);
   return DAG.getNode(EpiphanyISD::BRCC, DL, Op.getValueType(), Chain, Dest, TargetCC, Flag.getValue(1));
 }
 
@@ -589,19 +625,35 @@ SDValue EpiphanyTargetLowering::LowerSelectCC(SDValue Op, SelectionDAG &DAG) con
 
   // Set the flag
   SDValue Flag;
-  if (RTy.isInteger() && LTy.isInteger()) {
+  if (RTy == MVT::i32 && LTy == MVT::i32) {
     SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
-    Flag = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
-  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint() && RTy != MVT::f64) {
+    Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
+  } else if (RTy == MVT::f32 && LTy == MVT::f32) {
     SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
-    Flag = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
-  } else if (RTy == MVT::f64) {
+    Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
+  } else if (RTy == MVT::i64 && LTy == MVT::i64) {
+    SDVTList VTs   = DAG.getVTList(MVT::i32, MVT::i32);
+    // Extract subregs
+    SDValue LHS_lo = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, LHS);
+    SDValue RHS_lo = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, RHS);
+    SDValue LHS_hi = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, LHS);
+    SDValue RHS_hi = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, RHS);
+    // Sub low and high regs
+    SDValue Low    = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS_lo, RHS_lo);
+    SDValue High   = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS_hi, RHS_hi);
+    // Sub borrow
+    SDValue TrueV  = DAG.getConstant(1, DL, MVT::i32);
+    SDValue FalseV = DAG.getConstant(0, DL, MVT::i32);
+    SDValue CC     = DAG.getConstant(::EpiphanyCC::COND_LT, DL, MVT::i32);
+    SDValue Borrow = DAG.getNode(EpiphanyISD::MOVCC, DL, MVT::i32, TrueV, FalseV, CC, Low.getValue(1));
+    Flag           = DAG.getNode(EpiphanyISD::CMP, DL, VTs, High, Borrow);
+  } else if (RTy == MVT::f64 && LTy == MVT::f64) {
     RTLIB::Libcall LC = getDoubleCmp(Cond);
     SmallVector<SDValue, 2> Ops({LHS, RHS});
-    Flag = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ true, DL).first;
+    Flag         = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ true, DL).first;
     // Use integer sub to set the flag, see GCC Soft-Float Library Routines
     SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::i32);
-    Flag = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
+    Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
   }
 
   // Get condition code
@@ -624,7 +676,7 @@ SDValue EpiphanyTargetLowering::LowerSelect(SDValue Op, SelectionDAG &DAG) const
 
   SDLoc DL(Op);
   // Get operands
-  SDValue Cmp = Op.getOperand(0);
+  SDValue Cmp   = Op.getOperand(0);
   SDValue True  = Op.getOperand(1);
   SDValue False = Op.getOperand(2);
 
@@ -663,23 +715,33 @@ SDValue EpiphanyTargetLowering::LowerSetCC(SDValue Op, SelectionDAG &DAG) const 
 
   // Set the flag
   SDValue Flag;
-  if (RTy.isInteger() && LTy.isInteger()) {
-    // For i32 use sub
-     SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
-  Flag = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
-  } else if (RTy.isFloatingPoint() && LTy.isFloatingPoint() && RTy != MVT::f64) {
-    // For f32 use fsub
-     SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
-  Flag = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
-  } else if (RTy == MVT::f64) {
-    // For f64 make call to the external lib
+  if (RTy == MVT::i32 && LTy == MVT::i32) {
+    SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
+    Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
+  } else if (RTy == MVT::f32 && LTy == MVT::f32) {
+    SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
+    Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
+  } else if (RTy == MVT::i64 && LTy == MVT::i64) {
+    SDVTList VTs   = DAG.getVTList(MVT::i32, MVT::i32);
+    // Extract subregs
+    SDValue LHS_lo = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, LHS);
+    SDValue RHS_lo = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, RHS);
+    SDValue LHS_hi = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, LHS);
+    SDValue RHS_hi = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, RHS);
+    // Sub low and high regs
+    SDValue Low    = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS_lo, RHS_lo);
+    SDValue High   = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS_hi, RHS_hi);
+    // Sub borrow
+    SDValue CC     = DAG.getConstant(::EpiphanyCC::COND_LT, DL, MVT::i32);
+    SDValue Borrow = DAG.getNode(EpiphanyISD::MOVCC, DL, MVT::i32, TrueV, FalseV, CC, Low.getValue(1));
+    Flag           = DAG.getNode(EpiphanyISD::CMP, DL, VTs, High, Borrow);
+  } else if (RTy == MVT::f64 && LTy == MVT::f64) {
     RTLIB::Libcall LC = getDoubleCmp(Cond);
     SmallVector<SDValue, 2> Ops({LHS, RHS});
-    Flag = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ false, DL, 
-        /* doesNotReturn = */ false, /* isReturnValueUsed = */ true).first;
+    Flag         = makeLibCall(DAG, LC, MVT::i32, Ops, /* isSigned = */ true, DL).first;
     // Use integer sub to set the flag, see GCC Soft-Float Library Routines
     SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::i32);
-    Flag = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
+    Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
   }
 
   // Get condition code

@@ -293,7 +293,7 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
           unsigned MIReg = getRegOperand(MI).getReg();
           unsigned sra = TRI->getMatchingSuperReg (Reg, Epiphany::isub_lo, &Epiphany::GPR64RegClass);
           unsigned srb = TRI->getMatchingSuperReg (MIReg, Epiphany::isub_hi, &Epiphany::GPR64RegClass);
-          if( (!sra || !srb) || sra != srb){
+          if( (!sra || !srb) || (sra != srb)) {
             sra = TRI->getMatchingSuperReg (MIReg, Epiphany::isub_lo, &Epiphany::GPR64RegClass);
             srb = TRI->getMatchingSuperReg (Reg, Epiphany::isub_hi, &Epiphany::GPR64RegClass);
           }
@@ -302,6 +302,22 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
             trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
             MemInsns.push_back(&MI);
             continue;
+          }
+        }
+
+        // Check if the alignment is correct
+        if (Opc == Epiphany::LDRi32_r32 || Opc == Epiphany::LDRi32_r32 || 
+            Opc == Epiphany::STRi32_r32 || Opc == Epiphany::STRi32_r32) {
+          // We already checked if the pair can be made, so now we're just checking HiReg alignment
+          unsigned MIReg = getRegOperand(MI).getReg();
+          unsigned sra = TRI->getMatchingSuperReg (Reg, Epiphany::isub_lo, &Epiphany::GPR64RegClass);
+          unsigned srb = TRI->getMatchingSuperReg (MIReg, Epiphany::isub_hi, &Epiphany::GPR64RegClass);
+          if (sra == srb) {
+            if (MIOffset % 8 != 0)
+              continue;
+          } else {
+            if (Offset % 8 != 0)
+              continue;
           }
         }
 

@@ -357,7 +357,9 @@ def SDT_MOVT  : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
 def SDT_MOVCC : SDTypeProfile<1, 4, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
 def MOV       : SDNode<"EpiphanyISD::MOV",   SDT_MOV>;
 def MOVT      : SDNode<"EpiphanyISD::MOVT",  SDT_MOVT>;
-def MOVCCsd   : SDNode<"EpiphanyISD::MOVCC", SDT_MOVCC, [SDNPHasChain]>;
+def MOVCCsd   : SDNode<"EpiphanyISD::MOVCC", SDT_MOVCC>;
+def : Pat<(i32 (MOV i32immSExt16:$imm)),  (MOVi32ri i32:$imm)>;
+def : Pat<(i32 (MOV i32immSExt32:$imm)),  (MOVTi32ri (MOVi32ri (LO16 i32:$imm)), (HI16 i32:$imm))>;
 def : Pat<(i32 (MOV tglobaladdr:$dst)),   (MOVi32ri tglobaladdr:$dst)>;
 def : Pat<(i32 (MOV texternalsym:$dst)),  (MOVi32ri texternalsym:$dst)>;
 def : Pat<(i32 (MOV tblockaddress:$dst)), (MOVi32ri tblockaddress:$dst)>;
@@ -478,10 +480,16 @@ def ADDri_r64 : Pat<(i64 (add (i64 GPR64:$Rn), i64immSExt11:$imm)),
   (i32 (COPY (ADDrr_r32 (HiReg (i64 GPR64:$Rn)), 
     (MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code)))), isub_hi)>;
 
+// TODO: Fix shift
 def : Pat<(i64 (shl GPR64:$Rn, (i32 32))), 
           (REG_SEQUENCE GPR64,
-          (MOVi32rr (EXTRACT_SUBREG GPR64:$Rn, isub_lo)), isub_hi,
+          (MOVi32rr (LoReg GPR64:$Rn)), isub_hi,
           (MOVi32ri 0), isub_lo)>;
+
+def : Pat<(i64 (srl GPR64:$Rn, (i32 32))), 
+          (REG_SEQUENCE GPR64,
+          (MOVi32ri 0), isub_hi,
+          (MOVi32rr (HiReg GPR64:$Rn)), isub_lo)>;
 
 def : Pat<(i32 (trunc GPR64:$Rn)), (LoReg GPR64:$Rn)>;
 
