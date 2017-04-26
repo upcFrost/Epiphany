@@ -308,16 +308,19 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
         // Check if the alignment is correct
         if (Opc == Epiphany::LDRi32_r32 || Opc == Epiphany::LDRi32_r32 || 
             Opc == Epiphany::STRi32_r32 || Opc == Epiphany::STRi32_r32) {
-          // We already checked if the pair can be made, so now we're just checking HiReg alignment
           unsigned MIReg = getRegOperand(MI).getReg();
           unsigned sra = TRI->getMatchingSuperReg (Reg, Epiphany::isub_lo, &Epiphany::GPR64RegClass);
           unsigned srb = TRI->getMatchingSuperReg (MIReg, Epiphany::isub_hi, &Epiphany::GPR64RegClass);
-          if (sra == srb) {
-            if (MIOffset % 8 != 0)
-              continue;
-          } else {
-            if (Offset % 8 != 0)
-              continue;
+          int HighOffset = MIOffset;
+          int LowOffset = Offset;
+          if( (!sra || !srb) || (sra != srb)) {
+            HighOffset = Offset;
+            LowOffset = MIOffset;
+          }
+
+          // High reg offset should be always lower than low reg offset, and it should be double-aligned
+          if ((HighOffset > LowOffset) || (HighOffset % 8 != 0)) {
+            continue;
           }
         }
 
