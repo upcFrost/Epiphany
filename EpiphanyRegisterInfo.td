@@ -195,25 +195,29 @@ def FPR64 : RegisterClass<"Epiphany", [f64,v2f32], 64, (add GPR64)> {
 // We should not be able to alloc special regs
 let isAllocatable = 0 in {
 // Status register
-def SR : RegisterClass<"Epiphany", [i32], 32, (add STATUS)>;
+def SR : RegisterClass<"Epiphany", [i32], 32, (add STATUS)> {
+  let CopyCost = -1;      // Don't allow copying of status registers
+}
 
 // Special regs
 def SPECIAL : RegisterClass<"Epiphany", [i32], 32, (add 
-  CONFIG, 
-  STATUS, 
-  PC, 
-  DEBUGSTATUS,
-  LC,
-  LS,
-  LE,
-  IRET,
-  IMASK,
-  ILAT,
-  ILATST,
-  ILATCL,
-  IPEND,
-  CTIMER0,
-  CTIMER1,
-  FSTATUS,
-  DEBUGCMD)>;
+   CONFIG, 
+   STATUS, 
+   PC, 
+   DEBUGSTATUS,
+   LC,
+   LS,
+   LE,
+   IRET,
+   IMASK,
+   ILAT,
+   ILATST,
+   ILATCL,
+   IPEND,
+   CTIMER0,
+   CTIMER1,
+   FSTATUS,
+   DEBUGCMD)> {
+  let CopyCost = -1;      // Don't allow copying of status registers
+}
 }
