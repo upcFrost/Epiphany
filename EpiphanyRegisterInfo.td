@@ -18,7 +18,7 @@ class EpiphanyReg<bits<16> enc, string n> : Register<n> {
 }
 
 let Namespace = "Epiphany" in {
-  def isub_lo  : SubRegIndex<32>;
+  def isub_lo  : SubRegIndex<32, 0>;
   def isub_hi  : SubRegIndex<32, 32>;
   def subreg_overflow : SubRegIndex<1, 0>;
 }

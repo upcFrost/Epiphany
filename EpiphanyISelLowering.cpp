@@ -115,53 +115,53 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
       setOperationAction(ISD::FPOW,  VT,  Expand);
       setOperationAction(ISD::FREM,  VT,  Expand);
     }
+    
+    // Allow pre/post inc stores and loads
+    for (MVT Ty : {MVT::i8, MVT::i16, MVT::i32, MVT::f32, MVT::i64, MVT::f64}) {
+      setIndexedLoadAction(ISD::PRE_DEC,  Ty, Legal);
+      setIndexedLoadAction(ISD::PRE_INC,  Ty, Legal);
+      setIndexedLoadAction(ISD::POST_DEC, Ty, Legal);
+      setIndexedLoadAction(ISD::POST_INC, Ty, Legal);
+      setIndexedStoreAction(ISD::PRE_DEC,  Ty, Legal);
+      setIndexedStoreAction(ISD::PRE_INC,  Ty, Legal);
+      setIndexedStoreAction(ISD::POST_DEC, Ty, Legal);
+      setIndexedStoreAction(ISD::POST_INC, Ty, Legal);
+    }
 
     // Turn FP truncstore into trunc + store.
     setTruncStoreAction(MVT::f64, MVT::f32, Expand);
     setTruncStoreAction(MVT::i64, MVT::i32, Expand);
 
-    // We don't have conversion from i32/i64 to f64
+    // Turn FP extload to ext + load
     setLoadExtAction(ISD::EXTLOAD,  MVT::i64, MVT::i32, Expand);
     setLoadExtAction(ISD::ZEXTLOAD, MVT::i64, MVT::i32, Expand);
     setLoadExtAction(ISD::SEXTLOAD, MVT::i64, MVT::i32, Expand);
-    setLoadExtAction(ISD::EXTLOAD,  MVT::f32, MVT::i32, Expand);
-    setLoadExtAction(ISD::ZEXTLOAD, MVT::f32, MVT::i32, Expand);
-    setLoadExtAction(ISD::SEXTLOAD, MVT::f32, MVT::i32, Expand);
-    setLoadExtAction(ISD::EXTLOAD,  MVT::f32, MVT::i64, Expand);
-    setLoadExtAction(ISD::ZEXTLOAD, MVT::f32, MVT::i64, Expand);
-    setLoadExtAction(ISD::SEXTLOAD, MVT::f32, MVT::i64, Expand);
     setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::f32, Expand);
     setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::f32, Expand);
     setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::f32, Expand);
-    setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::i32, Expand);
-    setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::i32, Expand);
-    setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::i32, Expand);
-    setLoadExtAction(ISD::EXTLOAD,  MVT::f64, MVT::i64, Expand);
-    setLoadExtAction(ISD::ZEXTLOAD, MVT::f64, MVT::i64, Expand);
-    setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::i64, Expand);
-
-    setOperationAction(ISD::EXTLOAD,  MVT::f64, Expand);
-    setOperationAction(ISD::SEXTLOAD, MVT::f64, Expand);
-    setOperationAction(ISD::ZEXTLOAD, MVT::f64, Expand);
 
     // For now - expand i64 ops that were not implemented yet
-    setOperationAction(ISD::MUL,       MVT::i64,  Expand);
-    setOperationAction(ISD::SMUL_LOHI, MVT::i64,  Expand);
-    setOperationAction(ISD::UMUL_LOHI, MVT::i64,  Expand);
-    setOperationAction(ISD::SDIV,      MVT::i64,  Expand);
-    setOperationAction(ISD::SREM,      MVT::i64,  Expand);
-    setOperationAction(ISD::UDIV,      MVT::i64,  Expand);
-    setOperationAction(ISD::UREM,      MVT::i64,  Expand);
-    setOperationAction(ISD::SDIVREM,   MVT::i64,  Expand);
-    setOperationAction(ISD::UDIVREM,   MVT::i64,  Expand);
+    setOperationAction(ISD::ADD,       MVT::i64, Expand);
+    setOperationAction(ISD::ADDC,      MVT::i64, Expand);
+    setOperationAction(ISD::SUB,       MVT::i64, Expand);
+    setOperationAction(ISD::SUBC,      MVT::i64, Expand);
+    setOperationAction(ISD::MUL,       MVT::i64, Expand);
+    setOperationAction(ISD::SMUL_LOHI, MVT::i64, Expand);
+    setOperationAction(ISD::UMUL_LOHI, MVT::i64, Expand);
+    setOperationAction(ISD::SDIV,      MVT::i64, Expand);
+    setOperationAction(ISD::SREM,      MVT::i64, Expand);
+    setOperationAction(ISD::UDIV,      MVT::i64, Expand);
+    setOperationAction(ISD::UREM,      MVT::i64, Expand);
+    setOperationAction(ISD::SDIVREM,   MVT::i64, Expand);
+    setOperationAction(ISD::UDIVREM,   MVT::i64, Expand);
 
     // Same for f64
-    setOperationAction(ISD::FADD,       MVT::f64,  Expand);
-    setOperationAction(ISD::FSUB,       MVT::f64,  Expand);
-    setOperationAction(ISD::FMUL,       MVT::f64,  Expand);
-    setOperationAction(ISD::FDIV,       MVT::f64,  Expand);
-    setOperationAction(ISD::SELECT,     MVT::f64,  Expand);
-    setOperationAction(ISD::FP_ROUND,   MVT::f64,  Expand);
+    setOperationAction(ISD::FADD,       MVT::f64, Expand);
+    setOperationAction(ISD::FSUB,       MVT::f64, Expand);
+    setOperationAction(ISD::FMUL,       MVT::f64, Expand);
+    setOperationAction(ISD::FDIV,       MVT::f64, Expand);
+    setOperationAction(ISD::SELECT,     MVT::f64, Expand);
+    setOperationAction(ISD::FP_ROUND,   MVT::f64, Expand);
 
     // Custom operations, see below
     setOperationAction(ISD::GlobalAddress,  MVT::i32, Custom);
@@ -538,7 +538,8 @@ SDValue EpiphanyTargetLowering::LowerBrCond(SDValue Op, SelectionDAG &DAG) const
   // Prepare conditional move
   assert(Flag && "Can't get op for provided type"); 
   SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
-  return DAG.getNode(EpiphanyISD::BRCC, DL, Op.getValueType(), Chain, Dest, TargetCC, Flag.getValue(1));
+  VTs              = DAG.getVTList(Op.getValueType(), MVT::Glue);
+  return DAG.getNode(EpiphanyISD::BRCC, DL, VTs, Chain, Dest, TargetCC, Flag.getValue(1));
 }
 
 /// LowerBrCC
@@ -604,7 +605,8 @@ SDValue EpiphanyTargetLowering::LowerBrCC(SDValue Op, SelectionDAG &DAG) const {
   // Prepare conditional move
   assert(Flag && "Can't get op for provided type"); 
   SDValue TargetCC = DAG.getConstant(CCode, DL, MVT::i32);
-  return DAG.getNode(EpiphanyISD::BRCC, DL, Op.getValueType(), Chain, Dest, TargetCC, Flag.getValue(1));
+  SDVTList VTs   = DAG.getVTList(Op.getValueType(), MVT::Glue);
+  return DAG.getNode(EpiphanyISD::BRCC, DL, VTs, Chain, Dest, TargetCC, Flag.getValue(1));
 }
 
 /// LowerSelectCC
@@ -645,6 +647,7 @@ SDValue EpiphanyTargetLowering::LowerSelectCC(SDValue Op, SelectionDAG &DAG) con
     SDValue TrueV  = DAG.getConstant(1, DL, MVT::i32);
     SDValue FalseV = DAG.getConstant(0, DL, MVT::i32);
     SDValue CC     = DAG.getConstant(::EpiphanyCC::COND_LT, DL, MVT::i32);
+    Cond           = DAG.getCondCode(getUnsignedToSigned(Cond));
     SDValue Borrow = DAG.getNode(EpiphanyISD::MOVCC, DL, MVT::i32, TrueV, FalseV, CC, Low.getValue(1));
     Flag           = DAG.getNode(EpiphanyISD::CMP, DL, VTs, High, Borrow);
   } else if (RTy == MVT::f64 && LTy == MVT::f64) {
@@ -666,7 +669,8 @@ SDValue EpiphanyTargetLowering::LowerSelectCC(SDValue Op, SelectionDAG &DAG) con
   // Prepare conditional move
   assert(Flag && "Can't get op for provided type"); 
   SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
-  return DAG.getNode(EpiphanyISD::MOVCC, DL, Op.getValueType(), TrueV, FalseV, TargetCC, Flag.getValue(1));
+  SDVTList VTs   = DAG.getVTList(Op.getValueType(), MVT::Glue);
+  return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, TrueV, FalseV, TargetCC, Flag.getValue(1));
 }
 
 
@@ -691,7 +695,8 @@ SDValue EpiphanyTargetLowering::LowerSelect(SDValue Op, SelectionDAG &DAG) const
     std::swap(True, False);
   }
   SDValue TargetCC = DAG.getConstant(CC, DL, MVT::i32);
-  return DAG.getNode(EpiphanyISD::MOVCC, DL, Op.getValueType(), True, False, TargetCC);
+  SDVTList VTs   = DAG.getVTList(Op.getValueType(), MVT::Glue);
+  return DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, True, False, TargetCC);
 }
 
 
@@ -734,6 +739,7 @@ SDValue EpiphanyTargetLowering::LowerSetCC(SDValue Op, SelectionDAG &DAG) const 
     // Sub borrow
     SDValue CC     = DAG.getConstant(::EpiphanyCC::COND_LT, DL, MVT::i32);
     SDValue Borrow = DAG.getNode(EpiphanyISD::MOVCC, DL, MVT::i32, TrueV, FalseV, CC, Low.getValue(1));
+    Cond           = DAG.getCondCode(getUnsignedToSigned(Cond));
     Flag           = DAG.getNode(EpiphanyISD::CMP, DL, VTs, High, Borrow);
   } else if (RTy == MVT::f64 && LTy == MVT::f64) {
     RTLIB::Libcall LC = getDoubleCmp(Cond);

@@ -227,6 +227,18 @@ def smem11 : Operand<iPTR> {
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
+def pre_load: PatFrag<(ops node:$ptr),
+                      (load node:$ptr), [{
+  ISD::MemIndexedMode AM = cast<LoadSDNode>(N)->getAddressingMode();
+  return AM == ISD::PRE_INC || AM == ISD::PRE_DEC;
+}]>;
+
+def post_load: PatFrag<(ops node:$ptr),
+                       (load node:$ptr), [{
+  ISD::MemIndexedMode AM = cast<LoadSDNode>(N)->getAddressingMode();
+  return AM == ISD::POST_INC || AM == ISD::POST_DEC;
+}]>;
+
 class AlignedLoad<PatFrag Node> :
   PatFrag<(ops node:$ptr), (Node node:$ptr), [{
   LoadSDNode *LD = cast<LoadSDNode>(N);
