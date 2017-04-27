@@ -141,8 +141,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::f32, Expand);
 
     // For now - expand i64 ops that were not implemented yet
-    setOperationAction(ISD::ADD,       MVT::i64, Expand);
-    setOperationAction(ISD::ADDC,      MVT::i64, Expand);
+    setOperationAction(ISD::ADD,       MVT::i64, Custom);
+    setOperationAction(ISD::ADDC,      MVT::i64, Custom);
     setOperationAction(ISD::SUB,       MVT::i64, Expand);
     setOperationAction(ISD::SUBC,      MVT::i64, Expand);
     setOperationAction(ISD::MUL,       MVT::i64, Expand);
@@ -234,8 +234,23 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     case ISD::SINT_TO_FP:
       return LowerIntToFp(Op, DAG);
       break;
+    case ISD::ADD:
+    case ISD::ADDC:
+      return LowerAdd64(Op, DAG);
+      break;
   }
   return SDValue();
+}
+
+
+static SDValue createGPR64(SelectionDAG &DAG, SDValue High, SDValue Low) {
+  SDLoc DL(High.getNode());
+
+  SDValue RegClass = DAG.getTargetConstant(Epiphany::GPR64RegClassID, DL, MVT::i32);
+  SDValue SubRegHi = DAG.getTargetConstant(Epiphany::isub_hi, DL, MVT::i32);
+  SDValue SubRegLo = DAG.getTargetConstant(Epiphany::isub_lo, DL, MVT::i32);
+  const SDValue Ops[] = { RegClass, High, SubRegHi, Low, SubRegLo };
+  return SDValue(DAG.getMachineNode(TargetOpcode::REG_SEQUENCE, DL, MVT::i64, Ops), 0);
 }
 
 //===----------------------------------------------------------------------===//
@@ -262,6 +277,26 @@ SDValue EpiphanyTargetLowering::LowerFastDiv(SDValue Op, SelectionDAG &DAG) cons
 
   // Multiply by divident
   return DAG.getNode(ISD::FMUL, DL, MVT::f32, Divisor.first, LHS, Divisor.second);
+}
+
+SDValue EpiphanyTargetLowering::LowerAdd64(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  
+  // Get operands
+  SDValue LHS = Op.getOperand(0);
+  SDValue RHS = Op.getOperand(1);
+
+  // Extract subregs
+  SDValue LHS_l = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, LHS);
+  SDValue LHS_h = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, LHS);
+  SDValue RHS_l = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, RHS);
+  SDValue RHS_h = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, RHS);
+
+  // Create low and high adds
+  SDVTList VTs = DAG.getVTList(MVT::i32, MVT::Glue);
+  SDValue Low  = DAG.getNode(ISD::ADDC, DL, VTs, LHS_l, RHS_l);
+  SDValue High = DAG.getNode(ISD::ADDE, DL, VTs, LHS_h, RHS_h, Low.getValue(1));
+  return createGPR64(DAG, High, Low);
 }
 
 SDValue EpiphanyTargetLowering::LowerIntToFp(SDValue Op, SelectionDAG &DAG) const {

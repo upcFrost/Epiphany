@@ -161,6 +161,7 @@ namespace llvm {
       SDValue LowerSetCC(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerBrCC(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerBrCond(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerAdd64(SDValue Op, SelectionDAG &DAG) const;
 
       //- must be exist even without function all
       SDValue LowerFormalArguments(SDValue Chain,

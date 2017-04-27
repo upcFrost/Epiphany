@@ -458,7 +458,11 @@ let isCall = 1, Defs = [LR], hasDelaySlot = 0, isBarrier = 0 in {
 def : Pat<(adde GPR32:$Rn, simm11:$imm), 
           (ADDrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))>;
 def : Pat<(sube GPR32:$Rn, simm11:$imm), 
-          (SUBrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))>;
+          (SUBrr_r32 (SUBri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))>;
+def : Pat<(adde (i32 GPR32:$Rn), (i32 GPR32:$Rm)), 
+          (ADDrr_r32 (ADDrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))>;
+def : Pat<(sube (i32 GPR32:$Rn), (i32 GPR32:$Rm)), 
+          (SUBrr_r32 (SUBrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))>;
 
 /*// COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)*/
 /*def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),*/
