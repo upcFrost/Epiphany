@@ -456,23 +456,13 @@ let isCall = 1, Defs = [LR], hasDelaySlot = 0, isBarrier = 0 in {
 
 // Extended Addsub i32, exploiting the fact that MOVGTEU depend only on the carry
 def : Pat<(adde GPR32:$Rn, simm11:$imm), 
-          (ADDrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))>;
+          (ADDrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_GT.Code))>;
 def : Pat<(sube GPR32:$Rn, simm11:$imm), 
-          (SUBrr_r32 (SUBri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))>;
+          (SUBrr_r32 (SUBri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_LT.Code))>;
 def : Pat<(adde (i32 GPR32:$Rn), (i32 GPR32:$Rm)), 
-          (ADDrr_r32 (ADDrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))>;
+          (ADDrr_r32 (ADDrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_GT.Code))>;
 def : Pat<(sube (i32 GPR32:$Rn), (i32 GPR32:$Rm)), 
-          (SUBrr_r32 (SUBrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))>;
-
-/*// COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)*/
-/*def ADDrr_r64 : Pat<(i64 (add GPR64:$Rn, GPR64:$Rm)),*/
-  /*(REG_SEQUENCE GPR64,*/
-  /*(i32 (COPY (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), */
-  /*isub_lo,*/
-  /*(i32 (COPY (ADDrr_r32 (HiReg GPR64:$Rn), */
-    /*(ADDri_r32 (HiReg GPR64:$Rm), */
-      /*(MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))))), */
-  /*isub_hi)>;*/
+          (SUBrr_r32 (SUBrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_LT.Code))>;
 
 /*// Sub64 patfrag, as we will need it in many places later*/
 /*def SUBrr_r64_pat : OutPatFrag<(ops node:$Rn, node:$Rm), */
@@ -486,22 +476,6 @@ def : Pat<(sube (i32 GPR32:$Rn), (i32 GPR32:$Rm)),
 /*// SUB and SUBC patterns for i64*/
 /*def SUBrr_r64  : Pat<(i64 (sub GPR64:$Rn, GPR64:$Rm)), (SUBrr_r64_pat GPR64:$Rn, GPR64:$Rm)>;*/
 /*def SUBCrr_r64 : Pat<(i64 (subc GPR64:$Rn, GPR64:$Rm)), (SUBrr_r64_pat GPR64:$Rn, GPR64:$Rm)>;*/
-
-/*// COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)*/
-/*def ADDCrr_r64 : Pat<(i64 (addc GPR64:$Rn, GPR64:$Rm)), */
-  /*(REG_SEQUENCE GPR64,*/
-  /*(i32 (COPY (ADDrr_r32 (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), isub_lo,*/
-  /*(i32 (COPY (ADDrr_r32 (HiReg GPR64:$Rn), */
-    /*(ADDri_r32 (HiReg GPR64:$Rm), */
-      /*(MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code))))), */
-  /*isub_hi)>;*/
-
-/*// COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)*/
-/*def ADDri_r64 : Pat<(i64 (add (i64 GPR64:$Rn), i64immSExt11:$imm)),*/
-  /*(REG_SEQUENCE GPR64,*/
-  /*(i32 (COPY (ADDri_r32 (LoReg (i64 GPR64:$Rn)), (LO16 i64:$imm)))), isub_lo,*/
-  /*(i32 (COPY (ADDrr_r32 (HiReg (i64 GPR64:$Rn)), */
-    /*(MOVCC (MOVi32ri 0), (MOVi32ri 1), COND_GTEU.Code)))), isub_hi)>;*/
 
 // TODO: Fix shift
 def : Pat<(i64 (shl GPR64:$Rn, (i32 32))), 

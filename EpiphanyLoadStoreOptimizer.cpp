@@ -319,7 +319,7 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
           }
 
           // High reg offset should be always lower than low reg offset, and it should be double-aligned
-          if ((HighOffset > LowOffset) || (HighOffset % 8 != 0)) {
+          if ((LowOffset > HighOffset) || (LowOffset % 8 != 0)) {
             continue;
           }
         }

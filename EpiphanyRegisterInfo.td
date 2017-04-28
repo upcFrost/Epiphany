@@ -18,8 +18,8 @@ class EpiphanyReg<bits<16> enc, string n> : Register<n> {
 }
 
 let Namespace = "Epiphany" in {
-  def isub_lo  : SubRegIndex<32, 0>;
-  def isub_hi  : SubRegIndex<32, 32>;
+  def isub_lo  : SubRegIndex<32, 32>;
+  def isub_hi  : SubRegIndex<32, 0>;
   def subreg_overflow : SubRegIndex<1, 0>;
 }
 
@@ -27,7 +27,7 @@ class EpiphanyReg64<bits<16> enc, string n, list<Register> subregs> : RegisterWi
   let HWEncoding = enc;
   let Namespace = "Epiphany";
   let SubRegs = subregs;
-  let SubRegIndices = [isub_hi, isub_lo];
+  let SubRegIndices = [isub_lo, isub_hi];
   let CoveredBySubRegs = 1;
 }
 
