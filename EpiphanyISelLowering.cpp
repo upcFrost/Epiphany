@@ -59,6 +59,7 @@ const char *EpiphanyTargetLowering::getTargetNodeName(unsigned Opcode) const {
     case EpiphanyISD::LOAD:           return "EpiphanyISD::LOAD";
     case EpiphanyISD::CMP:            return "EpiphanyISD::CMP";
     case EpiphanyISD::BRCC:           return "EpiphanyISD::BRCC";
+    case EpiphanyISD::BRCC64:         return "EpiphanyISD::BRCC64";
     case EpiphanyISD::FIX:            return "EpiphanyISD::FIX";
     case EpiphanyISD::FLOAT:          return "EpiphanyISD::FLOAT";
 
@@ -141,10 +142,6 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setLoadExtAction(ISD::SEXTLOAD, MVT::f64, MVT::f32, Expand);
 
     // For now - expand i64 ops that were not implemented yet
-    setOperationAction(ISD::ADD,       MVT::i64, Custom);
-    setOperationAction(ISD::ADDC,      MVT::i64, Custom);
-    setOperationAction(ISD::SUB,       MVT::i64, Expand);
-    setOperationAction(ISD::SUBC,      MVT::i64, Expand);
     setOperationAction(ISD::MUL,       MVT::i64, Expand);
     setOperationAction(ISD::SMUL_LOHI, MVT::i64, Expand);
     setOperationAction(ISD::UMUL_LOHI, MVT::i64, Expand);
@@ -177,6 +174,10 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
     setOperationAction(ISD::SELECT_CC, MVT::f32, Custom);
     setOperationAction(ISD::FP_EXTEND, MVT::f64, Custom);
+    setOperationAction(ISD::ADD,       MVT::i64, Custom);
+    setOperationAction(ISD::ADDC,      MVT::i64, Custom);
+    setOperationAction(ISD::SUB,       MVT::i64, Custom);
+    setOperationAction(ISD::SUBC,      MVT::i64, Custom);
 
         // Just expand all conversions, as they're getting on the nerves
     for (MVT VT : MVT::all_valuetypes()) {
@@ -237,6 +238,10 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     case ISD::ADD:
     case ISD::ADDC:
       return LowerAdd64(Op, DAG);
+      break;
+    case ISD::SUB:
+    case ISD::SUBC:
+      return LowerSub64(Op, DAG);
       break;
   }
   return SDValue();
@@ -299,6 +304,26 @@ SDValue EpiphanyTargetLowering::LowerAdd64(SDValue Op, SelectionDAG &DAG) const 
   return createGPR64(DAG, High, Low);
 }
 
+SDValue EpiphanyTargetLowering::LowerSub64(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  
+  // Get operands
+  SDValue LHS = Op.getOperand(0);
+  SDValue RHS = Op.getOperand(1);
+
+  // Extract subregs
+  SDValue LHS_l = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, LHS);
+  SDValue LHS_h = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, LHS);
+  SDValue RHS_l = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, RHS);
+  SDValue RHS_h = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, RHS);
+
+  // Create low and high adds
+  SDVTList VTs = DAG.getVTList(MVT::i32, MVT::Glue);
+  SDValue Low  = DAG.getNode(ISD::SUBC, DL, VTs, LHS_l, RHS_l);
+  SDValue High = DAG.getNode(ISD::SUBE, DL, VTs, LHS_h, RHS_h, Low.getValue(1));
+  return createGPR64(DAG, High, Low);
+}
+
 SDValue EpiphanyTargetLowering::LowerIntToFp(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
 
@@ -343,6 +368,118 @@ SDValue EpiphanyTargetLowering::LowerFpToInt(SDValue Op, SelectionDAG &DAG) cons
 
   SmallVector<SDValue, 2> Ops(Op->op_begin(), Op->op_end());
   return makeLibCall(DAG, LC, ResVT, Ops, false, DL).first;
+}
+
+//===----------------------------------------------------------------------===//
+//  Custom inserter functions
+//===----------------------------------------------------------------------===//
+MachineBasicBlock *EpiphanyTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const {
+  switch (MI.getOpcode()) {
+    default:
+      MI.dump();
+      llvm_unreachable("No custom inserter for the instruction");
+      break;
+    case Epiphany::BCC64:
+      return emitBrCC(MI, MBB);
+      break;
+  }
+}
+
+MachineBasicBlock *EpiphanyTargetLowering::emitBrCC(MachineInstr &MI, MachineBasicBlock *MBB) const {
+  // We can have 3 cases - GT, LT and EQ (and their unsigned versions).
+  // LT is converted to GT by swapping comparison operands
+  // EQ does not have the first comparison, we simply jump out if high subregs are not equal
+  // LowCmpBB is needed because of the MBB elimination mechanism (CMP is not a terminator)
+
+  // OrigBB:
+  //     [... previous instrs ...]
+  //     cmp r0_hi, r1_hi
+  //     bgt/bgtu DestBB
+  //     bne FallThroughBB
+  // LowCmpBB:
+  //     cmp r0_lo, r1_lo
+  //     bgt/bgtu DestBB
+  // FallThroughBB:
+  //     [... fall-through ...]
+
+  const TargetRegisterClass *RC = &Epiphany::GPR32RegClass;
+  MachineFunction *MF           = MBB->getParent();
+  const TargetInstrInfo *TII    = Subtarget.getInstrInfo();
+  const BasicBlock *LLVM_BB     = MBB->getBasicBlock();
+  DebugLoc DL                   = MI.getDebugLoc();
+  MachineFunction::iterator It  = ++MBB->getIterator();
+  const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
+  MachineRegisterInfo &MRI      = MF->getRegInfo();
+
+  // Get Operands
+  MachineBasicBlock *Dest = MI.getOperand(0).getMBB();
+  unsigned CondCode       = MI.getOperand(1).getImm();
+  unsigned LHS_lo         = MI.getOperand(2).getReg();
+  unsigned RHS_lo         = MI.getOperand(3).getReg();
+  unsigned LHS_hi         = MI.getOperand(4).getReg();
+  unsigned RHS_hi         = MI.getOperand(5).getReg();
+
+  // Invert cond code if needed
+  bool swap = true;
+  switch (CondCode) {
+    default:
+      swap = false;
+      break;
+    case ::EpiphanyCC::COND_LTE:
+      CondCode = ::EpiphanyCC::COND_GTE;
+      break;
+    case ::EpiphanyCC::COND_LTU:
+      CondCode = ::EpiphanyCC::COND_GTU;
+      break;
+    case ::EpiphanyCC::COND_LTEU:
+      CondCode = ::EpiphanyCC::COND_GTEU;
+      break;
+    case ::EpiphanyCC::COND_LT:
+      CondCode = ::EpiphanyCC::COND_GT;
+      break;
+  }
+
+  // Swap LHS/RHS if needed
+  if (swap) {
+    std::swap(LHS_lo, RHS_lo);
+    std::swap(LHS_hi, RHS_hi);
+  }
+
+  // Check if the condition is EQ
+  bool isEqual = CondCode == ::EpiphanyCC::COND_EQ;
+  unsigned tempReg1 = MRI.createVirtualRegister(RC);
+  unsigned tempReg2 = MRI.createVirtualRegister(RC);
+
+  // Create fall-thourgh block
+  MachineBasicBlock *FallThroughBB = MF->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *LowCmpBB = MF->CreateMachineBasicBlock(LLVM_BB);
+  MF->insert(It, LowCmpBB);
+  MF->insert(It, FallThroughBB);
+
+  // Transfer rest of current basic-block to FallThroughBB
+  FallThroughBB->splice(FallThroughBB->begin(), MBB, 
+      std::next(MachineBasicBlock::iterator(MI)), MBB->end());
+  FallThroughBB->transferSuccessorsAndUpdatePHIs(MBB);
+
+  // Insert instruction sequence
+  BuildMI(MBB, DL, TII->get(Epiphany::CMPrr_r32), tempReg1).addReg(LHS_hi).addReg(RHS_hi);
+  if (!isEqual) {
+    BuildMI(MBB, DL, TII->get(Epiphany::BCC)).addMBB(Dest).addImm(CondCode);
+  }
+  BuildMI(MBB, DL, TII->get(Epiphany::BCC)).addMBB(FallThroughBB).addImm(::EpiphanyCC::COND_NE);
+  MBB->addSuccessor(Dest);
+  MBB->addSuccessor(FallThroughBB);
+  MBB->addSuccessor(LowCmpBB);
+  MBB->normalizeSuccProbs();
+
+  BuildMI(LowCmpBB, DL, TII->get(Epiphany::CMPrr_r32), tempReg2).addReg(LHS_lo).addReg(RHS_lo);
+  BuildMI(LowCmpBB, DL, TII->get(Epiphany::BCC)).addMBB(Dest).addImm(CondCode);
+  LowCmpBB->addSuccessor(Dest);
+  LowCmpBB->addSuccessor(FallThroughBB);
+  LowCmpBB->normalizeSuccProbs();
+
+  MI.eraseFromParent();
+  return FallThroughBB;
 }
 
 //===----------------------------------------------------------------------===//
@@ -611,22 +748,15 @@ SDValue EpiphanyTargetLowering::LowerBrCC(SDValue Op, SelectionDAG &DAG) const {
     SDVTList VTs = DAG.getVTList(LHS.getValueType(), MVT::i32);
     Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS, RHS);
   } else if (RTy == MVT::i64 && LTy == MVT::i64) {
-    SDVTList VTs   = DAG.getVTList(MVT::i32, MVT::i32);
     // Extract subregs
     SDValue LHS_lo = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, LHS);
     SDValue RHS_lo = DAG.getTargetExtractSubreg(Epiphany::isub_lo, DL, MVT::i32, RHS);
     SDValue LHS_hi = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, LHS);
     SDValue RHS_hi = DAG.getTargetExtractSubreg(Epiphany::isub_hi, DL, MVT::i32, RHS);
-    // Sub low and high regs
-    SDValue Low    = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS_lo, RHS_lo);
-    SDValue High   = DAG.getNode(EpiphanyISD::CMP, DL, VTs, LHS_hi, RHS_hi);
-    // Sub borrow
-    SDValue TrueV  = DAG.getConstant(1, DL, MVT::i32);
-    SDValue FalseV = DAG.getConstant(0, DL, MVT::i32);
-    SDValue CC     = DAG.getConstant(::EpiphanyCC::COND_LT, DL, MVT::i32);
-    SDValue Borrow = DAG.getNode(EpiphanyISD::MOVCC, DL, MVT::i32, TrueV, FalseV, CC, Low.getValue(1));
-    Flag           = DAG.getNode(EpiphanyISD::CMP, DL, VTs, High, Borrow);
-    CCode          = ConvertCC(DAG.getCondCode(getUnsignedToSigned(Cond)), DL, Flag, swap);
+    // Get condition
+    SDValue TargetCC = DAG.getConstant(ConvertCC(Cond, DL, LHS, swap), DL, MVT::i32);
+    SmallVector<SDValue, 7> Ops({Chain, Dest, TargetCC, LHS_lo, RHS_lo, LHS_hi, RHS_hi});
+    return DAG.getNode(EpiphanyISD::BRCC64, DL, Op.getValueType(), Ops);
   } else if (RTy == MVT::f64 && LTy == MVT::f64) {
     RTLIB::Libcall LC = getDoubleCmp(Cond);
     SmallVector<SDValue, 2> Ops({LHS, RHS});

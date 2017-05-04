@@ -400,6 +400,10 @@ let Constraints = "$src = $Rd", Uses = [STATUS] in {
 def SDT_BRCC  : SDTypeProfile<0, 3, [SDTCisVT<0, OtherVT>, SDTCisVT<1, i32>]>;
 def BRCC      : SDNode<"EpiphanyISD::BRCC",  SDT_BRCC, [SDNPHasChain]>;
 
+// Special 64-bit version of BRCC
+def SDT_BRCC64  : SDTypeProfile<0, 6, [SDTCisVT<0, OtherVT>, SDTCisVT<1, i32>, SDTCisSameAs<2,3>, SDTCisSameAs<4,5>]>;
+def BRCC64      : SDNode<"EpiphanyISD::BRCC64",  SDT_BRCC64, [SDNPHasChain]>;
+
 // Return
 let isReturn=1, isTerminator=1, hasDelaySlot=1, isBarrier=1, hasCtrlDep=1 in {
   def RTS : Pseudo32<(outs), (ins), [(EpiphanyRet)]>;
@@ -418,6 +422,11 @@ let isBarrier = 1, hasDelaySlot = 0 in {
 
 let isTerminator = 1, isBranch = 1, isBarrier = 0, hasDelaySlot = 0, Uses = [STATUS] in {
   def BCC : BranchCC32<(ins branchtarget:$addr, cc:$cc), [(BRCC bb:$addr, i32immSExt32:$cc, STATUS)]>;
+}
+
+let usesCustomInserter = 1 in {
+  def BCC64 : Pseudo32<(outs), (ins branchtarget:$addr, cc:$cc, GPR32:$Rn_lo, GPR32:$Rm_lo, GPR32:$Rn_hi, GPR32:$Rm_hi), 
+                      [(BRCC64 bb:$addr, i32immSExt32:$cc, (i32 GPR32:$Rn_lo), (i32 GPR32:$Rm_lo), (i32 GPR32:$Rn_hi), (i32 GPR32:$Rm_hi))]>;
 }
 
 //===----------------------------------------------------------------------===//

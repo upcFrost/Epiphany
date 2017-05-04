@@ -47,6 +47,7 @@ namespace llvm {
 
       // Conditional branch wrapper
       BRCC,
+      BRCC64,
 
       // FIX/FLOAT wrappers
       FIX,
@@ -79,7 +80,9 @@ namespace llvm {
       // Offset handling for arrays for non-PIC mode
       bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
 
+      // Overriding operation and custom inserter lowering
       SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+      MachineBasicBlock *EmitInstrWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const override;
 
     protected:
       /// ByValArgInfo - Byval argument information.
@@ -162,6 +165,10 @@ namespace llvm {
       SDValue LowerBrCC(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerBrCond(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerAdd64(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerSub64(SDValue Op, SelectionDAG &DAG) const;
+
+      // Custom inserters
+      MachineBasicBlock *emitBrCC(MachineInstr &MI, MachineBasicBlock *MBB) const;
 
       //- must be exist even without function all
       SDValue LowerFormalArguments(SDValue Chain,
