@@ -371,118 +371,6 @@ SDValue EpiphanyTargetLowering::LowerFpToInt(SDValue Op, SelectionDAG &DAG) cons
 }
 
 //===----------------------------------------------------------------------===//
-//  Custom inserter functions
-//===----------------------------------------------------------------------===//
-MachineBasicBlock *EpiphanyTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const {
-  switch (MI.getOpcode()) {
-    default:
-      MI.dump();
-      llvm_unreachable("No custom inserter for the instruction");
-      break;
-    case Epiphany::BCC64:
-      return emitBrCC(MI, MBB);
-      break;
-  }
-}
-
-MachineBasicBlock *EpiphanyTargetLowering::emitBrCC(MachineInstr &MI, MachineBasicBlock *MBB) const {
-  // We can have 3 cases - GT, LT and EQ (and their unsigned versions).
-  // LT is converted to GT by swapping comparison operands
-  // EQ does not have the first comparison, we simply jump out if high subregs are not equal
-  // LowCmpBB is needed because of the MBB elimination mechanism (CMP is not a terminator)
-
-  // OrigBB:
-  //     [... previous instrs ...]
-  //     cmp r0_hi, r1_hi
-  //     bgt/bgtu DestBB
-  //     bne FallThroughBB
-  // LowCmpBB:
-  //     cmp r0_lo, r1_lo
-  //     bgt/bgtu DestBB
-  // FallThroughBB:
-  //     [... fall-through ...]
-
-  const TargetRegisterClass *RC = &Epiphany::GPR32RegClass;
-  MachineFunction *MF           = MBB->getParent();
-  const TargetInstrInfo *TII    = Subtarget.getInstrInfo();
-  const BasicBlock *LLVM_BB     = MBB->getBasicBlock();
-  DebugLoc DL                   = MI.getDebugLoc();
-  MachineFunction::iterator It  = ++MBB->getIterator();
-  const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
-  MachineRegisterInfo &MRI      = MF->getRegInfo();
-
-  // Get Operands
-  MachineBasicBlock *Dest = MI.getOperand(0).getMBB();
-  unsigned CondCode       = MI.getOperand(1).getImm();
-  unsigned LHS_lo         = MI.getOperand(2).getReg();
-  unsigned RHS_lo         = MI.getOperand(3).getReg();
-  unsigned LHS_hi         = MI.getOperand(4).getReg();
-  unsigned RHS_hi         = MI.getOperand(5).getReg();
-
-  // Invert cond code if needed
-  bool swap = true;
-  switch (CondCode) {
-    default:
-      swap = false;
-      break;
-    case ::EpiphanyCC::COND_LTE:
-      CondCode = ::EpiphanyCC::COND_GTE;
-      break;
-    case ::EpiphanyCC::COND_LTU:
-      CondCode = ::EpiphanyCC::COND_GTU;
-      break;
-    case ::EpiphanyCC::COND_LTEU:
-      CondCode = ::EpiphanyCC::COND_GTEU;
-      break;
-    case ::EpiphanyCC::COND_LT:
-      CondCode = ::EpiphanyCC::COND_GT;
-      break;
-  }
-
-  // Swap LHS/RHS if needed
-  if (swap) {
-    std::swap(LHS_lo, RHS_lo);
-    std::swap(LHS_hi, RHS_hi);
-  }
-
-  // Check if the condition is EQ
-  bool isEqual = CondCode == ::EpiphanyCC::COND_EQ;
-  unsigned tempReg1 = MRI.createVirtualRegister(RC);
-  unsigned tempReg2 = MRI.createVirtualRegister(RC);
-
-  // Create fall-thourgh block
-  MachineBasicBlock *FallThroughBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MachineBasicBlock *LowCmpBB = MF->CreateMachineBasicBlock(LLVM_BB);
-  MF->insert(It, LowCmpBB);
-  MF->insert(It, FallThroughBB);
-
-  // Transfer rest of current basic-block to FallThroughBB
-  FallThroughBB->splice(FallThroughBB->begin(), MBB, 
-      std::next(MachineBasicBlock::iterator(MI)), MBB->end());
-  FallThroughBB->transferSuccessorsAndUpdatePHIs(MBB);
-
-  // Insert instruction sequence
-  BuildMI(MBB, DL, TII->get(Epiphany::CMPrr_r32), tempReg1).addReg(LHS_hi).addReg(RHS_hi);
-  if (!isEqual) {
-    BuildMI(MBB, DL, TII->get(Epiphany::BCC)).addMBB(Dest).addImm(CondCode);
-  }
-  BuildMI(MBB, DL, TII->get(Epiphany::BCC)).addMBB(FallThroughBB).addImm(::EpiphanyCC::COND_NE);
-  MBB->addSuccessor(Dest);
-  MBB->addSuccessor(FallThroughBB);
-  MBB->addSuccessor(LowCmpBB);
-  MBB->normalizeSuccProbs();
-
-  BuildMI(LowCmpBB, DL, TII->get(Epiphany::CMPrr_r32), tempReg2).addReg(LHS_lo).addReg(RHS_lo);
-  BuildMI(LowCmpBB, DL, TII->get(Epiphany::BCC)).addMBB(Dest).addImm(CondCode);
-  LowCmpBB->addSuccessor(Dest);
-  LowCmpBB->addSuccessor(FallThroughBB);
-  LowCmpBB->normalizeSuccProbs();
-
-  MI.eraseFromParent();
-  return FallThroughBB;
-}
-
-//===----------------------------------------------------------------------===//
 //  Lower helper functions
 //===----------------------------------------------------------------------===//
 static EpiphanyCC::CondCodes ConvertCC(SDValue CC, const SDLoc &DL, SDValue &RHS, bool &swap) {
@@ -639,6 +527,121 @@ static RTLIB::Libcall getDoubleCmp(SDValue cond) {
   }
 }
 
+//===----------------------------------------------------------------------===//
+//  Custom inserter functions
+//===----------------------------------------------------------------------===//
+MachineBasicBlock *EpiphanyTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const {
+  switch (MI.getOpcode()) {
+    default:
+      MI.dump();
+      llvm_unreachable("No custom inserter for the instruction");
+      break;
+    case Epiphany::BCC64:
+      return emitBrCC(MI, MBB);
+      break;
+  }
+}
+
+MachineBasicBlock *EpiphanyTargetLowering::emitBrCC(MachineInstr &MI, MachineBasicBlock *MBB) const {
+  // We can have 3 cases - GT, LT and EQ (and their unsigned versions).
+  // LT is converted to GT by swapping comparison operands
+  // EQ does not have the first comparison, we simply jump out if high subregs are not equal
+  // LowCmpBB is needed because of the MBB elimination mechanism (CMP is not a terminator)
+
+  // OrigBB:
+  //     [... previous instrs ...]
+  //     cmp r0_hi, r1_hi
+  //     bgt/bgtu DestBB
+  //     bne FallThroughBB
+  // LowCmpBB:
+  //     cmp r0_lo, r1_lo
+  //     bgt/bgtu DestBB
+  // FallThroughBB:
+  //     [... fall-through ...]
+
+  const TargetRegisterClass *RC = &Epiphany::GPR32RegClass;
+  MachineFunction *MF           = MBB->getParent();
+  const TargetInstrInfo *TII    = Subtarget.getInstrInfo();
+  const BasicBlock *LLVM_BB     = MBB->getBasicBlock();
+  DebugLoc DL                   = MI.getDebugLoc();
+  MachineFunction::iterator It  = ++MBB->getIterator();
+  const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
+  MachineRegisterInfo &MRI      = MF->getRegInfo();
+
+  // Get Operands
+  MachineBasicBlock *Dest = MI.getOperand(0).getMBB();
+  unsigned CondCode       = MI.getOperand(1).getImm();
+  unsigned LHS_lo         = MI.getOperand(2).getReg();
+  unsigned RHS_lo         = MI.getOperand(3).getReg();
+  unsigned LHS_hi         = MI.getOperand(4).getReg();
+  unsigned RHS_hi         = MI.getOperand(5).getReg();
+
+  // Invert cond code if needed
+  bool swap = true;
+  switch (CondCode) {
+    default:
+      swap = false;
+      break;
+    case ::EpiphanyCC::COND_LTE:
+      CondCode = ::EpiphanyCC::COND_GTE;
+      break;
+    case ::EpiphanyCC::COND_LTU:
+      CondCode = ::EpiphanyCC::COND_GTU;
+      break;
+    case ::EpiphanyCC::COND_LTEU:
+      CondCode = ::EpiphanyCC::COND_GTEU;
+      break;
+    case ::EpiphanyCC::COND_LT:
+      CondCode = ::EpiphanyCC::COND_GT;
+      break;
+  }
+
+  // Swap LHS/RHS if needed
+  if (swap) {
+    std::swap(LHS_lo, RHS_lo);
+    std::swap(LHS_hi, RHS_hi);
+  }
+
+  // Check if the condition is EQ
+  bool isEqual = CondCode == ::EpiphanyCC::COND_EQ;
+  unsigned tempReg1 = MRI.createVirtualRegister(RC);
+  unsigned tempReg2 = MRI.createVirtualRegister(RC);
+
+  // Create fall-thourgh block
+  MachineBasicBlock *FallThroughBB = MF->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *LowCmpBB = MF->CreateMachineBasicBlock(LLVM_BB);
+  MF->insert(It, LowCmpBB);
+  MF->insert(It, FallThroughBB);
+
+  // Transfer rest of current basic-block to FallThroughBB
+  FallThroughBB->splice(FallThroughBB->begin(), MBB, 
+      std::next(MachineBasicBlock::iterator(MI)), MBB->end());
+  FallThroughBB->transferSuccessorsAndUpdatePHIs(MBB);
+
+  // Insert instruction sequence
+  BuildMI(MBB, DL, TII->get(Epiphany::CMPrr_r32), tempReg1).addReg(LHS_hi).addReg(RHS_hi);
+  if (!isEqual) {
+    BuildMI(MBB, DL, TII->get(Epiphany::BCC)).addMBB(Dest).addImm(::EpiphanyCC::COND_GT);
+  }
+  BuildMI(MBB, DL, TII->get(Epiphany::BCC)).addMBB(FallThroughBB).addImm(::EpiphanyCC::COND_NE);
+  MBB->addSuccessor(Dest);
+  MBB->addSuccessor(FallThroughBB);
+  MBB->addSuccessor(LowCmpBB);
+  MBB->normalizeSuccProbs();
+
+  BuildMI(LowCmpBB, DL, TII->get(Epiphany::CMPrr_r32), tempReg2).addReg(LHS_lo).addReg(RHS_lo);
+  BuildMI(LowCmpBB, DL, TII->get(Epiphany::BCC)).addMBB(Dest).addImm(CondCode);
+  LowCmpBB->addSuccessor(Dest);
+  LowCmpBB->addSuccessor(FallThroughBB);
+  LowCmpBB->normalizeSuccProbs();
+
+  MI.eraseFromParent();
+  return FallThroughBB;
+}
+
+//===----------------------------------------------------------------------===//
+// Custom lowering
+//===----------------------------------------------------------------------===//
 bool EpiphanyTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
   return false;
 }
