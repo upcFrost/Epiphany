@@ -153,6 +153,7 @@ namespace llvm {
     private:
       // Lower Operand specifics
       SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpExtend(SDValue Op, SelectionDAG &DAG) const;

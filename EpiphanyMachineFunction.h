@@ -44,7 +44,8 @@ public:
     CallsEhDwarf(false),
     HasFpuInst(false),
     HasIalu2Inst(false),
-    EmitNOAT(false)
+    EmitNOAT(false),
+    GlobalBaseReg(0)
     {}
 
   ~EpiphanyMachineFunctionInfo();
@@ -62,6 +63,7 @@ public:
   }
 
   unsigned getIncomingArgSize() const { return IncomingArgSize; }
+  unsigned getGlobalBaseReg();
 
   bool callsEhReturn() const { return CallsEhReturn; }
   void setCallsEhReturn() { CallsEhReturn = true; }
@@ -109,6 +111,9 @@ private:
 
   /// Frame objects for spilling eh data registers.
   int EhDataRegFI[2];
+
+  /// Global base reg virtual register
+  unsigned GlobalBaseReg;
 
   bool EmitNOAT;
 

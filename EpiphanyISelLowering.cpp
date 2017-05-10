@@ -161,9 +161,10 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::FP_ROUND,   MVT::f64, Expand);
 
     // Custom operations, see below
-    setOperationAction(ISD::GlobalAddress,  MVT::i32, Custom);
-    setOperationAction(ISD::ExternalSymbol, MVT::i32, Custom);
-    setOperationAction(ISD::ConstantPool,   MVT::i32, Custom);
+    setOperationAction(ISD::GlobalAddress,    MVT::i32, Custom);
+    setOperationAction(ISD::ExternalSymbol,   MVT::i32, Custom);
+    setOperationAction(ISD::ConstantPool,     MVT::i32, Custom);
+    setOperationAction(ISD::GlobalTLSAddress, MVT::i32, Custom);
 
     for (MVT Ty : {MVT::i32, MVT::f32, MVT::i64, MVT::f64}) {
       setOperationAction(ISD::BR_CC,  Ty, Custom);
@@ -205,6 +206,9 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
       break;
     case ISD::ConstantPool:
       return LowerConstantPool(Op, DAG);
+      break;
+    case ISD::GlobalTLSAddress:
+      return LowerGlobalTLSAddress(Op, DAG);
       break;
     case ISD::SELECT:
       return LowerSelect(Op, DAG);
@@ -659,6 +663,49 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
   //}
   }
+
+SDValue EpiphanyTargetLowering::LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  GlobalAddressSDNode *GA = cast<GlobalAddressSDNode>(Op);
+  const GlobalValue *GV = GA->getGlobal();
+  EVT PTY = getPointerTy(DAG.getDataLayout());
+  const EpiphanyRegisterInfo *TRI = Subtarget.getRegisterInfo();
+  EpiphanyMachineFunctionInfo *FI = DAG.getMachineFunction().getInfo<EpiphanyMachineFunctionInfo>();
+
+  // Get TLS model
+  TLSModel::Model model = getTargetMachine().getTLSModel(GV);
+
+  if (model == TLSModel::GeneralDynamic || model == TLSModel::LocalDynamic) {
+    // General Dynamic and Local Dynamic TLS Model.
+    SDValue Argument = DAG.getRegister(FI->getGlobalBaseReg(), MVT::i32);
+    SDValue TGA = DAG.getTargetGlobalAddress(GV, DL, PTY, 0);
+    unsigned PtrSize = PTY.getSizeInBits();
+    IntegerType *PtrTy = Type::getIntNTy(*DAG.getContext(), PtrSize);
+
+    SDValue TlsGetAddr = DAG.getExternalSymbol("__tls_get_addr", PTY);
+
+    ArgListTy Args;
+    ArgListEntry Entry;
+    Entry.Node = Argument;
+    Entry.Ty = PtrTy;
+    Args.push_back(Entry);
+
+    TargetLowering::CallLoweringInfo CLI(DAG);
+    CLI.setDebugLoc(DL).setChain(DAG.getEntryNode())
+      .setCallee(CallingConv::C, PtrTy, TlsGetAddr, std::move(Args));
+    std::pair<SDValue, SDValue> CallResult = LowerCallTo(CLI);
+
+    return CallResult.first;
+  } else if (model == TLSModel::InitialExec) {
+    SDValue TGA    = DAG.getTargetGlobalAddress(GV, DL, PTY, 0, EpiphanyII::MO_PCREL16);
+    TGA            = DAG.getNode(EpiphanyISD::MOV, DL, PTY, TGA);
+    SDValue Offset = DAG.getLoad(PTY, DL, DAG.getEntryNode(), TGA, MachinePointerInfo());
+    return DAG.getNode(ISD::ADD, DL, PTY, DAG.getRegister(TRI->getBaseRegister(), MVT::i32), Offset);
+  }
+
+  return SDValue();
+
+}
 
 SDValue EpiphanyTargetLowering::LowerExternalSymbol(SDValue Op,
     SelectionDAG &DAG) const {

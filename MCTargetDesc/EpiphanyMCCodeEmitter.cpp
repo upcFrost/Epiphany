@@ -153,8 +153,20 @@ unsigned EpiphanyMCCodeEmitter::getExprOpValue(const MCExpr *Expr,SmallVectorImp
       case EpiphanyMCExpr::CEK_LOW:
         FixupKind = Epiphany::fixup_Epiphany_LOW;
         break;
-      case EpiphanyMCExpr::CEK_GPREL:
+      case EpiphanyMCExpr::CEK_SIMM8:
+        FixupKind = Epiphany::fixup_Epiphany_SIMM8;
+        break;
+      case EpiphanyMCExpr::CEK_SIMM24:
         FixupKind = Epiphany::fixup_Epiphany_SIMM24;
+        break;
+      case EpiphanyMCExpr::CEK_PCREL8:
+        FixupKind = Epiphany::fixup_Epiphany_PCREL8;
+        break;
+      case EpiphanyMCExpr::CEK_PCREL16:
+        FixupKind = Epiphany::fixup_Epiphany_PCREL16;
+        break;
+      case EpiphanyMCExpr::CEK_PCREL32:
+        FixupKind = Epiphany::fixup_Epiphany_PCREL32;
         break;
     } // switch
     Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind(FixupKind)));

@@ -377,16 +377,18 @@ def SDT_MOVCC : SDTypeProfile<1, 4, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
 def MOV       : SDNode<"EpiphanyISD::MOV",   SDT_MOV>;
 def MOVT      : SDNode<"EpiphanyISD::MOVT",  SDT_MOVT>;
 def MOVCCsd   : SDNode<"EpiphanyISD::MOVCC", SDT_MOVCC, [SDNPOptInGlue]>;
-def : Pat<(i32 (MOV i32immSExt16:$imm)),  (MOVi32ri i32:$imm)>;
-def : Pat<(i32 (MOV i32immSExt32:$imm)),  (MOVTi32ri (MOVi32ri (LO16 i32:$imm)), (HI16 i32:$imm))>;
-def : Pat<(i32 (MOV tglobaladdr:$dst)),   (MOVi32ri tglobaladdr:$dst)>;
-def : Pat<(i32 (MOV texternalsym:$dst)),  (MOVi32ri texternalsym:$dst)>;
-def : Pat<(i32 (MOV tblockaddress:$dst)), (MOVi32ri tblockaddress:$dst)>;
-def : Pat<(i32 (MOV tconstpool:$dst)),    (MOVi32ri tconstpool:$dst)>;
-def : Pat<(i32 (MOVT GPR32:$Rd, tglobaladdr:$dst)),   (MOVTi32ri GPR32:$Rd, tglobaladdr:$dst)>;
-def : Pat<(i32 (MOVT GPR32:$Rd, texternalsym:$dst)),  (MOVTi32ri GPR32:$Rd, texternalsym:$dst)>;
-def : Pat<(i32 (MOVT GPR32:$Rd, tblockaddress:$dst)), (MOVTi32ri GPR32:$Rd, tblockaddress:$dst)>;
-def : Pat<(i32 (MOVT GPR32:$Rd, tconstpool:$dst)),    (MOVTi32ri GPR32:$Rd, tconstpool:$dst)>;
+def : Pat<(i32 (MOV i32immSExt16:$imm)),   (MOVi32ri i32:$imm)>;
+def : Pat<(i32 (MOV i32immSExt32:$imm)),   (MOVTi32ri (MOVi32ri (LO16 i32:$imm)), (HI16 i32:$imm))>;
+def : Pat<(i32 (MOV tglobaladdr:$dst)),    (MOVi32ri tglobaladdr:$dst)>;
+def : Pat<(i32 (MOV tglobaltlsaddr:$dst)), (MOVi32ri tglobaltlsaddr:$dst)>;
+def : Pat<(i32 (MOV texternalsym:$dst)),   (MOVi32ri texternalsym:$dst)>;
+def : Pat<(i32 (MOV tblockaddress:$dst)),  (MOVi32ri tblockaddress:$dst)>;
+def : Pat<(i32 (MOV tconstpool:$dst)),     (MOVi32ri tconstpool:$dst)>;
+def : Pat<(i32 (MOVT GPR32:$Rd, tglobaladdr:$dst)),     (MOVTi32ri GPR32:$Rd, tglobaladdr:$dst)>;
+def : Pat<(i32 (MOVT GPR32:$Rd, texternalsym:$dst)),    (MOVTi32ri GPR32:$Rd, texternalsym:$dst)>;
+def : Pat<(i32 (MOVT GPR32:$Rd, tblockaddress:$dst)),   (MOVTi32ri GPR32:$Rd, tblockaddress:$dst)>;
+def : Pat<(i32 (MOVT GPR32:$Rd, tconstpool:$dst)),      (MOVTi32ri GPR32:$Rd, tconstpool:$dst)>;
+def : Pat<(i32 (MOVT GPR32:$Rd,  tglobaltlsaddr:$dst)), (MOVTi32ri GPR32:$Rd, tglobaltlsaddr:$dst)>;
 
 
 let Constraints = "$src = $Rd", Uses = [STATUS] in {

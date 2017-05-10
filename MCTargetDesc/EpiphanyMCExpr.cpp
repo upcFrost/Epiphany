@@ -37,7 +37,7 @@ const EpiphanyMCExpr *EpiphanyMCExpr::create(const MCSymbol *Symbol, EpiphanyMCE
 
 const EpiphanyMCExpr *EpiphanyMCExpr::createGpOff(EpiphanyMCExpr::EpiphanyExprKind Kind,
                                           const MCExpr *Expr, MCContext &Ctx) {
-  return create(Kind, create(CEK_None, create(CEK_GPREL, Expr, Ctx), Ctx), Ctx);
+  return create(Kind, create(CEK_None, create(CEK_PCREL16, Expr, Ctx), Ctx), Ctx);
 }
 
 void EpiphanyMCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
@@ -54,7 +54,13 @@ void EpiphanyMCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
   case CEK_LOW:
     OS << "%low";
     break;
-  case CEK_GPREL:
+  case CEK_SIMM8:
+  case CEK_SIMM24:
+    break;
+  case CEK_PCREL8:
+  case CEK_PCREL16:
+  case CEK_PCREL32:
+    OS << "%pcrel";
     break;
   default:
     llvm_unreachable("Unknown kind: " + Kind);
@@ -87,7 +93,11 @@ void EpiphanyMCExpr::fixELFSymbolsInTLSFixups(MCAssembler &Asm) const {
     break;
   case CEK_HIGH:
   case CEK_LOW:
-  case CEK_GPREL:
+  case CEK_SIMM8:
+  case CEK_SIMM24:
+  case CEK_PCREL8:
+  case CEK_PCREL16:
+  case CEK_PCREL32:
     break;
   }
 }
@@ -95,7 +105,8 @@ void EpiphanyMCExpr::fixELFSymbolsInTLSFixups(MCAssembler &Asm) const {
 bool EpiphanyMCExpr::isGpOff(EpiphanyExprKind &Kind) const {
   if (const EpiphanyMCExpr *S1 = dyn_cast<const EpiphanyMCExpr>(getSubExpr())) {
     if (const EpiphanyMCExpr *S2 = dyn_cast<const EpiphanyMCExpr>(S1->getSubExpr())) {
-      if (S1->getKind() == CEK_None && S2->getKind() == CEK_GPREL) {
+      EpiphanyExprKind kind = S2->getKind();
+      if (S1->getKind() == CEK_None && ((kind == CEK_PCREL8) || (kind == CEK_PCREL16) || (kind == CEK_PCREL32))) {
         Kind = getKind();
         return true;
       }

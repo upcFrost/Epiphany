@@ -38,6 +38,11 @@ namespace llvm {
       fixup_Epiphany_SIMM8,
       fixup_Epiphany_SIMM24,
 
+      // PCREL fixups
+      fixup_Epiphany_PCREL8,
+      fixup_Epiphany_PCREL16,
+      fixup_Epiphany_PCREL32,
+
       // Marker
       LastTargetFixupKind,
       NumTargetFixupKinds = LastTargetFixupKind - FirstTargetFixupKind
