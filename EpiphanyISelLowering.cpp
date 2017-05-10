@@ -653,7 +653,11 @@ bool EpiphanyTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA)
 SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
 
-  const GlobalValue *GV = cast<GlobalAddressSDNode>(Op)->getGlobal();
+  GlobalAddressSDNode *GA = cast<GlobalAddressSDNode>(Op);
+  if (DAG.getTarget().Options.EmulatedTLS)
+        return LowerToTLSEmulatedModel(GA, DAG);
+
+  const GlobalValue *GV = GA->getGlobal();
   int64_t Offset = cast<GlobalAddressSDNode>(Op)->getOffset();
   auto PTY = getPointerTy(DAG.getDataLayout());
 
