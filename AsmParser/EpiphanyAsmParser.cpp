@@ -438,7 +438,7 @@ int EpiphanyAsmParser::tryParseRegister(StringRef Mnemonic) {
     RegNum = matchRegisterByNumber(static_cast<unsigned>(Tok.getIntVal()),
         Mnemonic.lower());
   else
-    return RegNum;  //error
+    llvm_unreachable(strcat("Can't parse register: ", Mnemonic.data()));
   return RegNum;
 }
 
@@ -641,54 +641,45 @@ bool EpiphanyAsmParser::parseMemOffset(const MCExpr *&Res) {
   return true;
 }
 
-// eg, 12($sp) or 12(la)
+// eg, [r0, #1]
 OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
     OperandVector &Operands) {
 
   const MCExpr *IdVal = 0;
   SMLoc S;
-  // first operand is the offset
-  S = Parser.getTok().getLoc();
 
-  if (parseMemOffset(IdVal))
+  if (Parser.getTok().isNot(AsmToken::LBrac)) {
+    Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected LBrac");
     return MatchOperand_ParseFail;
+  }
+  Parser.Lex(); // Eat '[' token
 
-  const AsmToken &Tok = Parser.getTok(); // get next token
-  if (Tok.isNot(AsmToken::LParen)) {
-    EpiphanyOperand &Mnemonic = static_cast<EpiphanyOperand &>(*Operands[0]);
-    if (Mnemonic.getToken() == "la") {
-      SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer()-1);
-      Operands.push_back(EpiphanyOperand::CreateImm(IdVal, S, E));
-      return MatchOperand_Success;
-    }
-    Error(Parser.getTok().getLoc(), "'(' expected");
+  // first operand is the register
+  S = Parser.getTok().getLoc();
+  if (tryParseRegisterOperand(Operands,"")) {
+    Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected register");
     return MatchOperand_ParseFail;
   }
 
-  Parser.Lex(); // Eat '(' token.
-
-  const AsmToken &Tok1 = Parser.getTok(); // get next token
-  if (Tok1.is(AsmToken::Dollar)) {
-    Parser.Lex(); // Eat '$' token.
-    if (tryParseRegisterOperand(Operands,"")) {
-      Error(Parser.getTok().getLoc(), "unexpected token in operand");
-      return MatchOperand_ParseFail;
-    }
-
-  } else {
-    Error(Parser.getTok().getLoc(), "unexpected token in operand");
+  // second operand is the offset
+  if (Parser.getTok().isNot(AsmToken::Hash)) {
+    Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected Hash");
+    return MatchOperand_ParseFail;
+  }
+  Parser.Lex(); // Eat '#' token
+  if (parseMemOffset(IdVal)) {
     return MatchOperand_ParseFail;
   }
 
   const AsmToken &Tok2 = Parser.getTok(); // get next token
-  if (Tok2.isNot(AsmToken::RParen)) {
-    Error(Parser.getTok().getLoc(), "')' expected");
+  if (Parser.getTok().isNot(AsmToken::RBrac)) {
+    Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected RBrac");
     return MatchOperand_ParseFail;
   }
 
   SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
 
-  Parser.Lex(); // Eat ')' token.
+  Parser.Lex(); // Eat ']' token.
 
   if (!IdVal)
     IdVal = MCConstantExpr::create(0, getContext());

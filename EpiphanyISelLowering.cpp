@@ -79,6 +79,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     addRegisterClass(MVT::i64, &Epiphany::GPR64RegClass);
     addRegisterClass(MVT::f64, &Epiphany::FPR64RegClass);
 
+    addRegisterClass(MVT::i32, &Epiphany::SpecialRegClass);
+
     //- Set .align 2
     // It will emit .align 2 later
     setMinFunctionAlignment(STI.stackAlignment());
@@ -990,6 +992,100 @@ SDValue EpiphanyTargetLowering::LowerFpExtend(SDValue Op, SelectionDAG &DAG) con
   SDValue SrcVal = Op.getOperand(0);
   return makeLibCall(DAG, LC, Op.getValueType(), SrcVal, /* isSigned = */ false, DL).first;
 }
+
+
+//===----------------------------------------------------------------------===//
+//  Inline asm parsing
+//===----------------------------------------------------------------------===//
+
+/// This is a helper function to parse a physical register string and split it
+/// into non-numeric and numeric parts (Prefix and Reg). The first boolean flag
+/// that is returned indicates whether parsing was successful. The second flag
+/// is true if the numeric part exists.
+static std::pair<bool, bool> parsePhysicalReg(StringRef C, StringRef &Prefix,
+                                              unsigned long long &Reg) {
+  if (C.front() != '{' || C.back() != '}')
+    return std::make_pair(false, false);
+
+  // Search for the first numeric character.
+  StringRef::const_iterator I, B = C.begin() + 1, E = C.end() - 1;
+  I = std::find_if(B, E, isdigit);
+
+  Prefix = StringRef(B, I - B);
+
+  // The second flag is set to false if no numeric characters were found.
+  if (I == E)
+    return std::make_pair(true, false);
+
+  // Parse the numeric characters.
+  return std::make_pair(!getAsUnsignedInteger(StringRef(I, E - I), 10, Reg),
+                        true);
+}
+
+std::pair<unsigned, const TargetRegisterClass *> EpiphanyTargetLowering::
+parseRegForInlineAsmConstraint(StringRef C, MVT VT) const {
+  const TargetRegisterInfo *TRI =
+      Subtarget.getRegisterInfo();
+  const TargetRegisterClass *RC;
+  StringRef Prefix;
+  unsigned long long Reg;
+
+  std::pair<bool, bool> R = parsePhysicalReg(C, Prefix, Reg);
+
+  if (!R.first || !R.second) {
+    return std::make_pair(0U, nullptr);
+  }
+
+  assert(Prefix == "$" && "Strange reg prefix in inline asm");
+  RC = getRegClassFor((VT == MVT::Other) ? MVT::i32 : VT);
+
+  assert(Reg < RC->getNumRegs());
+  return std::make_pair(*(RC->begin() + Reg), RC);
+}
+
+/// Given a register class constraint, like 'r', if this corresponds directly
+/// to an LLVM register class, return a register of 0 and the register class
+/// pointer.
+std::pair<unsigned, const TargetRegisterClass *>
+EpiphanyTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+    StringRef Constraint, MVT VT) const {
+  if (Constraint.size() == 1) {
+    switch (Constraint[0]) {
+    case 'd': // Address register. Same as 'r' unless generating MIPS16 code.
+    case 'y': // Same as 'r'. Exists for compatibility.
+    case 'r':
+      if (VT == MVT::i32 || VT == MVT::i16 || VT == MVT::i8) {
+        return std::make_pair(0U, &Epiphany::GPR32RegClass);
+      }
+      assert(VT == MVT::i64 && "Unknown integer reg class");
+      return std::make_pair(0U, &Epiphany::GPR32RegClass);
+    case 'f': // FPU or MSA register
+      if (VT == MVT::f32) {
+        return std::make_pair(0U, &Epiphany::FPR32RegClass);
+      } else if ((VT == MVT::f64)) {
+        return std::make_pair(0U, &Epiphany::FPR64RegClass);
+      }
+      break;
+    case 'x':
+    case 'l':
+    case 'c': // register suitable for indirect jump
+      assert(VT == MVT::i32 && "Unexpected type for indirect jump register");
+      return std::make_pair((unsigned)Epiphany::IP, &Epiphany::GPR32RegClass);
+    }
+  }
+
+  std::pair<unsigned, const TargetRegisterClass *> R;
+  R = parseRegForInlineAsmConstraint(Constraint, VT);
+
+  // If we were able to found the class - return it
+  if (R.second)
+    return R;
+
+  // If not - run the default method
+  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+}
+
+
 
 //===----------------------------------------------------------------------===//
 //  Misc Lower Operation implementation

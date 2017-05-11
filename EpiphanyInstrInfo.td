@@ -365,8 +365,8 @@ def MOVi32rr : Mov32rr<"mov", [], GPR32>;
 def MOVf32rr : Mov32rr<"mov", [], FPR32>;
 
 // Special regs
-def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins SPECIAL:$MMR), [], CoreReg, SpecFrom>;
-def MOVTS32rr    : MovSpecial<"movts", (outs SPECIAL:$MMR), (ins GPR32:$Rd),   [], CoreReg, SpecTo>;
+def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins Special:$MMR), [], CoreReg, SpecFrom>;
+def MOVTS32rr    : MovSpecial<"movts", (outs Special:$MMR), (ins GPR32:$Rd),   [], CoreReg, SpecTo>;
 
 //===----------------------------------------------------------------------===//
 // Move operations: Wrapper, see EpiphanyISelLowering.cpp

@@ -204,6 +204,10 @@ namespace llvm {
           const SmallVectorImpl<ISD::InputArg> &Ins,
           SelectionDAG& DAG) const { return false;}
 
+      std::pair<unsigned, const TargetRegisterClass *> parseRegForInlineAsmConstraint(StringRef C, MVT VT) const;
+      std::pair<unsigned, const TargetRegisterClass *> getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+          StringRef Constraint, MVT VT) const override;
+
   };
 } // namespace llvm
 

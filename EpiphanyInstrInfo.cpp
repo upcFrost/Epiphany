@@ -625,8 +625,8 @@ void EpiphanyInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   unsigned BeginIdx = 0;
   unsigned SubRegs = 0;
 
-  // Do not copy SPECIAL regs
-  if (Epiphany::SPECIALRegClass.contains(DestReg) || Epiphany::SPECIALRegClass.contains(SrcReg))
+  // Do not copy Special regs
+  if (Epiphany::SpecialRegClass.contains(DestReg) || Epiphany::SpecialRegClass.contains(SrcReg))
     return;
 
   if (Epiphany::GPR32RegClass.contains(DestReg, SrcReg)) { // Copy between regs
