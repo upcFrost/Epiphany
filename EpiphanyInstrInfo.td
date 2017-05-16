@@ -277,6 +277,7 @@ let Defs = [STATUS], AddedComplexity = 1 in {
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with immediates
 //===----------------------------------------------------------------------===//
+
 multiclass IntMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
   def _r16     : IntMath_r16_i32<opcode16, instr_asm, OpNode, i32imm, i32immSExt3,  i32>;
   def _r32     : IntMath_r32_i32<opcode32, instr_asm, OpNode, i32imm, i32immSExt11, i32>;
@@ -336,7 +337,7 @@ def MOVf16ri_r32 : Mov32ri<"mov", (ins f32imm:$Imm), [(set (f32 FPR32:$Rd), f32i
 def MOVf32ri_r32 : Pat<(f32imm32:$imm), (f32 (MOVTf32ri (MOVf16ri_r32 (LO16 $imm)), (HI16 $imm)))>;
 
 // Special instruction to move memory pointer to the reg
-def MOViPTR  : AddrMath32ri<(outs GPR32:$Rd), (ins smem11:$imm), "add \t$Rd, $imm", [(set GPR32:$Rd, addr11:$imm)],   0b0011011, IaluItin>;
+/*def MOViPTR  : AddrMath32ri<(outs GPR32:$Rd), (ins smem11:$imm), "add \t$Rd, $imm", [(set GPR32:$Rd, addr11:$imm)],   0b0011011, IaluItin>;*/
 def : Pat<(or (i32 GPR32:$src), 0xffff0000), (MOVTi32ri (i32 GPR32:$src), 0xffff)>;
 
 // SIMD patterns
@@ -365,8 +366,14 @@ def MOVi32rr : Mov32rr<"mov", [], GPR32>;
 def MOVf32rr : Mov32rr<"mov", [], FPR32>;
 
 // Special regs
-def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins Special:$MMR), [], CoreReg, SpecFrom>;
-def MOVTS32rr    : MovSpecial<"movts", (outs Special:$MMR), (ins GPR32:$Rd),   [], CoreReg, SpecTo>;
+def MOVFS32_core: MovSpecial<"movfs", (outs GPR32:$Rd),            (ins eCore:$MMR),           [], CoreReg,    SpecFrom>;
+def MOVTS32_core: MovSpecial<"movts", (outs eCore:$MMR),           (ins GPR32:$Rd),            [], CoreReg,    SpecTo>;
+def MOVFS32_dma:  MovSpecial<"movfs", (outs GPR32:$Rd),            (ins DMA:$MMR),             [], DmaReg,     SpecFrom>;
+def MOVTS32_dma:  MovSpecial<"movts", (outs DMA:$MMR),             (ins GPR32:$Rd),            [], DmaReg,     SpecTo>;
+def MOVFS32_mem:  MovSpecial<"movfs", (outs GPR32:$Rd),            (ins MemProtect:$MMR),      [], MemProtReg, SpecFrom>;
+def MOVTS32_mem:  MovSpecial<"movts", (outs MemProtect:$MMR),      (ins GPR32:$Rd),            [], MemProtReg, SpecTo>;
+def MOVFS32_mesh: MovSpecial<"movfs", (outs GPR32:$Rd),            (ins MeshNodeControl:$MMR), [], ConfReg,    SpecFrom>;
+def MOVTS32_mesh: MovSpecial<"movts", (outs MeshNodeControl:$MMR), (ins GPR32:$Rd),            [], ConfReg,    SpecTo>;
 
 //===----------------------------------------------------------------------===//
 // Move operations: Wrapper, see EpiphanyISelLowering.cpp

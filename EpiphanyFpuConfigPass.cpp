@@ -92,7 +92,7 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GID)).addReg(Epiphany::CONFIG, RegState::ImplicitDefine);
     // Get current config and save it to stack
     unsigned configTmpReg = MRI.createVirtualRegister(RC);
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVFS32rr), configTmpReg).addReg(Epiphany::CONFIG, RegState::Kill);
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVFS32_core), configTmpReg).addReg(Epiphany::CONFIG, RegState::Kill);
     frameIdx = MFI.CreateStackObject(RC->getSize(), /* Alignment = */ RC->getSize(), /* isSS = */ false);
     TII->storeRegToStackSlot(*MBB, insertPos, configTmpReg, /* killReg = */ false, frameIdx, RC, ST.getRegisterInfo());
     unsigned maskReg = MRI.createVirtualRegister(RC);
@@ -111,7 +111,7 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
       BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTi32ri), maskReg).addReg(configTmpReg, RegState::Kill).addImm(0x48);
     }
     // Push reg back to config
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTS32rr), Epiphany::CONFIG).addReg(maskReg, RegState::Kill);
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTS32_core), Epiphany::CONFIG).addReg(maskReg, RegState::Kill);
     // Restore interrupts
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GIE)).addReg(Epiphany::CONFIG, RegState::ImplicitKill);
   }
@@ -141,7 +141,7 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     // Disable interrupts
     BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::GID));
     // Upload config value to the core
-    BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::MOVTS32rr), Epiphany::CONFIG).addReg(configTmpReg, RegState::Kill);
+    BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::MOVTS32_core), Epiphany::CONFIG).addReg(configTmpReg, RegState::Kill);
     // Restore interrupts
     BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::GIE)).addReg(Epiphany::CONFIG, RegState::ImplicitKill);
   }

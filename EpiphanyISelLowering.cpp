@@ -1018,8 +1018,7 @@ static std::pair<bool, bool> parsePhysicalReg(StringRef C, StringRef &Prefix,
     return std::make_pair(true, false);
 
   // Parse the numeric characters.
-  return std::make_pair(!getAsUnsignedInteger(StringRef(I, E - I), 10, Reg),
-                        true);
+  return std::make_pair(!getAsUnsignedInteger(StringRef(I, E - I), 10, Reg), true);
 }
 
 std::pair<unsigned, const TargetRegisterClass *> EpiphanyTargetLowering::
@@ -1036,7 +1035,7 @@ parseRegForInlineAsmConstraint(StringRef C, MVT VT) const {
     return std::make_pair(0U, nullptr);
   }
 
-  assert(Prefix == "$" && "Strange reg prefix in inline asm");
+  assert((Prefix == "%" || Prefix == "$" || Prefix == "r") && "Strange reg prefix in inline asm");
   RC = getRegClassFor((VT == MVT::Other) ? MVT::i32 : VT);
 
   assert(Reg < RC->getNumRegs());

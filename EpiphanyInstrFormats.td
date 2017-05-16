@@ -575,7 +575,7 @@ class SimpleMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterCl
           [(set (Ty RegClass:$Rd), (OpNode (Ty RegClass:$Rn), (Ty RegClass:$Rm))), (implicit STATUS)], opcode, IaluItin> {}
 
 class SimpleMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, ValueType Ty> :
-  Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"),
+  Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"),
           [(set (Ty RegClass:$Rd), (OpNode (Ty RegClass:$Rn), (Ty RegClass:$Rm))), (implicit STATUS)], opcode, IaluItin> {
   let Inst{19-16} = 0b1010;
 }
@@ -589,7 +589,7 @@ class ComplexMath16rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterC
            [(set (Ty RegClass:$Rd), (OpNode (Ty RegClass:$Rn), (Ty RegClass:$Rm))), (implicit STATUS)], opcode, itin> {}
 
 class ComplexMath32rr<bits<7> opcode, string instr_asm, SDNode OpNode, RegisterClass RegClass, InstrItinClass itin, ValueType Ty> :
-  Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"), 
+  Math32rr<(outs RegClass:$Rd), (ins RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"), 
            [(set (Ty RegClass:$Rd), (OpNode (Ty RegClass:$Rn), (Ty RegClass:$Rm))), (implicit STATUS)], opcode, itin> {
   let Inst{19-16} = 0b0111;
 }
@@ -601,7 +601,7 @@ class ComplexMath2_16rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode 
 }
 
 class ComplexMath2_32rr<bits<7> opcode, string instr_asm, SDNode OpNode, SDNode OpNode2, RegisterClass RegClass, InstrItinClass itin, ValueType Ty> :
-  Math32rr<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, ".l", "\t$Rd, $Rn, $Rm"), 
+  Math32rr<(outs RegClass:$Rd), (ins RegClass:$src, RegClass:$Rn, RegClass:$Rm), !strconcat(instr_asm, "\t$Rd, $Rn, $Rm"), 
            [(set (Ty RegClass:$Rd), (OpNode RegClass:$src, (OpNode2 (Ty RegClass:$Rn), (Ty RegClass:$Rm)))), (implicit STATUS)], opcode, itin> {
   let Constraints = "$src = $Rd";
   let Inst{19-16} = 0b0111;
@@ -694,7 +694,7 @@ class IntMath_r16_i32<bits<7> opcode, string instr_asm, SDNode OpNode, Operand O
           [(set (Ty GPR16:$Rd), (OpNode (Ty GPR16:$Rn), imm_type:$Imm)), (implicit STATUS)], opcode, IaluItin> {}
 
 class IntMath_r32_i32<bits<7> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type, ValueType Ty> 
-    : Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, ".l\t$Rd, $Rn, $Imm"),
+    : Math32ri<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"),
           [(set (Ty GPR32:$Rd), (OpNode (Ty GPR32:$Rn), imm_type:$Imm)), (implicit STATUS)], opcode, IaluItin> {}
 
 class ShiftMath16ri<bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type, ValueType Ty>
@@ -711,7 +711,7 @@ class ShiftMath16ri<bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od,
 }
 
 class ShiftMath32ri<bits<4> leftcode, bits<5> opcode, string instr_asm, SDNode OpNode, Operand Od, PatLeaf imm_type, ValueType Ty>
-    : Normal32<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, ".l\t$Rd, $Rn, $Imm"), 
+    : Normal32<(outs GPR32:$Rd), (ins GPR32:$Rn, Od:$Imm), !strconcat(instr_asm, "\t$Rd, $Rn, $Imm"), 
             [(set (Ty GPR32:$Rd), (OpNode (Ty GPR32:$Rn), imm_type:$Imm)), (implicit STATUS)], IaluItin> {
   bits<6> Rd;
   bits<6> Rn;
@@ -740,7 +740,7 @@ class Bitr16ri<bits<5> opcode, ValueType Ty>
 }
 
 class Bitr32ri<bits<4> leftcode, bits<5> opcode, ValueType Ty>
-    : Normal32<(outs GPR32:$Rd), (ins GPR32:$Rn), "bitr.l\t$Rd, $Rn", 
+    : Normal32<(outs GPR32:$Rd), (ins GPR32:$Rn), "bitr\t$Rd, $Rn", 
             [(set (Ty GPR32:$Rd), (bitreverse (Ty GPR32:$Rn)))], IaluItin> {
   bits<6> Rd;
   bits<6> Rn;
