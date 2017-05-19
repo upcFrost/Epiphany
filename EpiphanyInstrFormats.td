@@ -894,14 +894,15 @@ def DmaReg     : SpecRegClass<1>;
 def MemProtReg : SpecRegClass<2>;
 def ConfReg    : SpecRegClass<3>;
 
-class SpecRegFromTo<bits<1> ft_code> {
+class SpecRegFromTo<bits<1> ft_code, string asm_order> {
   bits<1> Code = ft_code;
+  string asm = asm_order;
 }
-def SpecTo   : SpecRegFromTo<0>;
-def SpecFrom : SpecRegFromTo<1>;
+def SpecTo   : SpecRegFromTo<0, "$MMR, $Rd">;
+def SpecFrom : SpecRegFromTo<1, "$Rd, $MMR">;
 
 class MovSpecial<string instr_asm, dag outs, dag ins, list<dag> pattern, SpecRegClass regclass, SpecRegFromTo FromTo>
-    : Normal32<outs, ins, !strconcat(instr_asm, "\t$Rd, $MMR"), pattern, ControlItin> {
+    : Normal32<outs, ins, !strconcat(instr_asm, "\t", FromTo.asm), pattern, ControlItin> {
     bits<6> Rd;
     bits<6> MMR;
     
