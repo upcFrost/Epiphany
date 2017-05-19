@@ -79,8 +79,6 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     addRegisterClass(MVT::i64, &Epiphany::GPR64RegClass);
     addRegisterClass(MVT::f64, &Epiphany::FPR64RegClass);
 
-    addRegisterClass(MVT::i32, &Epiphany::SpecialRegClass);
-
     //- Set .align 2
     // It will emit .align 2 later
     setMinFunctionAlignment(STI.stackAlignment());
@@ -164,6 +162,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
 
     // Custom operations, see below
     setOperationAction(ISD::GlobalAddress,    MVT::i32, Custom);
+    setOperationAction(ISD::BlockAddress,     MVT::i32, Custom);
     setOperationAction(ISD::ExternalSymbol,   MVT::i32, Custom);
     setOperationAction(ISD::ConstantPool,     MVT::i32, Custom);
     setOperationAction(ISD::GlobalTLSAddress, MVT::i32, Custom);
@@ -202,6 +201,9 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
   switch (Op.getOpcode()) {
     case ISD::GlobalAddress:
       return LowerGlobalAddress(Op, DAG);
+      break;
+    case ISD::BlockAddress:
+      return LowerBlockAddress(Op, DAG);
       break;
     case ISD::ExternalSymbol:
       return LowerExternalSymbol(Op, DAG);
@@ -670,6 +672,22 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
   //}
   }
 
+SDValue EpiphanyTargetLowering::LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+
+  BlockAddressSDNode *BA = cast<BlockAddressSDNode>(Op);
+
+  const BlockAddress *BV = BA->getBlockAddress();
+  int64_t Offset = BA->getOffset();
+  auto PTY = getPointerTy(DAG.getDataLayout());
+
+  SDValue AddrLow  = DAG.getBlockAddress(BV, PTY, Offset, /* isTarget = */ true, EpiphanyII::MO_LOW);
+  SDValue AddrHigh = DAG.getBlockAddress(BV, PTY, Offset, /* isTarget = */ true, EpiphanyII::MO_HIGH);
+  SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+  return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
+  //}
+  }
+
 SDValue EpiphanyTargetLowering::LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
   GlobalAddressSDNode *GA = cast<GlobalAddressSDNode>(Op);
@@ -1055,6 +1073,12 @@ EpiphanyTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *T
     case 'r':
       if (VT == MVT::i32 || VT == MVT::i16 || VT == MVT::i8) {
         return std::make_pair(0U, &Epiphany::GPR32RegClass);
+      }
+      if (VT == MVT::f32) {
+        return std::make_pair(0U, &Epiphany::FPR32RegClass);
+      }
+      if (VT == MVT::f64) {
+        return std::make_pair(0U, &Epiphany::FPR64RegClass);
       }
       assert(VT == MVT::i64 && "Unknown integer reg class");
       return std::make_pair(0U, &Epiphany::GPR32RegClass);

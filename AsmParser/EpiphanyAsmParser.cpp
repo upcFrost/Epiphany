@@ -404,18 +404,8 @@ int EpiphanyAsmParser::tryParseRegister(StringRef Mnemonic) {
   int RegNum = -1;
 
   if (Tok.is(AsmToken::Identifier)) {
-    Regex regex("[rR]([0-9]+)");
-    SmallVector<StringRef, 2> matches;
-    // Check if the identifier has r[0-9] form
-    if (regex.match(Tok.getString(), &matches)) {
-      uint32_t num;
-      StringRef tmp = matches[1];
-      matches[1].getAsInteger(0, num);
-      RegNum = matchRegisterByNumber(num, Mnemonic.lower());
-    } else {
-      // Matching with upper-case, as all regs are defined this way
-      RegNum = MatchRegisterName(Tok.getString().upper());
-    }
+    // Matching with upper-case, as all regs are defined this way
+    RegNum = MatchRegisterName(Tok.getString().upper());
   } else if (Tok.is(AsmToken::Integer))
     // In some cases we might even get pure integer
     RegNum = matchRegisterByNumber(static_cast<unsigned>(Tok.getIntVal()),
@@ -616,8 +606,8 @@ OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
   SMLoc S;
 
   if (Parser.getTok().isNot(AsmToken::LBrac)) {
-    Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected LBrac");
-    return MatchOperand_ParseFail;
+    // If there's no LBrac - that's not a mem operand. It might happen with addition
+    return MatchOperand_NoMatch;
   }
   Parser.Lex(); // Eat '[' token
 
@@ -627,6 +617,13 @@ OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
     Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected register");
     return MatchOperand_ParseFail;
   }
+
+  // register is followed by comma
+  if (Parser.getTok().isNot(AsmToken::Comma)) {
+	Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected comma");
+	return MatchOperand_ParseFail;
+  }
+  Parser.Lex(); // Eat ',' token
 
   // second operand is the offset
   // if it starts with Hash - it's an immediate
@@ -653,17 +650,24 @@ OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
 
   Parser.Lex(); // Eat ']' token.
 
-  if (!IdVal)
+  // If offset is not an immediate
+  if (!IdVal) {
+    // FIXME: for now do not bother processing both cases, at least make it run
     IdVal = MCConstantExpr::create(0, getContext());
+    // Remove offset from operands table
+    Operands.pop_back();
+  }
 
   // Replace the register operand with the memory operand.
+  DEBUG(dbgs() << "Replacing operand with mem, old operands vector size: " << Operands.size(););
   std::unique_ptr<EpiphanyOperand> op(
       static_cast<EpiphanyOperand *>(Operands.back().release()));
   int RegNo = op->getReg();
-  // remove register from operands
+  // remove both register and offset from operands
   Operands.pop_back();
   // and add memory operand
   Operands.push_back(EpiphanyOperand::CreateMem(RegNo, IdVal, S, E));
+  DEBUG(dbgs() << ", new operands vector size: " << Operands.size() << "\n";);
   return MatchOperand_Success;
 }
 

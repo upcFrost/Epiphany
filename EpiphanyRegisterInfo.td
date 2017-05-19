@@ -226,7 +226,7 @@ def FPR64 : RegisterClass<"Epiphany", [f64,v2f32], 64, (add GPR64)> {
 
 
 // We should not be able to copy special regs on a whim
-let CopyCost = -1 in {
+let CopyCost = -1, isAllocatable = 0 in {
   // Status register
   def SR : RegisterClass<"Epiphany", [i32], 32, (add STATUS)>;
 

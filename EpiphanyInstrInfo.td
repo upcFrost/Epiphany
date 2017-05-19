@@ -316,10 +316,12 @@ def FIX   : SDNode<"EpiphanyISD::FIX",   SDT_FIX>;
 def FLOAT : SDNode<"EpiphanyISD::FLOAT", SDT_FLOAT>;
 
 let Defs = [STATUS] in {
-  def FLOAT32rr : IntToFloat32<(outs FPR32:$Rd), (ins GPR32:$Rn), "float\t$Rd, $Rn", 0b1011111, 
+  def FLOAT32rr : FixFloatFabs32<(outs FPR32:$Rd), (ins GPR32:$Rn), "float\t$Rd, $Rn", 0b1011111, 
     [(set FPR32:$Rd, (FLOAT GPR32:$Rn))], FpuItin>;
-  def FIX32rr   : IntToFloat32<(outs GPR32:$Rd), (ins FPR32:$Rn), "fix\t$Rd, $Rn",   0b1101111,
+  def FIX32rr   : FixFloatFabs32<(outs GPR32:$Rd), (ins FPR32:$Rn), "fix\t$Rd, $Rn",   0b1101111,
     [(set GPR32:$Rd, (FIX FPR32:$Rn))],   FpuItin>;
+  def FABS32rr  : FixFloatFabs32<(outs FPR32:$Rd), (ins FPR32:$Rn), "fabs\t$Rd, $Rn",  0b1111111,
+    [(set FPR32:$Rd, (fabs FPR32:$Rn))],  FpuItin>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -337,7 +339,7 @@ def MOVf16ri_r32 : Mov32ri<"mov", (ins f32imm:$Imm), [(set (f32 FPR32:$Rd), f32i
 def MOVf32ri_r32 : Pat<(f32imm32:$imm), (f32 (MOVTf32ri (MOVf16ri_r32 (LO16 $imm)), (HI16 $imm)))>;
 
 // Special instruction to move memory pointer to the reg
-/*def MOViPTR  : AddrMath32ri<(outs GPR32:$Rd), (ins smem11:$imm), "add \t$Rd, $imm", [(set GPR32:$Rd, addr11:$imm)],   0b0011011, IaluItin>;*/
+def MOViPTR  : AddrMath32ri<(outs GPR32:$Rd), (ins smem11:$imm), "add \t$Rd, $imm", [(set GPR32:$Rd, addr11:$imm)],   0b0011011, IaluItin>;
 def : Pat<(or (i32 GPR32:$src), 0xffff0000), (MOVTi32ri (i32 GPR32:$src), 0xffff)>;
 
 // SIMD patterns
