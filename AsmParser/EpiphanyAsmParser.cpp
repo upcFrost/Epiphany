@@ -147,7 +147,6 @@ namespace {
       k_CoprocNum,
       k_Immediate,
       k_Memory,
-      k_PostIndexRegister,
       k_Register,
       k_Token
     } Kind;
@@ -602,6 +601,7 @@ bool EpiphanyAsmParser::parseMemOffset(const MCExpr *&Res) {
 OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
     OperandVector &Operands) {
 
+  bool isIndex = true;
   const MCExpr *IdVal = 0;
   SMLoc S;
 
@@ -618,46 +618,79 @@ OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
     return MatchOperand_ParseFail;
   }
 
-  // register is followed by comma
-  if (Parser.getTok().isNot(AsmToken::Comma)) {
-	Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected comma");
-	return MatchOperand_ParseFail;
-  }
-  Parser.Lex(); // Eat ',' token
+  // If offset is not null, the register is followed by comma
+  SMLoc E;
+  if (Parser.getTok().is(AsmToken::Comma)) {
 
-  // second operand is the offset
-  // if it starts with Hash - it's an immediate
-  if (Parser.getTok().is(AsmToken::Hash)) {
-    Parser.Lex(); // Eat '#' token
-    if (parseMemOffset(IdVal)) {
-      Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected immediate");
+    Parser.Lex(); // Eat ',' token
+    // second operand is the offset
+    // if it starts with Hash - it's an immediate
+    if (Parser.getTok().is(AsmToken::Hash)) {
+      isIndex = false;
+      Parser.Lex(); // Eat '#' token
+      if (parseMemOffset(IdVal)) {
+        Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected immediate");
+        return MatchOperand_ParseFail;
+      }
+    } else if (tryParseRegisterOperand(Operands,"")) {
+      // If not - it should be register
+      Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected register or immediate");
+      return MatchOperand_ParseFail;
+    }  
+    if (Parser.getTok().isNot(AsmToken::RBrac)) {
+      Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected RBrac");
       return MatchOperand_ParseFail;
     }
-  } else if (tryParseRegisterOperand(Operands,"")) {
-    // If not - it should be register
-    Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected register or immediate");
-    return MatchOperand_ParseFail;
-  }
+    E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
+    Parser.Lex(); // Eat ']' token.
 
+  } else if (Parser.getTok().is(AsmToken::RBrac)) {
 
-  const AsmToken &Tok2 = Parser.getTok(); // get next token
-  if (Parser.getTok().isNot(AsmToken::RBrac)) {
+    // If postmod load/store
+    Parser.Lex(); // Eat ']' token
+    if (Parser.getTok().isNot(AsmToken::Comma)) {
+      Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected comma");
+      return MatchOperand_ParseFail;
+    }
+    Parser.Lex(); // Eat ',' token
+    E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
+    if (Parser.getTok().is(AsmToken::Hash)) {
+      isIndex = false;
+      Parser.Lex(); // Eat '#' token
+      if (parseMemOffset(IdVal)) {
+        Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected immediate");
+        return MatchOperand_ParseFail;
+      }
+    } else if (tryParseRegisterOperand(Operands,"")) {
+      // If not - it should be register
+      Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected register or immediate");
+      return MatchOperand_ParseFail;
+    }
+
+  } else {
+
     Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected RBrac");
     return MatchOperand_ParseFail;
+
   }
 
-  SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
-
-  Parser.Lex(); // Eat ']' token.
-
-  // If offset is not an immediate
-  if (!IdVal) {
-    // FIXME: for now do not bother processing both cases, at least make it run
-    IdVal = MCConstantExpr::create(0, getContext());
-    // Remove offset from operands table
+  // If offset is register
+  if (isIndex) {
+    // Get the offset reg number
+    std::unique_ptr<EpiphanyOperand> op(
+      static_cast<EpiphanyOperand *>(Operands.back().release()));
+    int RegNo = op->getReg();
+    // Remove both register and offset from operands
     Operands.pop_back();
+    // Define it as constant, which doesn't matter if dealing with opcodes
+    //IdVal = MCOperand::createReg(RegNo);
   }
 
+  // If offset is equal to 0
+  if (!isIndex && !IdVal) {
+    IdVal = MCConstantExpr::create(0, getContext());
+  }  
+ 
   // Replace the register operand with the memory operand.
   DEBUG(dbgs() << "Replacing operand with mem, old operands vector size: " << Operands.size(););
   std::unique_ptr<EpiphanyOperand> op(
@@ -665,7 +698,8 @@ OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
   int RegNo = op->getReg();
   // remove both register and offset from operands
   Operands.pop_back();
-  // and add memory operand
+
+  // Create memory operand out of base and offset
   Operands.push_back(EpiphanyOperand::CreateMem(RegNo, IdVal, S, E));
   DEBUG(dbgs() << ", new operands vector size: " << Operands.size() << "\n";);
   return MatchOperand_Success;

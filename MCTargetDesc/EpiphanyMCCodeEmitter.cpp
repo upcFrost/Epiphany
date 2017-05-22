@@ -269,7 +269,9 @@ unsigned EpiphanyMCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo,
   unsigned RegBits = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI) << 16;
   unsigned OffBits = getMachineOpValue(MI, MI.getOperand(OpNo+1), Fixups, STI);
 
-  if (modOffset) {
+  // Fix offset sign, as E16 doesn't follow the general negative values convention
+  // I.e. -1 == 100000..01, and not 11111...11
+  if (modOffset && MI.getOperand(OpNo + 1).isImm()) {
     OffBits = OffBits >> getShift(MI.getOpcode());
     // Value should be always greater than 0, sign is regulated by bit 11
     OffBits = (OffBits >> 11) == 0 ? OffBits : (OffBits^0xFFFF) + 1 | (1 << 11);

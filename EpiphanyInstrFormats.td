@@ -193,29 +193,29 @@ def EpiphanyMemAsmOperand : AsmOperandClass {
 }
 // Memory address operand
 def mem3 : Operand<iPTR> {
-  let PrintMethod = "printMemOperand";
-  let MIOperandInfo = (ops GPR16:$Rn, imm3:$imm);
-  let EncoderMethod = "getMemEncoding<true>";
+  let PrintMethod      = "printMemOperand";
+  let MIOperandInfo    = (ops GPR16:$Rn, imm3:$imm);
+  let EncoderMethod    = "getMemEncoding<true>";
   let ParserMatchClass = EpiphanyMemAsmOperand;
 }
 // Memory with sign only in bit 11
 def mem11 : Operand<iPTR> {
-  let PrintMethod = "printMemOperand";
-  let MIOperandInfo = (ops GPR32:$Rn, simm12:$imm);
-  let EncoderMethod = "getMemEncoding<true>";
+  let PrintMethod      = "printMemOperand";
+  let MIOperandInfo    = (ops GPR32:$Rn, simm12:$imm);
+  let EncoderMethod    = "getMemEncoding<true>";
   let ParserMatchClass = EpiphanyMemAsmOperand;
 }
 // Postmodify operand
 def pmem11 : Operand<iPTR> {
-  let PrintMethod = "printPostModifyOperand";
-  let MIOperandInfo = (ops GPR32:$Rn, simm12:$imm);
-  let EncoderMethod = "getMemEncoding<true>";
+  let PrintMethod      = "printPostModifyOperand";
+  let MIOperandInfo    = (ops GPR32:$Rn, simm12:$imm);
+  let EncoderMethod    = "getMemEncoding<true>";
 }
 // Memory op with full signed imm (not only in bit 11)
 def smem11 : Operand<iPTR> {
-  let PrintMethod = "printMemOperand";
-  let MIOperandInfo = (ops GPR32:$Rn, simm12:$imm);
-  let EncoderMethod = "getMemEncoding<false>";
+  let PrintMethod      = "printMemOperand";
+  let MIOperandInfo    = (ops GPR32:$Rn, simm12:$imm);
+  let EncoderMethod    = "getMemEncoding<false>";
   let ParserMatchClass = EpiphanyMemAsmOperand;
 }
 
