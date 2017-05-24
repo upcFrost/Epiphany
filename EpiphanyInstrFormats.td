@@ -186,37 +186,49 @@ def i64immSExt16  : PatLeaf<(i64 imm), [{ return isInt<16>(N->getSExtValue()); }
 def i64immSExt32  : PatLeaf<(i64 imm), [{ return isInt<32>(N->getSExtValue()); }]>;
 def i64immSExt64  : PatLeaf<(i64 imm), [{ return isInt<64>(N->getSExtValue()); }]>;
 
+def mem_offset : Operand<i32> {
+  let EncoderMethod = "getMemOffsetEncoding";
+}
+
 // Memory operand for asm parser
 def EpiphanyMemAsmOperand : AsmOperandClass {
   let Name = "Mem";
   let ParserMethod = "parseMemOperand";
 }
-// Memory address operand
 def mem3 : Operand<iPTR> {
   let PrintMethod      = "printMemOperand";
   let MIOperandInfo    = (ops GPR16:$Rn, imm3:$imm);
   let EncoderMethod    = "getMemEncoding<true>";
   let ParserMatchClass = EpiphanyMemAsmOperand;
 }
-// Memory with sign only in bit 11
 def mem11 : Operand<iPTR> {
   let PrintMethod      = "printMemOperand";
   let MIOperandInfo    = (ops GPR32:$Rn, simm12:$imm);
   let EncoderMethod    = "getMemEncoding<true>";
   let ParserMatchClass = EpiphanyMemAsmOperand;
 }
-// Postmodify operand
 def pmem11 : Operand<iPTR> {
   let PrintMethod      = "printPostModifyOperand";
   let MIOperandInfo    = (ops GPR32:$Rn, simm12:$imm);
   let EncoderMethod    = "getMemEncoding<true>";
 }
-// Memory op with full signed imm (not only in bit 11)
 def smem11 : Operand<iPTR> {
   let PrintMethod      = "printMemOperand";
   let MIOperandInfo    = (ops GPR32:$Rn, simm12:$imm);
   let EncoderMethod    = "getMemEncoding<false>";
   let ParserMatchClass = EpiphanyMemAsmOperand;
+}
+
+// Index memory operand for asm parser
+def EpiphanyIdxMemAsmOperand : AsmOperandClass {
+  let Name = "IdxMem";
+  let ParserMethod = "parseMemOperand";
+}
+def regmem11 : Operand<iPTR> {
+  let PrintMethod      = "printMemOperand";
+  let MIOperandInfo    = (ops GPR32:$Rn, GPR32:$Rm);
+  let EncoderMethod    = "getMemEncoding<true>";
+  let ParserMatchClass = EpiphanyIdxMemAsmOperand;
 }
 
 
@@ -274,7 +286,10 @@ class IndexAddSub<SDNode addsub, bits<1> opcode, string asm> {
   bits<1> Opcode = opcode;
   string Asm = asm;
 }
-def IndexAdd : IndexAddSub<add, 0, "+">;
+
+// "+" token can be dropped in assembly
+def : TokenAlias<"+", "">;
+def IndexAdd : IndexAddSub<add, 0, "">;
 def IndexSub : IndexAddSub<sub, 1, "-">;
 
 //-----------General classes----------//
@@ -318,55 +333,59 @@ def addr11 : ComplexPattern<iPTR, 2, "SelectAddr</* is16bit = */false>", [framei
 //-----------Displacement (Rd <-> (Rn + imm)) ----------//
 
 class LoadDisp16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, ValueType Ty>
-    : LS16_general<(outs RegClass:$Rd), (ins mem3:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set (Ty RegClass:$Rd), (LoadType addr3:$addr))], 0b0100, LoadBit, LoadSize, LoadItin> {
-  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
-  bits<22> addr;
+    : LS16_general<(outs RegClass:$Rd), (ins GPR16:$Rn, mem_offset:$imm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$Rn, $imm]"), 
+                  [(set (Ty RegClass:$Rd), (LoadType (addr3 (i32 GPR16:$Rn), (i32 imm:$imm))))], 0b0100, LoadBit, LoadSize, LoadItin> {
+  bits<3> Rn;
+  bits<32> imm;
 
-  let Inst{12-10} = addr{18-16}; // Rn
-  let Inst{9-7}   = addr{2-0}; // imm3
+  let Inst{12-10} = Rn;
+  let Inst{9-7}   = imm{2-0};
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
   let mayLoad = 1; 
 }
 
 class StoreDisp16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, ValueType Ty>
-    : LS16_general<(outs), (ins RegClass:$Rd, mem3:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType (Ty RegClass:$Rd), addr3:$addr)], 0b0100, StoreBit, StoreSize, StoreItin> {
-  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
-  bits<22> addr;
+    : LS16_general<(outs), (ins RegClass:$Rd, GPR16:$Rn, mem_offset:$imm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, [$Rn, $imm]"), 
+                  [(StoreType (Ty RegClass:$Rd), (addr3 (i32 GPR16:$Rn), (i32 imm:$imm)))], 0b0100, StoreBit, StoreSize, StoreItin> {
+  bits<3> Rn;
+  bits<32> imm;
 
-  let Inst{12-10} = addr{18-16}; // Rn
-  let Inst{9-7}   = addr{2-0}; // imm3
+  let Inst{12-10} = Rn;
+  let Inst{9-7}   = imm{2-0};
   let isPseudo    = Pseudo;
   let mayStore    = 1;
 }
 
 class LoadDisp32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, ValueType Ty>
-    : LS32_general<(outs RegClass:$Rd), (ins mem11:$addr), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $addr"), [(set (Ty RegClass:$Rd), (LoadType addr11:$addr))], 0b1100, LoadBit, LoadSize, LoadItin> {
-  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
-  bits<22> addr;
+    : LS32_general<(outs RegClass:$Rd), (ins GPR32:$Rn, mem_offset:$imm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$Rn, $imm]"), 
+                  [(set (Ty RegClass:$Rd), (LoadType (addr11 (i32 GPR32:$Rn), (i32 imm:$imm))))], 0b1100, LoadBit, LoadSize, LoadItin> {
+  bits<6> Rn;
+  bits<32> imm;
 
-  let Inst{28-26} = addr{21-19}; // Rn{5-3}
-  let Inst{16-23} = addr{3-10};  // imm11{10-3}
-  let Inst{12-10} = addr{18-16}; // Rn{2-0}
-  let Inst{7-9}   = addr{0-2};   // imm11{2-0}
+  let Inst{28-26} = Rn{5-3};
+  let Inst{23-16} = imm{10-3};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = imm{2-0};
   let Inst{25}    = 0b0;
-  let Inst{24}    = addr{11};    // imm sign bit
+  let Inst{24}    = imm{31};    // imm sign bit
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
   let mayLoad = 1;
 }
 
 class StoreDisp32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, ValueType Ty>
-    : LS32_general<(outs), (ins RegClass:$Rd, mem11:$addr), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $addr"), [(StoreType (Ty RegClass:$Rd), addr11:$addr)], 0b1100, StoreBit, StoreSize, StoreItin> {
-  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
-  bits<22> addr;
+    : LS32_general<(outs), (ins RegClass:$Rd, GPR32:$Rn, mem_offset:$imm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, [$Rn, $imm]"), 
+                  [(StoreType (Ty RegClass:$Rd), (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))], 0b1100, StoreBit, StoreSize, StoreItin> {
+  bits<6> Rn;
+  bits<32> imm;
 
-  let Inst{28-26} = addr{21-19}; // Rn{5-3}
-  let Inst{16-23} = addr{3-10};  // imm11{10-3}
-  let Inst{12-10} = addr{18-16}; // Rn{2-0}
-  let Inst{7-9}   = addr{0-2};   // imm11{2-0}
+  let Inst{28-26} = Rn{5-3};
+  let Inst{23-16} = imm{10-3};
+  let Inst{12-10} = Rn{2-0};
+  let Inst{9-7}   = imm{2-0};
   let Inst{25}    = 0b0;
-  let Inst{24}    = addr{11};    // imm sign bit
+  let Inst{24}    = imm{31};    // imm sign bit
   let isPseudo    = Pseudo;
   let mayStore = 1;
 }
@@ -447,8 +466,8 @@ class LoadPm16<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Loa
 }
 
 class StorePm16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub, ValueType Ty>
-    : LS16_general<(outs RegClass:$Rn), (ins RegClass:$Rd, RegClass:$base, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
-                   [], 0b0101, StoreBit, StoreSize, StoreItin> {
+    : LS16_general<(outs RegClass:$Rn), (ins RegClass:$Rd, RegClass:$base, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, [$Rn],", AddSub.Asm, "$Rm"), 
+                   [(set RegClass:$Rn, (StoreType (Ty RegClass:$Rd), (Ty RegClass:$base), (Ty RegClass:$Rm)))], 0b0101, StoreBit, StoreSize, StoreItin> {
   bits<3> Rn;
   bits<3> Rm;
 
@@ -460,7 +479,7 @@ class StorePm16<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size S
 }
 
 class LoadPm32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, IndexAddSub AddSub, ValueType Ty>
-    : LS32_general<(outs RegClass:$Rd, RegClass:$Rn), (ins RegClass:$base, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
+    : LS32_general<(outs RegClass:$Rd, RegClass:$Rn), (ins RegClass:$base, RegClass:$Rm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$Rn],", AddSub.Asm, "$Rm"), 
                    [], 0b1101, LoadBit, LoadSize, LoadItin> {
   bits<6> Rn;
   bits<6> Rm;
@@ -478,8 +497,8 @@ class LoadPm32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size Loa
 }
 
 class StorePm32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, IndexAddSub AddSub, ValueType Ty>
-    : LS32_general<(outs RegClass:$Rn), (ins RegClass:$Rd, RegClass:$base, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $Rn,", AddSub.Asm, "$Rm"), 
-                   [], 0b1101, StoreBit, StoreSize, StoreItin> {
+    : LS32_general<(outs RegClass:$Rn), (ins RegClass:$Rd, RegClass:$base, RegClass:$Rm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, [$Rn],", AddSub.Asm, "$Rm"), 
+                  [(set RegClass:$Rn, (StoreType (Ty RegClass:$Rd), (Ty RegClass:$base), (Ty RegClass:$Rm)))], 0b1101, StoreBit, StoreSize, StoreItin> {
   bits<6> Rn;
   bits<6> Rm;
 
@@ -497,32 +516,34 @@ class StorePm32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size S
 //----------- Postmodify-Disp (Rd <-> [Rn] -> Rd + imm) ----------//
 // TODO: Add patterns
 class LoadPmd32<bit Pseudo, RegisterClass RegClass, PatFrag LoadType, LS_size LoadSize, ValueType Ty>
-    : LS32_general<(outs RegClass:$Rd, RegClass:$Rn), (ins pmem11:$imm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, $imm"), [], 0b1100, LoadBit, LoadSize, LoadItin> {
-  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
-  bits<22> imm;
+    : LS32_general<(outs RegClass:$Rd, RegClass:$Rn), (ins GPR32:$base, mem_offset:$imm), !strconcat(LoadBit.Asm, LoadSize.Asm, "\t$Rd, [$base], $imm"), [], 0b1100, LoadBit, LoadSize, LoadItin> {
+  bits<6> base;
+  bits<32> imm;
 
-  let Inst{28-26} = imm{21-19}; // Rn{5-3}
-  let Inst{16-23} = imm{3-10};  // imm11{10-3}
-  let Inst{12-10} = imm{18-16}; // Rn{2-0}
-  let Inst{7-9}   = imm{0-2};   // imm11{2-0}
+  let Inst{28-26} = base{5-3}; // Rn{5-3};
+  let Inst{23-16} = imm{10-3};
+  let Inst{12-10} = base{2-0}; // Rn{2-0};
+  let Inst{9-7}   = imm{2-0};
   let Inst{25}    = 0b1;
-  let Inst{24}    = imm{11};    // imm sign bit
+  let Inst{24}    = imm{31};    // imm sign bit
   let isPseudo    = Pseudo;
   let canFoldAsLoad = 1;
+  let Constraints = "$base = $Rn";
   let mayLoad = 1;
 }
 
 class StorePmd32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size StoreSize, ValueType Ty>
-    : LS32_general<(outs RegClass:$Rn), (ins RegClass:$Rd, pmem11:$imm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, $imm"), [], 0b1100, StoreBit, StoreSize, StoreItin> {
-  // mem = Rd<21-16> + Imm<15-0> (see getMemEncoding)
-  bits<22> imm;
+    : LS32_general<(outs RegClass:$Rn), (ins RegClass:$Rd, GPR32:$base, mem_offset:$imm), !strconcat(StoreBit.Asm, StoreSize.Asm, "\t$Rd, [$base], $imm"), [], 0b1100, StoreBit, StoreSize, StoreItin> {
+  bits<6> base;
+  bits<32> imm;
 
-  let Inst{28-26} = imm{21-19}; // Rn{5-3}
-  let Inst{16-23} = imm{3-10};  // imm11{10-3}
-  let Inst{12-10} = imm{18-16}; // Rn{2-0}
-  let Inst{7-9}   = imm{0-2};   // imm11{2-0}
+  let Inst{28-26} = base{5-3};
+  let Inst{23-16} = imm{10-3};
+  let Inst{12-10} = base{2-0};
+  let Inst{9-7}   = imm{2-0};
   let Inst{25}    = 0b1;
-  let Inst{24}    = imm{11};    // imm sign bit
+  let Inst{24}    = imm{31};    // imm sign bit
+  let Constraints = "$base = $Rn";
   let isPseudo    = Pseudo;
   let mayStore = 1;
 }

@@ -257,6 +257,38 @@ static unsigned getShift(unsigned int OpCode) {
 
 /// getMemEncoding - Return binary encoding of memory related operand.
 /// If the offset operand requires relocation, record the relocation.
+unsigned EpiphanyMCCodeEmitter::getMemOffsetEncoding(const MCInst &MI, unsigned OpNo,
+    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
+  // Check that the operand type is correct
+  if (!MI.getOperand(OpNo).isImm()) {
+    MI.getOperand(OpNo).print(errs());
+    llvm_unreachable("Wrong operand type in getMemOffsetEncoding, offset should be immediate");
+  }
+
+  // Get the value and its sign
+  unsigned Offset = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI);
+  unsigned sign = Offset >> 31;
+  DEBUG(dbgs() << "Original mem offset: " << Offset << "\n");
+
+  // Shift the operand if we're not dealing with inline asm
+  // MI.Loc being == 0x0 is quite an indirect test for this
+  if (!MI.getLoc().isValid()) {
+    Offset = Offset >> getShift(MI.getOpcode());
+    DEBUG(dbgs() << "Shifted mem offset: " << Offset << "\n");
+  }
+
+  // Fix offset sign, as E16 doesn't follow the general negative values convention
+  // I.e. -1 == 100000..01, and not 11111...11
+  // Value should be always greater than 0, sign is regulated by bit 31
+  Offset = sign == 0 ? Offset : (Offset^0x7FFFFFFF) + 1 | (1 << 31);
+  DEBUG(dbgs() << "Sign-fixed final mem offset: " << Offset << "\n");
+
+  return Offset;
+}
+
+
+/// getMemEncoding - Return binary encoding of memory related operand.
+/// If the offset operand requires relocation, record the relocation.
 unsigned EpiphanyMCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo,
     SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI, bool modOffset) const {
   // Base register is encoded in bits 21-16, offset is encoded in bits 15-0.

@@ -86,6 +86,10 @@ namespace llvm {
     unsigned getMemEncoding(const MCInst &MI, unsigned OpNo,
         SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI, bool modOffset) const;
 
+    // Memory offset
+    unsigned getMemOffsetEncoding(const MCInst &MI, unsigned OpNo,
+        SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
+
     unsigned getExprOpValue(const MCExpr *Expr, SmallVectorImpl<MCFixup> &Fixups,
         const MCSubtargetInfo &STI) const;
   }; // class EpiphanyMCCodeEmitter

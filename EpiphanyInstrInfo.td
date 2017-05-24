@@ -176,7 +176,7 @@ multiclass StorePostM<LS_size StoreSize, ValueType Ty, PatFrag StoreType> {
 // Load
 defm LDRi8   : LoadM<LS_byte,   i32, zextloadi8>,  LoadPreM<LS_byte,   i32, zextloadi8>,  LoadPostM<LS_byte,   i32, zextloadi8>;
 defm LDRi16  : LoadM<LS_hword,  i32, zextloadi16>, LoadPreM<LS_hword,  i32, zextloadi16>, LoadPostM<LS_hword,  i32, zextloadi16>;
-defm LDRi32  : LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, load>,        LoadPostM<LS_word,   i32, load>;
+defm LDRi32  : LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, pre_load>,        LoadPostM<LS_word,   i32, post_load>;
 
 // Store
 defm STRi8   : StoreM<LS_byte,  i32, truncstorei8>,  StorePreM<LS_byte,  i32, pre_truncsti8>,  StorePostM<LS_byte,  i32, post_truncsti8>;
