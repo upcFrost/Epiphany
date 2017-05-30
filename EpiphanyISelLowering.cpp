@@ -131,6 +131,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
 
     // Turn FP truncstore into trunc + store.
     setTruncStoreAction(MVT::f64, MVT::f32, Expand);
+    setTruncStoreAction(MVT::f64, MVT::f16, Expand);
+    setTruncStoreAction(MVT::f32, MVT::f16, Expand);
     setTruncStoreAction(MVT::i64, MVT::i32, Expand);
 
     // Turn FP extload to ext + load
@@ -176,6 +178,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
     setOperationAction(ISD::SELECT_CC, MVT::f32, Custom);
     setOperationAction(ISD::FP_EXTEND, MVT::f64, Custom);
+    setOperationAction(ISD::FP_ROUND,  MVT::f64, Custom);
+    setOperationAction(ISD::FP_ROUND,  MVT::f32, Custom);
     setOperationAction(ISD::ADD,       MVT::i64, Custom);
     setOperationAction(ISD::ADDC,      MVT::i64, Custom);
     setOperationAction(ISD::SUB,       MVT::i64, Custom);
@@ -225,6 +229,9 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
       break;
     case ISD::FP_EXTEND:
       return LowerFpExtend(Op, DAG);
+      break;
+    case ISD::FP_ROUND:
+      return LowerFpRound(Op, DAG);
       break;
     case ISD::BR_CC:
       return LowerBrCC(Op, DAG);
@@ -1010,6 +1017,16 @@ SDValue EpiphanyTargetLowering::LowerFpExtend(SDValue Op, SelectionDAG &DAG) con
   SDValue SrcVal = Op.getOperand(0);
   return makeLibCall(DAG, LC, Op.getValueType(), SrcVal, /* isSigned = */ false, DL).first;
 }
+
+SDValue EpiphanyTargetLowering::LowerFpRound(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  // Get external rounding func
+  RTLIB::Libcall LC;
+  LC = RTLIB::getFPROUND(Op.getOperand(0).getValueType(), Op.getValueType());
+  SDValue SrcVal = Op.getOperand(0);
+  return makeLibCall(DAG, LC, Op.getValueType(), SrcVal, /* isSigned = */ false, DL).first;
+}
+
 
 
 //===----------------------------------------------------------------------===//

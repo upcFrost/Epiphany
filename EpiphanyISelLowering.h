@@ -158,6 +158,7 @@ namespace llvm {
       SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpExtend(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerFpRound(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpToInt(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerIntToFp(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFastDiv(SDValue Op, SelectionDAG &DAG) const;

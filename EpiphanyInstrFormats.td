@@ -548,6 +548,20 @@ class StorePmd32<bit Pseudo, RegisterClass RegClass, PatFrag StoreType, LS_size 
   let mayStore = 1;
 }
 
+//----------- Testset ----------//
+def Testset_add : LS32_general<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$Rm), "testset\t$Rd, [$Rn, $Rm]", [], 0b1001, LoadBit, LS_word, LoadItin> {
+  bits<6> Rm;
+
+  let Inst{25-23} = Rm{5-3};
+  let Inst{22} = 0;
+  let Inst{21} = 1; 
+  let Inst{20} = IndexAdd.Opcode;
+  let Inst{9-7} = Rm{2-0};
+
+  let mayLoad = 1;
+  let mayStore = 1;
+}
+
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
