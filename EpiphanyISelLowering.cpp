@@ -398,6 +398,8 @@ static EpiphanyCC::CondCodes ConvertCC(SDValue CC, const SDLoc &DL, SDValue &RHS
     default:
       llvm_unreachable("Unknown condition code: " + code);
       break;
+    // We can also check for NaN as fsub wont return zero/equal
+    case ISD::SETO:
     case ISD::SETEQ:
     case ISD::SETOEQ:
     case ISD::SETUEQ:
@@ -407,6 +409,8 @@ static EpiphanyCC::CondCodes ConvertCC(SDValue CC, const SDLoc &DL, SDValue &RHS
         return EpiphanyCC::COND_EQ;
       }
       break;
+    // We can also check for NaN as fsub wont return zero/equal
+    case ISD::SETUO:
     case ISD::SETNE:
     case ISD::SETONE:
     case ISD::SETUNE:
