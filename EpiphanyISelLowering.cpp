@@ -131,6 +131,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
 
     // Turn FP truncstore into trunc + store.
     setTruncStoreAction(MVT::f64, MVT::f32, Expand);
+    setTruncStoreAction(MVT::f64, MVT::f16, Expand);
+    setTruncStoreAction(MVT::f32, MVT::f16, Expand);
     setTruncStoreAction(MVT::i64, MVT::i32, Expand);
 
     // Turn FP extload to ext + load
@@ -162,6 +164,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
 
     // Custom operations, see below
     setOperationAction(ISD::GlobalAddress,    MVT::i32, Custom);
+    setOperationAction(ISD::BlockAddress,     MVT::i32, Custom);
     setOperationAction(ISD::ExternalSymbol,   MVT::i32, Custom);
     setOperationAction(ISD::ConstantPool,     MVT::i32, Custom);
     setOperationAction(ISD::GlobalTLSAddress, MVT::i32, Custom);
@@ -175,6 +178,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
     setOperationAction(ISD::SELECT_CC, MVT::f32, Custom);
     setOperationAction(ISD::FP_EXTEND, MVT::f64, Custom);
+    setOperationAction(ISD::FP_ROUND,  MVT::f64, Custom);
+    setOperationAction(ISD::FP_ROUND,  MVT::f32, Custom);
     setOperationAction(ISD::ADD,       MVT::i64, Custom);
     setOperationAction(ISD::ADDC,      MVT::i64, Custom);
     setOperationAction(ISD::SUB,       MVT::i64, Custom);
@@ -201,6 +206,9 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     case ISD::GlobalAddress:
       return LowerGlobalAddress(Op, DAG);
       break;
+    case ISD::BlockAddress:
+      return LowerBlockAddress(Op, DAG);
+      break;
     case ISD::ExternalSymbol:
       return LowerExternalSymbol(Op, DAG);
       break;
@@ -221,6 +229,9 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
       break;
     case ISD::FP_EXTEND:
       return LowerFpExtend(Op, DAG);
+      break;
+    case ISD::FP_ROUND:
+      return LowerFpRound(Op, DAG);
       break;
     case ISD::BR_CC:
       return LowerBrCC(Op, DAG);
@@ -387,6 +398,8 @@ static EpiphanyCC::CondCodes ConvertCC(SDValue CC, const SDLoc &DL, SDValue &RHS
     default:
       llvm_unreachable("Unknown condition code: " + code);
       break;
+    // We can also check for NaN as fsub wont return zero/equal
+    case ISD::SETO:
     case ISD::SETEQ:
     case ISD::SETOEQ:
     case ISD::SETUEQ:
@@ -396,6 +409,8 @@ static EpiphanyCC::CondCodes ConvertCC(SDValue CC, const SDLoc &DL, SDValue &RHS
         return EpiphanyCC::COND_EQ;
       }
       break;
+    // We can also check for NaN as fsub wont return zero/equal
+    case ISD::SETUO:
     case ISD::SETNE:
     case ISD::SETONE:
     case ISD::SETUNE:
@@ -663,6 +678,22 @@ SDValue EpiphanyTargetLowering::LowerGlobalAddress(SDValue Op, SelectionDAG &DAG
 
   SDValue AddrLow  = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_LOW);
   SDValue AddrHigh = DAG.getTargetGlobalAddress(GV, DL, PTY, Offset, EpiphanyII::MO_HIGH);
+  SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
+  return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
+  //}
+  }
+
+SDValue EpiphanyTargetLowering::LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+
+  BlockAddressSDNode *BA = cast<BlockAddressSDNode>(Op);
+
+  const BlockAddress *BV = BA->getBlockAddress();
+  int64_t Offset = BA->getOffset();
+  auto PTY = getPointerTy(DAG.getDataLayout());
+
+  SDValue AddrLow  = DAG.getBlockAddress(BV, PTY, Offset, /* isTarget = */ true, EpiphanyII::MO_LOW);
+  SDValue AddrHigh = DAG.getBlockAddress(BV, PTY, Offset, /* isTarget = */ true, EpiphanyII::MO_HIGH);
   SDValue Low = DAG.getNode(EpiphanyISD::MOV, DL, PTY, AddrLow);
   return DAG.getNode(EpiphanyISD::MOVT, DL, PTY, Low, AddrHigh);
   //}
@@ -990,6 +1021,115 @@ SDValue EpiphanyTargetLowering::LowerFpExtend(SDValue Op, SelectionDAG &DAG) con
   SDValue SrcVal = Op.getOperand(0);
   return makeLibCall(DAG, LC, Op.getValueType(), SrcVal, /* isSigned = */ false, DL).first;
 }
+
+SDValue EpiphanyTargetLowering::LowerFpRound(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  // Get external rounding func
+  RTLIB::Libcall LC;
+  LC = RTLIB::getFPROUND(Op.getOperand(0).getValueType(), Op.getValueType());
+  SDValue SrcVal = Op.getOperand(0);
+  return makeLibCall(DAG, LC, Op.getValueType(), SrcVal, /* isSigned = */ false, DL).first;
+}
+
+
+
+//===----------------------------------------------------------------------===//
+//  Inline asm parsing
+//===----------------------------------------------------------------------===//
+
+/// This is a helper function to parse a physical register string and split it
+/// into non-numeric and numeric parts (Prefix and Reg). The first boolean flag
+/// that is returned indicates whether parsing was successful. The second flag
+/// is true if the numeric part exists.
+static std::pair<bool, bool> parsePhysicalReg(StringRef C, StringRef &Prefix,
+                                              unsigned long long &Reg) {
+  if (C.front() != '{' || C.back() != '}')
+    return std::make_pair(false, false);
+
+  // Search for the first numeric character.
+  StringRef::const_iterator I, B = C.begin() + 1, E = C.end() - 1;
+  I = std::find_if(B, E, isdigit);
+
+  Prefix = StringRef(B, I - B);
+
+  // The second flag is set to false if no numeric characters were found.
+  if (I == E)
+    return std::make_pair(true, false);
+
+  // Parse the numeric characters.
+  return std::make_pair(!getAsUnsignedInteger(StringRef(I, E - I), 10, Reg), true);
+}
+
+std::pair<unsigned, const TargetRegisterClass *> EpiphanyTargetLowering::
+parseRegForInlineAsmConstraint(StringRef C, MVT VT) const {
+  const TargetRegisterInfo *TRI =
+      Subtarget.getRegisterInfo();
+  const TargetRegisterClass *RC;
+  StringRef Prefix;
+  unsigned long long Reg;
+
+  std::pair<bool, bool> R = parsePhysicalReg(C, Prefix, Reg);
+
+  if (!R.first || !R.second) {
+    return std::make_pair(0U, nullptr);
+  }
+
+  assert((Prefix == "%" || Prefix == "$" || Prefix == "r") && "Strange reg prefix in inline asm");
+  RC = getRegClassFor((VT == MVT::Other) ? MVT::i32 : VT);
+
+  assert(Reg < RC->getNumRegs());
+  return std::make_pair(*(RC->begin() + Reg), RC);
+}
+
+/// Given a register class constraint, like 'r', if this corresponds directly
+/// to an LLVM register class, return a register of 0 and the register class
+/// pointer.
+std::pair<unsigned, const TargetRegisterClass *>
+EpiphanyTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+    StringRef Constraint, MVT VT) const {
+  if (Constraint.size() == 1) {
+    switch (Constraint[0]) {
+    case 'd': // Address register. Same as 'r' unless generating MIPS16 code.
+    case 'y': // Same as 'r'. Exists for compatibility.
+    case 'r':
+      if (VT == MVT::i32 || VT == MVT::i16 || VT == MVT::i8) {
+        return std::make_pair(0U, &Epiphany::GPR32RegClass);
+      }
+      if (VT == MVT::f32) {
+        return std::make_pair(0U, &Epiphany::FPR32RegClass);
+      }
+      if (VT == MVT::f64) {
+        return std::make_pair(0U, &Epiphany::FPR64RegClass);
+      }
+      assert(VT == MVT::i64 && "Unknown integer reg class");
+      return std::make_pair(0U, &Epiphany::GPR32RegClass);
+    case 'f': // FPU or MSA register
+      if (VT == MVT::f32) {
+        return std::make_pair(0U, &Epiphany::FPR32RegClass);
+      } else if ((VT == MVT::f64)) {
+        return std::make_pair(0U, &Epiphany::FPR64RegClass);
+      }
+      break;
+    case 'x':
+    case 'l':
+    case 'c': // register suitable for indirect jump
+      assert(VT == MVT::i32 && "Unexpected type for indirect jump register");
+      return std::make_pair((unsigned)Epiphany::IP, &Epiphany::GPR32RegClass);
+    }
+  }
+
+  std::pair<unsigned, const TargetRegisterClass *> R;
+  R = parseRegForInlineAsmConstraint(Constraint, VT);
+
+  // If we were able to found the class - return it
+  if (R.second)
+    return R;
+
+  // If not - run the default method
+  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+}
+
+
 
 //===----------------------------------------------------------------------===//
 //  Misc Lower Operation implementation

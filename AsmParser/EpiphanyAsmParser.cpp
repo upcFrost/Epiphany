@@ -7,132 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Epiphany.h"
-
-#include "MCTargetDesc/EpiphanyMCExpr.h"
-#include "MCTargetDesc/EpiphanyMCTargetDesc.h"
-#include "EpiphanyRegisterInfo.h"
-#include "llvm/ADT/APInt.h"
-#include "llvm/ADT/StringSwitch.h"
-#include "llvm/MC/MCContext.h"
-#include "llvm/MC/MCExpr.h"
-#include "llvm/MC/MCInst.h"
-#include "llvm/MC/MCInstBuilder.h"
-#include "llvm/MC/MCParser/MCAsmLexer.h"
-#include "llvm/MC/MCParser/MCParsedAsmOperand.h"
-#include "llvm/MC/MCParser/MCTargetAsmParser.h"
-#include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/MC/MCSymbol.h"
-#include "llvm/MC/MCParser/MCAsmLexer.h"
-#include "llvm/MC/MCParser/MCParsedAsmOperand.h"
-#include "llvm/MC/MCValue.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/MathExtras.h"
-#include "llvm/Support/TargetRegistry.h"
-
-using namespace llvm;
-
-#define DEBUG_TYPE "epiphany-asm-parser"
-
-namespace {
-  class EpiphanyAssemblerOptions {
-    public:
-      EpiphanyAssemblerOptions():
-        reorder(true), macro(true) {
-        }
-
-      bool isReorder() {return reorder;}
-      void setReorder() {reorder = true;}
-      void setNoreorder() {reorder = false;}
-
-      bool isMacro() {return macro;}
-      void setMacro() {macro = true;}
-      void setNomacro() {macro = false;}
-
-    private:
-      bool reorder;
-      bool macro;
-  };
-}
-
-namespace {
-  class EpiphanyAsmParser : public MCTargetAsmParser {
-    MCAsmParser &Parser;
-    EpiphanyAssemblerOptions Options;
-
-#define GET_ASSEMBLER_HEADER
-#include "EpiphanyGenAsmMatcher.inc"
-
-    bool MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
-        OperandVector &Operands, MCStreamer &Out,
-        uint64_t &ErrorInfo,
-        bool MatchingInlineAsm) override;
-
-    bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
-
-    bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
-        SMLoc NameLoc, OperandVector &Operands) override;
-
-    bool parseMathOperation(StringRef Name, SMLoc NameLoc,
-        OperandVector &Operands);
-
-    bool ParseDirective(AsmToken DirectiveID) override;
-
-    OperandMatchResultTy parseMemOperand(OperandVector &);
-
-    bool ParseOperand(OperandVector &Operands, StringRef Mnemonic);
-
-    int tryParseRegister(StringRef Mnemonic);
-
-    bool tryParseRegisterOperand(OperandVector &Operands,
-        StringRef Mnemonic);
-
-    bool needsExpansion(MCInst &Inst);
-
-    void expandInstruction(MCInst &Inst, SMLoc IDLoc,
-        SmallVectorImpl<MCInst> &Instructions);
-    void expandLoadImm(MCInst &Inst, SMLoc IDLoc,
-        SmallVectorImpl<MCInst> &Instructions);
-    void expandLoadAddressImm(MCInst &Inst, SMLoc IDLoc,
-        SmallVectorImpl<MCInst> &Instructions);
-    void expandLoadAddressReg(MCInst &Inst, SMLoc IDLoc,
-        SmallVectorImpl<MCInst> &Instructions);
-    bool reportParseError(StringRef ErrorMsg);
-
-    bool parseMemOffset(const MCExpr *&Res);
-    bool parseRelocOperand(const MCExpr *&Res);
-
-    const MCExpr *evaluateRelocExpr(const MCExpr *Expr, StringRef RelocStr);
-
-    bool parseDirectiveSet();
-
-    bool parseSetAtDirective();
-    bool parseSetNoAtDirective();
-    bool parseSetMacroDirective();
-    bool parseSetNoMacroDirective();
-    bool parseSetReorderDirective();
-    bool parseSetNoReorderDirective();
-
-    int matchRegisterName(StringRef Symbol);
-
-    int matchRegisterByNumber(unsigned RegNum, StringRef Mnemonic);
-
-    unsigned getReg(int RC,int RegNo);
-
-    public:
-    EpiphanyAsmParser(const MCSubtargetInfo &sti, MCAsmParser &parser,
-        const MCInstrInfo &MII, const MCTargetOptions &Options)
-      : MCTargetAsmParser(Options, sti), Parser(parser) {
-        // Initialize the set of available features.
-        setAvailableFeatures(ComputeAvailableFeatures(getSTI().getFeatureBits()));
-      }
-
-    MCAsmParser &getParser() const { return Parser; }
-    MCAsmLexer &getLexer() const { return Parser.getLexer(); }
-
-  };
-}
+#include "EpiphanyAsmParser.h"
 
 namespace {
 
@@ -145,7 +20,7 @@ namespace {
       k_CoprocNum,
       k_Immediate,
       k_Memory,
-      k_PostIndexRegister,
+      k_IdxMemory,
       k_Register,
       k_Token
     } Kind;
@@ -167,12 +42,17 @@ namespace {
       unsigned Base;
       const MCExpr *Off;
     };
+    struct IdxMemOp {
+      unsigned Base;
+      unsigned Offset;
+    };
 
     union {
       struct Token Tok;
       struct PhysRegOp Reg;
       struct ImmOp Imm;
       struct MemOp Mem;
+      struct IdxMemOp IdxMem;
     };
 
     SMLoc StartLoc, EndLoc;
@@ -208,8 +88,19 @@ namespace {
       addExpr(Inst,Expr);
     }
 
+    void addIdxMemOperands(MCInst &Inst, unsigned N) const {
+      assert(N == 2 && "Invalid number of operands!");
+
+      Inst.addOperand(MCOperand::createReg(getIdxMemBase()));
+      Inst.addOperand(MCOperand::createReg(getIdxMemOffset()));
+    }
+
     bool isReg() const { return Kind == k_Register; }
     bool isImm() const { return Kind == k_Immediate; }
+    bool isToken() const { return Kind == k_Token; }
+    bool isMem() const { return Kind == k_Memory; }
+    bool isIdxMem() const { return Kind == k_IdxMemory; }
+
     bool isConstantImm() const {
       return isImm() && isa<MCConstantExpr>(getImm());
     }
@@ -236,9 +127,6 @@ namespace {
       return isConstantImm() && getConstantImm() >= Bottom &&
         getConstantImm() <= Top;
     }
-
-    bool isToken() const { return Kind == k_Token; }
-    bool isMem() const { return Kind == k_Memory; }
 
     StringRef getToken() const {
       assert(Kind == k_Token && "Invalid access!");
@@ -268,6 +156,16 @@ namespace {
     const MCExpr *getMemOff() const {
       assert((Kind == k_Memory) && "Invalid access!");
       return Mem.Off;
+    }
+
+    unsigned getIdxMemBase() const {
+      assert((Kind == k_IdxMemory) && "Invalid access!");
+      return IdxMem.Base;
+    }
+
+    unsigned getIdxMemOffset() const {
+      assert((Kind == k_IdxMemory) && "Invalid access!");
+      return IdxMem.Offset;
     }
 
     static std::unique_ptr<EpiphanyOperand> CreateToken(StringRef Str, SMLoc S) {
@@ -307,13 +205,52 @@ namespace {
       return Op;
     }
 
+    static std::unique_ptr<EpiphanyOperand> CreateIdxMem(unsigned Base, unsigned Offset,
+        SMLoc S, SMLoc E) {
+      auto Op = make_unique<EpiphanyOperand>(k_IdxMemory);
+      Op->IdxMem.Base = Base;
+      Op->IdxMem.Offset = Offset;
+      Op->StartLoc = S;
+      Op->EndLoc = E;
+      return Op;
+    }
+
     /// getStartLoc - Get the location of the first token of this operand.
     SMLoc getStartLoc() const { return StartLoc; }
     /// getEndLoc - Get the location of the last token of this operand.
     SMLoc getEndLoc() const { return EndLoc; }
 
-    virtual void print(raw_ostream &OS) const {
-      llvm_unreachable("unimplemented!");
+    void printReg(raw_ostream &OS) const {
+      OS << "Register: " << Reg.RegNum << "\n";
+    }
+
+    void printImm(raw_ostream &OS) const {
+      OS << "Immediate: " << Imm.Val << "\n";
+    }
+
+    void printToken(raw_ostream &OS) const {
+      OS << "Token: " << Tok.Data << "\n";
+    }
+
+    void printMem(raw_ostream &OS) const {
+      OS << "Memory addr: base " << Mem.Base << ", offset "; Mem.Off->dump();
+    }
+
+    void printIdxMem(raw_ostream &OS) const {
+      OS << "Indexed memory addr: base " << IdxMem.Base << ", offset " << IdxMem.Offset << "\n";
+    }
+
+    void print(raw_ostream &OS) const {
+      if (isReg())
+        printReg(OS);
+      if (isImm())
+        printImm(OS);
+      if (isToken())
+        printToken(OS);
+      if (isMem())
+        printMem(OS);
+      if (isIdxMem())
+        printIdxMem(OS);
     }
   };
 }
@@ -384,36 +321,6 @@ bool EpiphanyAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
 return true;
 }
 
-// Match register by Alias name (not just r#num)
-int EpiphanyAsmParser::matchRegisterName(StringRef Name) {
-
-  int CC;
-  CC = StringSwitch<unsigned>(Name)
-    .Case("a1",  Epiphany::A1)
-    .Case("a2",  Epiphany::A2)
-    .Case("a3",  Epiphany::A3)
-    .Case("a4",  Epiphany::A4)
-    .Case("v1",  Epiphany::V1)
-    .Case("v2",  Epiphany::V2)
-    .Case("v3",  Epiphany::V3)
-    .Case("v4",  Epiphany::V4)
-    .Case("v5",  Epiphany::V5)
-    .Case("sb",  Epiphany::SB)
-    .Case("sl",  Epiphany::SL)
-    .Case("v8",  Epiphany::V8)
-    .Case("ip",  Epiphany::IP)
-    .Case("sp",  Epiphany::SP)
-    .Case("lr",  Epiphany::LR)
-    .Case("fp",  Epiphany::FP)
-    .Case("zero",  Epiphany::ZERO)
-    .Default(-1);
-
-  if (CC != -1)
-    return CC;
-
-  return -1;
-}
-
 // Get register by number
 unsigned EpiphanyAsmParser::getReg(int RC,int RegNo) {
   return *(getContext().getRegisterInfo()->getRegClass(RC).begin() + RegNo);
@@ -432,13 +339,14 @@ int EpiphanyAsmParser::tryParseRegister(StringRef Mnemonic) {
   int RegNum = -1;
 
   if (Tok.is(AsmToken::Identifier)) {
-    std::string lowerCase = Tok.getString().lower();
-    RegNum = matchRegisterName(lowerCase);
+    // Matching with upper-case, as all regs are defined this way
+    RegNum = MatchRegisterName(Tok.getString().upper());
   } else if (Tok.is(AsmToken::Integer))
+    // In some cases we might even get pure integer
     RegNum = matchRegisterByNumber(static_cast<unsigned>(Tok.getIntVal()),
         Mnemonic.lower());
   else
-    return RegNum;  //error
+    llvm_unreachable(strcat("Can't parse register: ", Mnemonic.data()));
   return RegNum;
 }
 
@@ -478,31 +386,22 @@ bool EpiphanyAsmParser::ParseOperand(OperandVector &Operands,
     default:
       Error(Parser.getTok().getLoc(), "unexpected token in operand");
       return true;
-    case AsmToken::Dollar: 
+    case AsmToken::RBrac:
+    case AsmToken::LBrac:
       {
-        // parse register
+        // Just add brackets into op list and continue processing the register
         SMLoc S = Parser.getTok().getLoc();
-        Parser.Lex(); // Eat dollar token.
+        StringRef string = Parser.getTok().getString();
+        Operands.push_back(EpiphanyOperand::CreateToken(string, S));
+        Parser.Lex(); // Eat the bracket
+        return false;
+      }
+    case AsmToken::Identifier: 
+      {
+        // try if it is register
+        SMLoc S = Parser.getTok().getLoc();
         // parse register operand
         if (!tryParseRegisterOperand(Operands, Mnemonic)) {
-          if (getLexer().is(AsmToken::LParen)) {
-            // check if it is indexed addressing operand
-            Operands.push_back(EpiphanyOperand::CreateToken("(", S));
-            Parser.Lex(); // eat parenthesis
-            if (getLexer().isNot(AsmToken::Dollar))
-              return true;
-
-            Parser.Lex(); // eat dollar
-            if (tryParseRegisterOperand(Operands, Mnemonic))
-              return true;
-
-            if (!getLexer().is(AsmToken::RParen))
-              return true;
-
-            S = Parser.getTok().getLoc();
-            Operands.push_back(EpiphanyOperand::CreateToken(")", S));
-            Parser.Lex();
-          }
           return false;
         }
         // maybe it is a symbol reference
@@ -512,7 +411,7 @@ bool EpiphanyAsmParser::ParseOperand(OperandVector &Operands,
 
         SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
 
-        MCSymbol *Sym = getContext().getOrCreateSymbol("$" + Identifier);
+        MCSymbol *Sym = getContext().getOrCreateSymbol(Identifier);
 
         // Otherwise create a symbol ref.
         const MCExpr *Res = MCSymbolRefExpr::create(Sym, MCSymbolRefExpr::VK_None,
@@ -521,7 +420,9 @@ bool EpiphanyAsmParser::ParseOperand(OperandVector &Operands,
         Operands.push_back(EpiphanyOperand::CreateImm(Res, S, E));
         return false;
       }
-    case AsmToken::Identifier:
+    case AsmToken::Hash:
+      // Integers start with hash, strip it
+      Parser.Lex();
     case AsmToken::LParen:
     case AsmToken::Minus:
     case AsmToken::Plus:
@@ -641,66 +542,110 @@ bool EpiphanyAsmParser::parseMemOffset(const MCExpr *&Res) {
   return true;
 }
 
-// eg, 12($sp) or 12(la)
+/// parseMemOperand
+// eg, [r0, #1] or [r0, r1]
 OperandMatchResultTy EpiphanyAsmParser::parseMemOperand(
     OperandVector &Operands) {
 
+  bool isIndex = true;
   const MCExpr *IdVal = 0;
+  unsigned offsetReg = 0;
   SMLoc S;
-  // first operand is the offset
+
+  if (Parser.getTok().isNot(AsmToken::LBrac)) {
+    // If there's no LBrac - that's not a mem operand. It might happen with addition
+    return MatchOperand_NoMatch;
+  }
+  Parser.Lex(); // Eat '[' token
+
+  // first operand is the register
   S = Parser.getTok().getLoc();
-
-  if (parseMemOffset(IdVal))
-    return MatchOperand_ParseFail;
-
-  const AsmToken &Tok = Parser.getTok(); // get next token
-  if (Tok.isNot(AsmToken::LParen)) {
-    EpiphanyOperand &Mnemonic = static_cast<EpiphanyOperand &>(*Operands[0]);
-    if (Mnemonic.getToken() == "la") {
-      SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer()-1);
-      Operands.push_back(EpiphanyOperand::CreateImm(IdVal, S, E));
-      return MatchOperand_Success;
-    }
-    Error(Parser.getTok().getLoc(), "'(' expected");
+  if (tryParseRegisterOperand(Operands,"")) {
+    Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected register");
     return MatchOperand_ParseFail;
   }
 
-  Parser.Lex(); // Eat '(' token.
+  // If offset is not null, the register is followed by comma
+  SMLoc E;
+  if (Parser.getTok().is(AsmToken::Comma)) {
 
-  const AsmToken &Tok1 = Parser.getTok(); // get next token
-  if (Tok1.is(AsmToken::Dollar)) {
-    Parser.Lex(); // Eat '$' token.
-    if (tryParseRegisterOperand(Operands,"")) {
-      Error(Parser.getTok().getLoc(), "unexpected token in operand");
+    Parser.Lex(); // Eat ',' token
+    // second operand is the offset
+    // if it starts with Hash - it's an immediate
+    if (Parser.getTok().is(AsmToken::Hash)) {
+      isIndex = false;
+      Parser.Lex(); // Eat '#' token
+      if (parseMemOffset(IdVal)) {
+        Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected immediate");
+        return MatchOperand_ParseFail;
+      }
+    } else if (tryParseRegisterOperand(Operands,"")) {
+      // If not - it should be register
+      Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected register or immediate");
+      return MatchOperand_ParseFail;
+    }  
+    if (Parser.getTok().isNot(AsmToken::RBrac)) {
+      Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected RBrac");
+      return MatchOperand_ParseFail;
+    }
+    E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
+    Parser.Lex(); // Eat ']' token.
+
+  } else if (Parser.getTok().is(AsmToken::RBrac)) {
+
+    // If postmod load/store
+    Parser.Lex(); // Eat ']' token
+    if (Parser.getTok().isNot(AsmToken::Comma)) {
+      Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected comma");
+      return MatchOperand_ParseFail;
+    }
+    Parser.Lex(); // Eat ',' token
+    E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
+    if (Parser.getTok().is(AsmToken::Hash)) {
+      isIndex = false;
+      Parser.Lex(); // Eat '#' token
+      if (parseMemOffset(IdVal)) {
+        Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected immediate");
+        return MatchOperand_ParseFail;
+      }
+    } else if (tryParseRegisterOperand(Operands,"")) {
+      // If not - it should be register
+      Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected register or immediate");
       return MatchOperand_ParseFail;
     }
 
   } else {
-    Error(Parser.getTok().getLoc(), "unexpected token in operand");
+
+    Error(Parser.getTok().getLoc(), "unexpected token in mem operand, expected RBrac");
     return MatchOperand_ParseFail;
+
   }
 
-  const AsmToken &Tok2 = Parser.getTok(); // get next token
-  if (Tok2.isNot(AsmToken::RParen)) {
-    Error(Parser.getTok().getLoc(), "')' expected");
-    return MatchOperand_ParseFail;
+  // If offset is not a register - create Memory operand
+  if (!isIndex) {
+    if (!IdVal) {
+      IdVal = MCConstantExpr::create(0, getContext());
+    }
+
+    // Replace the register operand with the memory operand.
+    DEBUG(dbgs() << "Replacing operand with mem, old operands vector size: " << Operands.size(););
+    std::unique_ptr<EpiphanyOperand> op(
+        static_cast<EpiphanyOperand *>(Operands.back().release()));
+    int RegNo = op->getReg();
+    // remove both register and offset from operands
+    Operands.pop_back();
+
+    // Create memory operand out of base and offset
+    Operands.push_back(EpiphanyOperand::CreateMem(RegNo, IdVal, S, E));
+    DEBUG(dbgs() << ", new operands vector size: " << Operands.size() << "\n";);
   }
 
-  SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
+  // If offset is a reg - do nothing, the reg is already pushed into the ops list
 
-  Parser.Lex(); // Eat ')' token.
-
-  if (!IdVal)
-    IdVal = MCConstantExpr::create(0, getContext());
-
-  // Replace the register operand with the memory operand.
-  std::unique_ptr<EpiphanyOperand> op(
-      static_cast<EpiphanyOperand *>(Operands.back().release()));
-  int RegNo = op->getReg();
-  // remove register from operands
-  Operands.pop_back();
-  // and add memory operand
-  Operands.push_back(EpiphanyOperand::CreateMem(RegNo, IdVal, S, E));
+  // Debug info
+  for (unsigned idx = 0; idx < Operands.size(); idx++) {
+    Operands[idx]->dump();
+  }
   return MatchOperand_Success;
 }
 
@@ -776,8 +721,10 @@ ParseInstruction(ParseInstructionInfo &Info, StringRef Name, SMLoc NameLoc,
       return Error(Loc, "unexpected token in argument list");
     }
 
-    while (getLexer().is(AsmToken::Comma) ) {
-      Parser.Lex();  // Eat the comma.
+    while (getLexer().isNot(AsmToken::EndOfStatement)) {
+      if (getLexer().is(AsmToken::Comma)) {
+        Parser.Lex();  // Eat the comma.
+      }
 
       // Parse and remember the operand.
       if (ParseOperand(Operands, Name)) {

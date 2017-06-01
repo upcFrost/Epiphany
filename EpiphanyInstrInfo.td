@@ -176,7 +176,7 @@ multiclass StorePostM<LS_size StoreSize, ValueType Ty, PatFrag StoreType> {
 // Load
 defm LDRi8   : LoadM<LS_byte,   i32, zextloadi8>,  LoadPreM<LS_byte,   i32, zextloadi8>,  LoadPostM<LS_byte,   i32, zextloadi8>;
 defm LDRi16  : LoadM<LS_hword,  i32, zextloadi16>, LoadPreM<LS_hword,  i32, zextloadi16>, LoadPostM<LS_hword,  i32, zextloadi16>;
-defm LDRi32  : LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, load>,        LoadPostM<LS_word,   i32, load>;
+defm LDRi32  : LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, pre_load>,        LoadPostM<LS_word,   i32, post_load>;
 
 // Store
 defm STRi8   : StoreM<LS_byte,  i32, truncstorei8>,  StorePreM<LS_byte,  i32, pre_truncsti8>,  StorePostM<LS_byte,  i32, post_truncsti8>;
@@ -277,6 +277,7 @@ let Defs = [STATUS], AddedComplexity = 1 in {
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with immediates
 //===----------------------------------------------------------------------===//
+
 multiclass IntMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
   def _r16     : IntMath_r16_i32<opcode16, instr_asm, OpNode, i32imm, i32immSExt3,  i32>;
   def _r32     : IntMath_r32_i32<opcode32, instr_asm, OpNode, i32imm, i32immSExt11, i32>;
@@ -315,10 +316,12 @@ def FIX   : SDNode<"EpiphanyISD::FIX",   SDT_FIX>;
 def FLOAT : SDNode<"EpiphanyISD::FLOAT", SDT_FLOAT>;
 
 let Defs = [STATUS] in {
-  def FLOAT32rr : IntToFloat32<(outs FPR32:$Rd), (ins GPR32:$Rn), "float\t$Rd, $Rn", 0b1011111, 
+  def FLOAT32rr : FixFloatFabs32<(outs FPR32:$Rd), (ins GPR32:$Rn), "float\t$Rd, $Rn", 0b1011111, 
     [(set FPR32:$Rd, (FLOAT GPR32:$Rn))], FpuItin>;
-  def FIX32rr   : IntToFloat32<(outs GPR32:$Rd), (ins FPR32:$Rn), "fix\t$Rd, $Rn",   0b1101111,
+  def FIX32rr   : FixFloatFabs32<(outs GPR32:$Rd), (ins FPR32:$Rn), "fix\t$Rd, $Rn",   0b1101111,
     [(set GPR32:$Rd, (FIX FPR32:$Rn))],   FpuItin>;
+  def FABS32rr  : FixFloatFabs32<(outs FPR32:$Rd), (ins FPR32:$Rn), "fabs\t$Rd, $Rn",  0b1111111,
+    [(set FPR32:$Rd, (fabs FPR32:$Rn))],  FpuItin>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -365,8 +368,14 @@ def MOVi32rr : Mov32rr<"mov", [], GPR32>;
 def MOVf32rr : Mov32rr<"mov", [], FPR32>;
 
 // Special regs
-def MOVFS32rr    : MovSpecial<"movfs", (outs GPR32:$Rd),   (ins SPECIAL:$MMR), [], CoreReg, SpecFrom>;
-def MOVTS32rr    : MovSpecial<"movts", (outs SPECIAL:$MMR), (ins GPR32:$Rd),   [], CoreReg, SpecTo>;
+def MOVFS32_core: MovSpecial<"movfs", (outs GPR32:$Rd),            (ins eCore:$MMR),           [], CoreReg,    SpecFrom>;
+def MOVTS32_core: MovSpecial<"movts", (outs eCore:$MMR),           (ins GPR32:$Rd),            [], CoreReg,    SpecTo>;
+def MOVFS32_dma:  MovSpecial<"movfs", (outs GPR32:$Rd),            (ins DMA:$MMR),             [], DmaReg,     SpecFrom>;
+def MOVTS32_dma:  MovSpecial<"movts", (outs DMA:$MMR),             (ins GPR32:$Rd),            [], DmaReg,     SpecTo>;
+def MOVFS32_mem:  MovSpecial<"movfs", (outs GPR32:$Rd),            (ins MemProtect:$MMR),      [], MemProtReg, SpecFrom>;
+def MOVTS32_mem:  MovSpecial<"movts", (outs MemProtect:$MMR),      (ins GPR32:$Rd),            [], MemProtReg, SpecTo>;
+def MOVFS32_mesh: MovSpecial<"movfs", (outs GPR32:$Rd),            (ins MeshNodeControl:$MMR), [], ConfReg,    SpecFrom>;
+def MOVTS32_mesh: MovSpecial<"movts", (outs MeshNodeControl:$MMR), (ins GPR32:$Rd),            [], ConfReg,    SpecTo>;
 
 //===----------------------------------------------------------------------===//
 // Move operations: Wrapper, see EpiphanyISelLowering.cpp
