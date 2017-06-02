@@ -219,8 +219,10 @@ multiclass SimpleMath64<SDNode OpNode> {
 }
 
 let isCommutable = 1 in {
-  defm ADDCrr : SimpleMath<0b0011010, 0b0011111, "add", addc>;
-  defm ADDrr  : SimpleMath<0b0011010, 0b0011111, "add", add >;
+  let isAdd = 1 in {
+    defm ADDCrr : SimpleMath<0b0011010, 0b0011111, "add", addc>;
+    defm ADDrr  : SimpleMath<0b0011010, 0b0011111, "add", add >;
+  }
   defm ANDrr  : SimpleMath<0b1011010, 0b1011111, "and", and >;
   defm ORRrr  : SimpleMath<0b1111010, 0b1111111, "orr", or  >;
   defm EORrr  : SimpleMath<0b0001010, 0b0001111, "eor", xor >;
@@ -249,7 +251,9 @@ multiclass FPMath2<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode 
   def _r32 : ComplexMath2_32rr<opcode32, instr_asm, OpNode, fmul, FPR32, FpuItin, f32>;
 }
 let Defs = [STATUS] in {
-  defm FADDrr  : FPMath<0b0000111, 0b0001111, "fadd", fadd>;
+  let isAdd = 1 in {
+    defm FADDrr  : FPMath<0b0000111, 0b0001111, "fadd", fadd>;
+  }
   defm FSUBrr  : FPMath<0b0010111, 0b0011111, "fsub", fsub>;
   defm FCMPrr  : FPMath<0b0010111, 0b0011111, "fsub", CMP>;
   defm FMULrr  : FPMath<0b0100111, 0b0101111, "fmul", fmul>;
@@ -267,7 +271,9 @@ multiclass Ialu2Math_2<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDN
   def _r32 : ComplexMath2_32rr<opcode32, instr_asm, mul, OpNode, GPR32, Ialu2Itin, i32>;
 }
 let Defs = [STATUS], AddedComplexity = 1 in {
-  defm IADDrr : Ialu2Math<0b0000111, 0b0001111, "iadd", add>;
+  let isAdd = 1 in {
+    defm IADDrr : Ialu2Math<0b0000111, 0b0001111, "iadd", add>;
+  }
   defm ISUBrr : Ialu2Math<0b0010111, 0b0011111, "isub", sub>;
   defm IMULrr : Ialu2Math<0b0100111, 0b0101111, "imul", mul>;
   defm IMADDrr : Ialu2Math_2<0b0110111, 0b0111111, "imadd", add>;
@@ -286,7 +292,9 @@ multiclass IntMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode 
 let Defs = [STATUS] in {
   // Addsub
   let isCompare = 1 in {
-    defm ADDri  : IntMath<0b0010011, 0b0011011, "add", add >;
+    let isAdd = 1 in {
+      defm ADDri  : IntMath<0b0010011, 0b0011011, "add", add >;
+    }
     defm SUBri  : IntMath<0b0110011, 0b0111011, "sub", sub >;
     defm CMPri  : IntMath<0b0110011, 0b0111011, "sub", CMP >;
     defm ADDCri : IntMath<0b0010011, 0b0011011, "add", addc>;
@@ -435,7 +443,7 @@ let isTerminator = 1, isBranch = 1, isBarrier = 0, hasDelaySlot = 0, Uses = [STA
   def BCC : BranchCC32<(ins branchtarget:$addr, cc:$cc), [(BRCC bb:$addr, i32immSExt32:$cc, STATUS)]>;
 }
 
-let usesCustomInserter = 1 in {
+let usesCustomInserter = 1, isBranch = 1 in {
   def BCC64 : Pseudo32<(outs), (ins branchtarget:$addr, cc:$cc, GPR32:$Rn_lo, GPR32:$Rm_lo, GPR32:$Rn_hi, GPR32:$Rm_hi), 
                       [(BRCC64 bb:$addr, i32immSExt32:$cc, (i32 GPR32:$Rn_lo), (i32 GPR32:$Rm_lo), (i32 GPR32:$Rn_hi), (i32 GPR32:$Rm_hi))]>;
 }

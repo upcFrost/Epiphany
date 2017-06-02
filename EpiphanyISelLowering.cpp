@@ -635,7 +635,8 @@ MachineBasicBlock *EpiphanyTargetLowering::emitBrCC(MachineInstr &MI, MachineBas
   // Transfer rest of current basic-block to FallThroughBB
   FallThroughBB->splice(FallThroughBB->begin(), MBB, 
       std::next(MachineBasicBlock::iterator(MI)), MBB->end());
-  FallThroughBB->transferSuccessorsAndUpdatePHIs(MBB);
+  // Do not transfer PHIs as this is essentially a branch which can break the critical path
+  FallThroughBB->transferSuccessors(MBB);
 
   // Insert instruction sequence
   BuildMI(MBB, DL, TII->get(Epiphany::CMPrr_r32), tempReg1).addReg(LHS_hi).addReg(RHS_hi);

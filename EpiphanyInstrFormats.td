@@ -813,6 +813,8 @@ class Mov16ri<string instr_asm, dag ins, list<dag> pattern, bits<5> opcode, Regi
   let Inst{15-13} = Rd;
   let Inst{12-5} = Imm;
   let Inst{4-0} = opcode;
+
+  let isMoveImm = 1;
 }
 
 class Mov32ri<string instr_asm, dag ins, list<dag> pattern, bits<5> opcode, bits<1> MOVT, RegisterClass RegClass>
@@ -828,6 +830,8 @@ class Mov32ri<string instr_asm, dag ins, list<dag> pattern, bits<5> opcode, bits
   let Inst{15-13} = Rd{2-0};
   let Inst{12-5} = Imm{7-0};
   let Inst{4-0} = opcode;
+
+  let isMoveImm = 1;
 }
 
 //===----------------------------------------------------------------------===//
