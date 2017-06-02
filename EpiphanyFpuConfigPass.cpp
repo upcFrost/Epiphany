@@ -26,10 +26,23 @@ char EpiphanyFpuConfigPass::ID = 0;
 INITIALIZE_PASS_BEGIN(EpiphanyFpuConfigPass, "epiphany_fpu_config", "Epiphany FPU/IALU2 Config", false, false);
 INITIALIZE_PASS_END(EpiphanyFpuConfigPass, "epiphany_fpu_config", "Epiphany FPU/IALU2 Config", false, false);
 
+void EpiphanyFpuConfigPass::insertConfigInst(MachineBasicBlock *MBB, MachineBasicBlock::iterator MBBI, 
+    MachineRegisterInfo &MRI, const EpiphanySubtarget &ST, unsigned frameIdx) {
+
+  const TargetRegisterClass *RC = &Epiphany::GPR32RegClass;
+
+  DebugLoc DL = DebugLoc();
+  unsigned Reg = MRI.createVirtualRegister(RC);
+  TII->loadRegFromStackSlot(*MBB, MBBI, Reg, frameIdx, RC, ST.getRegisterInfo());
+  BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::GID)).addReg(Epiphany::CONFIG, RegState::ImplicitDefine);
+  BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::MOVTS32_core), Epiphany::CONFIG).addReg(Reg, RegState::Kill);
+  BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::GIE)).addReg(Epiphany::CONFIG, RegState::ImplicitDefine);
+}
+
 bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
   DEBUG(dbgs() << "\nRunning Epiphany FPU/IALU2 config pass\n");
   auto &ST = MF.getSubtarget<EpiphanySubtarget>();
-  const EpiphanyInstrInfo *TII = ST.getInstrInfo();
+  TII = ST.getInstrInfo();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   const TargetRegisterClass *RC = &Epiphany::GPR32RegClass;
@@ -46,7 +59,6 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
   // Prepare binary flag and regs
   bool hasFPU;
   bool hasIALU2;
-  unsigned frameIdx;
 
   // Step 1: Loop over all of the basic blocks to find the first FPU instruction
   for(MachineFunction::iterator it = MF.begin(), E = MF.end(); it != E; ++it) {
@@ -56,21 +68,17 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
       MachineInstr *MI = &*MBBI;
       // Check if the opcode used is one of the FPU opcodes
       bool isFPU = std::find(std::begin(opcodesFPU), std::end(opcodesFPU), MI->getOpcode()) != std::end(opcodesFPU);
-      // If FPU inst found - break and insert config
       if (isFPU) {
         hasFPU = true;
-        break;
       }
       // Check if the opcode used is one of the IALU2 opcodes
       bool isIALU2 = std::find(std::begin(opcodesIALU2), std::end(opcodesIALU2), MI->getOpcode()) != std::end(opcodesIALU2);
-      // If FPU inst found - break and insert config
       if (isIALU2) {
         hasIALU2 = true;
-        break;
       }
     }
-    // Break if the first instruction was already found
-    if (hasFPU || hasIALU2) {
+    // Break if we already know that we have both
+    if (hasFPU && hasIALU2) {
       break;
     }
   }
@@ -88,36 +96,77 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     for (MachineRegisterInfo::livein_iterator LB = MRI.livein_begin(), LE = MRI.livein_end(); LB != LE; ++LB) {
       MBB->addLiveIn(LB->first);
     }
+    // Create config regs for both cases
+    unsigned FpuConfigReg   = MRI.createVirtualRegister(RC);
+    unsigned IaluConfigReg  = MRI.createVirtualRegister(RC);
+    unsigned OriginalConfigReg = MRI.createVirtualRegister(RC);
     // Disable interrupts
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GID)).addReg(Epiphany::CONFIG, RegState::ImplicitDefine);
-    // Get current config and save it to stack
-    unsigned configTmpReg = MRI.createVirtualRegister(RC);
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVFS32_core), configTmpReg).addReg(Epiphany::CONFIG, RegState::Kill);
-    frameIdx = MFI.CreateStackObject(RC->getSize(), /* Alignment = */ RC->getSize(), /* isSS = */ false);
-    TII->storeRegToStackSlot(*MBB, insertPos, configTmpReg, /* killReg = */ false, frameIdx, RC, ST.getRegisterInfo());
-    unsigned maskReg = MRI.createVirtualRegister(RC);
+    // Gather reg values
+    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVFS32_core), OriginalConfigReg).addReg(Epiphany::CONFIG, RegState::Kill);
+    originalFrameIdx = MFI.CreateStackObject(RC->getSize(), /* Alignment = */ RC->getSize(), /* isSS = */ false);
+    TII->storeRegToStackSlot(*MBB, insertPos, OriginalConfigReg, /* killReg = */ false, originalFrameIdx, RC, ST.getRegisterInfo());
+    // Calculate FPU config reg value
     if (hasFPU) {
       // Create mask with bits 19:17 set to 0
       unsigned lowTmpReg = MRI.createVirtualRegister(RC);
       BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVi32ri), lowTmpReg).addImm(0xffff);
       unsigned tmpReg = MRI.createVirtualRegister(RC);
       BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTi32ri), tmpReg).addReg(lowTmpReg).addImm(0xfff1);
-      // Apply mask to configTmpReg
-      BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::ANDrr_r32), maskReg).addReg(configTmpReg, RegState::Kill).addReg(tmpReg, RegState::Kill);
-    } else if (hasIALU2) {
+      // Apply mask to OriginalConfigReg
+      BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::ANDrr_r32), FpuConfigReg).addReg(OriginalConfigReg, RegState::Kill).addReg(tmpReg, RegState::Kill);
+      // Store fpu config reg to stack
+      fpuFrameIdx = MFI.CreateStackObject(RC->getSize(), /* Alignment = */ RC->getSize(), /* isSS = */ false);
+      TII->storeRegToStackSlot(*MBB, insertPos, FpuConfigReg, /* killReg = */ false, fpuFrameIdx, RC, ST.getRegisterInfo());
+    }
+    // Calculate IALU2 conf reg value
+    if (hasIALU2) {
       // Set bits 16-32 to 0b0000000001001000 = 0x48 (all other bits are reserved/not recommended
       // TODO: bit 22 may have 2 values, though value 1 is recommended
       // TODO: bit 26 may have 2 values, though the second one is avail only on Epiphany-IV
-      BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTi32ri), maskReg).addReg(configTmpReg, RegState::Kill).addImm(0x48);
+      BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTi32ri), IaluConfigReg).addReg(OriginalConfigReg, RegState::Kill).addImm(0x48);
+      // Store ialu config reg to stack
+      ialuFrameIdx = MFI.CreateStackObject(RC->getSize(), /* Alignment = */ RC->getSize(), /* isSS = */ false);
+      TII->storeRegToStackSlot(*MBB, insertPos, IaluConfigReg, /* killReg = */ false, ialuFrameIdx, RC, ST.getRegisterInfo());
     }
-    // Push reg back to config
-    BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTS32_core), Epiphany::CONFIG).addReg(maskReg, RegState::Kill);
+    // If we only have one mode - push reg back to config right now
+    if (hasFPU && !hasIALU2) {
+      BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTS32_core), Epiphany::CONFIG).addReg(FpuConfigReg, RegState::Kill);
+    } else if (hasIALU2 && !hasFPU) {
+      BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::MOVTS32_core), Epiphany::CONFIG).addReg(IaluConfigReg, RegState::Kill);
+    }
     // Restore interrupts
     BuildMI(*MBB, insertPos, DL, TII->get(Epiphany::GIE)).addReg(Epiphany::CONFIG, RegState::ImplicitKill);
   }
 
+  // Step 3 - if we have both FPU and IALU2 instructions, run through the whole routine and insert config
+  // FIXME: config based on on successors and first use
+  if (hasFPU && hasIALU2) {
+    bool lastFPU = false;
+    for(MachineFunction::iterator it = MF.begin(), E = MF.end(); it != E; ++it) {
+      MachineBasicBlock *MBB = &*it;
+      // Loop over all instructions search for FPU instructions
+      for(MachineBasicBlock::iterator MBBI = MBB->begin(), MBBE = MBB->end(); MBBI != MBBE; ++MBBI) {
+        MachineInstr *MI = &*MBBI;
+        // Check if the opcode used is one of the FPU opcodes
+        bool isFPU = std::find(std::begin(opcodesFPU), std::end(opcodesFPU), MI->getOpcode()) != std::end(opcodesFPU);
+        if (isFPU && !lastFPU) {
+          insertConfigInst(MBB, MBBI, MRI, ST, fpuFrameIdx);
+          lastFPU = true;
+          continue;
+        }
+        // Check if the opcode used is one of the IALU2 opcodes
+        bool isIALU2 = std::find(std::begin(opcodesIALU2), std::end(opcodesIALU2), MI->getOpcode()) != std::end(opcodesIALU2);
+        if (isIALU2 && lastFPU) {
+          insertConfigInst(MBB, MBBI, MRI, ST, ialuFrameIdx);
+          lastFPU = false;
+          continue;
+        }
+      }
+    }
+  }
 
-  // Step 3 - find the last FPU instruction of the last block and insert flag reset 
+  // Step 4 - find the last FPU/IALU2 instruction of the last block and restore the config flags
   if (hasFPU || hasIALU2) {
     MachineBasicBlock *MBB = &MF.back();
     MachineBasicBlock::iterator MBBI = MBB->end();
@@ -135,13 +184,13 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
       //}
     }
     DebugLoc DL = DebugLoc();
-    unsigned configTmpReg = MRI.createVirtualRegister(RC);
+    unsigned OriginalConfigReg = MRI.createVirtualRegister(RC);
     // Reload old config value 
-    TII->loadRegFromStackSlot(*MBB, MBBI, configTmpReg, frameIdx, RC, ST.getRegisterInfo());
+    TII->loadRegFromStackSlot(*MBB, MBBI, OriginalConfigReg, originalFrameIdx, RC, ST.getRegisterInfo());
     // Disable interrupts
     BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::GID));
     // Upload config value to the core
-    BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::MOVTS32_core), Epiphany::CONFIG).addReg(configTmpReg, RegState::Kill);
+    BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::MOVTS32_core), Epiphany::CONFIG).addReg(OriginalConfigReg, RegState::Kill);
     // Restore interrupts
     BuildMI(*MBB, MBBI, DL, TII->get(Epiphany::GIE)).addReg(Epiphany::CONFIG, RegState::ImplicitKill);
   }
