@@ -198,7 +198,8 @@ int EpiphanyFrameLowering::getFrameIndexReference(const MachineFunction &MF,
     const EpiphanyRegisterInfo *RegInfo = static_cast<const EpiphanyRegisterInfo *>(
         MF.getSubtarget().getRegisterInfo());
     FrameReg = RegInfo->getFrameRegister(MF);
-    return MFI.getObjectOffset(FI) + 16;
+    //return MFI.getObjectOffset(FI) + 16;
+    return MFI.getObjectOffset(FI);
   } else {
     FrameReg = Epiphany::SP;
     return MFI.getObjectOffset(FI) + MFI.getStackSize();
