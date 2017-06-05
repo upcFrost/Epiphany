@@ -39,6 +39,10 @@ namespace llvm {
       unsigned fpuFrameIdx;
       unsigned ialuFrameIdx;
 
+      enum PredState {
+        PRED_START, PRED_FPU, PRED_IALU, PRED_MIXED
+      };
+
     public:
       static char ID;
       EpiphanyFpuConfigPass() : MachineFunctionPass(ID) {

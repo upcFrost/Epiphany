@@ -46,6 +46,7 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   const TargetRegisterClass *RC = &Epiphany::GPR32RegClass;
+  unsigned blockCount = MF.size();
 
   // FPU opcodes
   unsigned opcodesFPU[] = {Epiphany::FADDrr_r16, Epiphany::FADDrr_r32, Epiphany::FSUBrr_r16, Epiphany::FSUBrr_r32,
@@ -142,25 +143,41 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
   // Step 3 - if we have both FPU and IALU2 instructions, run through the whole routine and insert config
   // FIXME: config based on on successors and first use
   if (hasFPU && hasIALU2) {
-    bool lastFPU = false;
+    std::vector<PredState> lastState(blockCount, PRED_START);
     for(MachineFunction::iterator it = MF.begin(), E = MF.end(); it != E; ++it) {
       MachineBasicBlock *MBB = &*it;
+      int blockNumber = MBB->getNumber();
       // Loop over all instructions search for FPU instructions
       for(MachineBasicBlock::iterator MBBI = MBB->begin(), MBBE = MBB->end(); MBBI != MBBE; ++MBBI) {
         MachineInstr *MI = &*MBBI;
         // Check if the opcode used is one of the FPU opcodes
         bool isFPU = std::find(std::begin(opcodesFPU), std::end(opcodesFPU), MI->getOpcode()) != std::end(opcodesFPU);
-        if (isFPU && !lastFPU) {
-          insertConfigInst(MBB, MBBI, MRI, ST, fpuFrameIdx);
-          lastFPU = true;
+        if (isFPU) {
+          if (lastState[blockNumber] != PRED_FPU) {
+            insertConfigInst(MBB, MBBI, MRI, ST, fpuFrameIdx);
+            lastState[blockNumber] = PRED_FPU;
+          }
           continue;
         }
         // Check if the opcode used is one of the IALU2 opcodes
         bool isIALU2 = std::find(std::begin(opcodesIALU2), std::end(opcodesIALU2), MI->getOpcode()) != std::end(opcodesIALU2);
-        if (isIALU2 && lastFPU) {
-          insertConfigInst(MBB, MBBI, MRI, ST, ialuFrameIdx);
-          lastFPU = false;
+        if (isIALU2) {
+          if (lastState[blockNumber] != PRED_IALU) {
+            insertConfigInst(MBB, MBBI, MRI, ST, ialuFrameIdx);
+            lastState[blockNumber] = PRED_IALU;
+          }
           continue;
+        }
+      }
+      // Propagate current flag state to all successors, setting state to MIXED if they 
+      // already have some other state except start
+      for (MachineBasicBlock::succ_iterator MBBI = MBB->succ_begin(), MBBE = MBB->succ_end(); MBBI != MBBE; ++MBBI) {
+        MachineBasicBlock *successor = *MBBI;
+        int succNumber = successor->getNumber();
+        if (lastState[succNumber] == PRED_START) {
+          lastState[succNumber] = lastState[blockNumber];
+        } else if (lastState[succNumber] != lastState[blockNumber]) {
+          lastState[succNumber] = PRED_MIXED;
         }
       }
     }
