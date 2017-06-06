@@ -146,7 +146,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
     }
 
     // Handle conditional branches.
-    if (I->getOpcode() != Epiphany::BCCi32 && I->getOpcode() != Epiphany::BCCf32 && I->getOpcode() != Epiphany::BCCi64) {
+    if (I->getOpcode() != Epiphany::BCC) {
       continue;
     }
     EpiphanyCC::CondCodes BranchCode = static_cast<EpiphanyCC::CondCodes>(I->getOperand(1).getImm());
@@ -188,7 +188,7 @@ unsigned EpiphanyInstrInfo::removeBranch(MachineBasicBlock &MBB, int *BytesRemov
   // Branches to handle
   DEBUG(dbgs()<< "\n<----------------->";);
   DEBUG(dbgs() << "\nRemoving branches out of BB#" << MBB.getNumber() << "\n");
-  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCCi32, Epiphany::BCCf32, Epiphany::BCCi64};
+  unsigned uncond[] = {Epiphany::BNONE32, Epiphany::BL32, Epiphany::BCC};
   MachineBasicBlock::iterator I = MBB.end();
   unsigned Count = 0;
 
@@ -233,7 +233,7 @@ unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
 
   // Conditional branch.
   unsigned Count = 0;
-  BuildMI(&MBB, DL, get(Epiphany::BCCi32)).addMBB(TBB).addImm(Cond[0].getImm()).addReg(Epiphany::R0);
+  BuildMI(&MBB, DL, get(Epiphany::BCC)).addMBB(TBB).addImm(Cond[0].getImm());
   ++Count;
 
   if (FBB) {
@@ -386,15 +386,15 @@ unsigned EpiphanyInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
     int &FrameIndex) const {
   // Load instructions
   unsigned inst[] = {
-    Epiphany::LDRi16e_r16,
-    Epiphany::LDRi16e_r32,
-    Epiphany::LDRi16e_idx_add_r16,
-    Epiphany::LDRi16e_idx_add_r32,
-    Epiphany::LDRi16e_idx_sub_r32,
-    Epiphany::LDRi16e_pm_add_r16,
-    Epiphany::LDRi16e_pm_add_r32,
-    Epiphany::LDRi16e_pm_sub_r32,
-    Epiphany::LDRi16e_pmd_r32,
+    Epiphany::LDRi16_r16,
+    Epiphany::LDRi16_r32,
+    Epiphany::LDRi16_idx_add_r16,
+    Epiphany::LDRi16_idx_add_r32,
+    Epiphany::LDRi16_idx_sub_r32,
+    Epiphany::LDRi16_pm_add_r16,
+    Epiphany::LDRi16_pm_add_r32,
+    Epiphany::LDRi16_pm_sub_r32,
+    Epiphany::LDRi16_pmd_r32,
     Epiphany::LDRi32_r16,
     Epiphany::LDRi32_r32,
     Epiphany::LDRi32_idx_add_r16,
@@ -625,7 +625,10 @@ void EpiphanyInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   unsigned BeginIdx = 0;
   unsigned SubRegs = 0;
 
-  // TODO: Should make it work for all 4 ways (i32 <-> f32)
+  // Do not copy Special regs
+  if (Epiphany::SpecialRegClass.contains(DestReg) || Epiphany::SpecialRegClass.contains(SrcReg))
+    return;
+
   if (Epiphany::GPR32RegClass.contains(DestReg, SrcReg)) { // Copy between regs
     Opc = Epiphany::MOVi32rr;
   } else if (Epiphany::FPR32RegClass.contains(DestReg, SrcReg)) {

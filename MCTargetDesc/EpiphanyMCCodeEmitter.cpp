@@ -153,8 +153,20 @@ unsigned EpiphanyMCCodeEmitter::getExprOpValue(const MCExpr *Expr,SmallVectorImp
       case EpiphanyMCExpr::CEK_LOW:
         FixupKind = Epiphany::fixup_Epiphany_LOW;
         break;
-      case EpiphanyMCExpr::CEK_GPREL:
+      case EpiphanyMCExpr::CEK_SIMM8:
+        FixupKind = Epiphany::fixup_Epiphany_SIMM8;
+        break;
+      case EpiphanyMCExpr::CEK_SIMM24:
         FixupKind = Epiphany::fixup_Epiphany_SIMM24;
+        break;
+      case EpiphanyMCExpr::CEK_PCREL8:
+        FixupKind = Epiphany::fixup_Epiphany_PCREL8;
+        break;
+      case EpiphanyMCExpr::CEK_PCREL16:
+        FixupKind = Epiphany::fixup_Epiphany_PCREL16;
+        break;
+      case EpiphanyMCExpr::CEK_PCREL32:
+        FixupKind = Epiphany::fixup_Epiphany_PCREL32;
         break;
     } // switch
     Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind(FixupKind)));
@@ -188,23 +200,23 @@ unsigned EpiphanyMCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOper
 static unsigned getShift(unsigned int OpCode) {
   unsigned Shift = 0;
   switch (OpCode) {
-    case Epiphany::LDRi16e_r16:
+    case Epiphany::LDRi16_r16:
     case Epiphany::STRi16_r16:
-    case Epiphany::LDRi16e_r32:
+    case Epiphany::LDRi16_r32:
     case Epiphany::STRi16_r32:
-    case Epiphany::LDRi16e_idx_add_r16:
+    case Epiphany::LDRi16_idx_add_r16:
     case Epiphany::STRi16_idx_add_r16:
-    case Epiphany::LDRi16e_idx_add_r32:
+    case Epiphany::LDRi16_idx_add_r32:
     case Epiphany::STRi16_idx_add_r32:
-    case Epiphany::LDRi16e_idx_sub_r32:
+    case Epiphany::LDRi16_idx_sub_r32:
     case Epiphany::STRi16_idx_sub_r32:
-    case Epiphany::LDRi16e_pm_add_r16:
+    case Epiphany::LDRi16_pm_add_r16:
     case Epiphany::STRi16_pm_add_r16:
-    case Epiphany::LDRi16e_pm_add_r32:
+    case Epiphany::LDRi16_pm_add_r32:
     case Epiphany::STRi16_pm_add_r32:
-    case Epiphany::LDRi16e_pm_sub_r32:
+    case Epiphany::LDRi16_pm_sub_r32:
     case Epiphany::STRi16_pm_sub_r32:
-    case Epiphany::LDRi16e_pmd_r32:
+    case Epiphany::LDRi16_pmd_r32:
     case Epiphany::STRi16_pmd_r32:
       Shift = 1;
       break;
@@ -245,6 +257,38 @@ static unsigned getShift(unsigned int OpCode) {
 
 /// getMemEncoding - Return binary encoding of memory related operand.
 /// If the offset operand requires relocation, record the relocation.
+unsigned EpiphanyMCCodeEmitter::getMemOffsetEncoding(const MCInst &MI, unsigned OpNo,
+    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
+  // Check that the operand type is correct
+  if (!MI.getOperand(OpNo).isImm()) {
+    MI.getOperand(OpNo).print(errs());
+    llvm_unreachable("Wrong operand type in getMemOffsetEncoding, offset should be immediate");
+  }
+
+  // Get the value and its sign
+  unsigned Offset = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI);
+  unsigned sign = Offset >> 31;
+  DEBUG(dbgs() << "Original mem offset: " << Offset << "\n");
+
+  // Shift the operand if we're not dealing with inline asm
+  // MI.Loc being == 0x0 is quite an indirect test for this
+  if (!MI.getLoc().isValid()) {
+    Offset = Offset >> getShift(MI.getOpcode());
+    DEBUG(dbgs() << "Shifted mem offset: " << Offset << "\n");
+  }
+
+  // Fix offset sign, as E16 doesn't follow the general negative values convention
+  // I.e. -1 == 100000..01, and not 11111...11
+  // Value should be always greater than 0, sign is regulated by bit 31
+  Offset = sign == 0 ? Offset : (Offset^0x7FFFFFFF) + 1 | (1 << 31);
+  DEBUG(dbgs() << "Sign-fixed final mem offset: " << Offset << "\n");
+
+  return Offset;
+}
+
+
+/// getMemEncoding - Return binary encoding of memory related operand.
+/// If the offset operand requires relocation, record the relocation.
 unsigned EpiphanyMCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo,
     SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI, bool modOffset) const {
   // Base register is encoded in bits 21-16, offset is encoded in bits 15-0.
@@ -257,7 +301,9 @@ unsigned EpiphanyMCCodeEmitter::getMemEncoding(const MCInst &MI, unsigned OpNo,
   unsigned RegBits = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI) << 16;
   unsigned OffBits = getMachineOpValue(MI, MI.getOperand(OpNo+1), Fixups, STI);
 
-  if (modOffset) {
+  // Fix offset sign, as E16 doesn't follow the general negative values convention
+  // I.e. -1 == 100000..01, and not 11111...11
+  if (modOffset && MI.getOperand(OpNo + 1).isImm()) {
     OffBits = OffBits >> getShift(MI.getOpcode());
     // Value should be always greater than 0, sign is regulated by bit 11
     OffBits = (OffBits >> 11) == 0 ? OffBits : (OffBits^0xFFFF) + 1 | (1 << 11);

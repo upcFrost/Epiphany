@@ -49,9 +49,8 @@ static std::string computeDataLayout(const Triple &TT, StringRef CPU,
   // Pointers are 32 bit 
   Ret += "-p:32:32";
 
-  // Minimal alignment for E16 is half-word (2 bytes), so natual alignment is ok
-  // for all except i8
-  Ret += "-i8:8:16-i16:16-i32:32-i64:64";
+  // Minimal alignment for E16 is byte
+  Ret += "-i8:8-i16:16-i32:32-i64:64";
   
   // 32 and 64 bit floats should have natural alignment
   Ret += "-f32:32-f64:64";

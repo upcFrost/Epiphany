@@ -25,7 +25,11 @@ public:
     CEK_None,
     CEK_HIGH,
     CEK_LOW,
-    CEK_GPREL,
+    CEK_SIMM8,
+    CEK_SIMM24,
+    CEK_PCREL8,
+    CEK_PCREL16,
+    CEK_PCREL32,
     CEK_Special,
   };
 

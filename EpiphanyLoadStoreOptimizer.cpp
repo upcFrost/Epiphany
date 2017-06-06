@@ -293,7 +293,7 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
           unsigned MIReg = getRegOperand(MI).getReg();
           unsigned sra = TRI->getMatchingSuperReg (Reg, Epiphany::isub_lo, &Epiphany::GPR64RegClass);
           unsigned srb = TRI->getMatchingSuperReg (MIReg, Epiphany::isub_hi, &Epiphany::GPR64RegClass);
-          if( (!sra || !srb) || sra != srb){
+          if( (!sra || !srb) || (sra != srb)) {
             sra = TRI->getMatchingSuperReg (MIReg, Epiphany::isub_lo, &Epiphany::GPR64RegClass);
             srb = TRI->getMatchingSuperReg (Reg, Epiphany::isub_hi, &Epiphany::GPR64RegClass);
           }
@@ -301,6 +301,25 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
           if (!(sra && srb) || (sra != srb)) {
             trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
             MemInsns.push_back(&MI);
+            continue;
+          }
+        }
+
+        // Check if the alignment is correct
+        if (Opc == Epiphany::LDRi32_r32 || Opc == Epiphany::LDRi32_r32 || 
+            Opc == Epiphany::STRi32_r32 || Opc == Epiphany::STRi32_r32) {
+          unsigned MIReg = getRegOperand(MI).getReg();
+          unsigned sra = TRI->getMatchingSuperReg (Reg, Epiphany::isub_lo, &Epiphany::GPR64RegClass);
+          unsigned srb = TRI->getMatchingSuperReg (MIReg, Epiphany::isub_hi, &Epiphany::GPR64RegClass);
+          int HighOffset = MIOffset;
+          int LowOffset = Offset;
+          if( (!sra || !srb) || (sra != srb)) {
+            HighOffset = Offset;
+            LowOffset = MIOffset;
+          }
+
+          // High reg offset should be always lower than low reg offset, and it should be double-aligned
+          if ((LowOffset > HighOffset) || (LowOffset % 8 != 0)) {
             continue;
           }
         }

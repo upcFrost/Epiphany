@@ -61,8 +61,20 @@ MCOperand EpiphanyMCInstLower::LowerOperand(const MachineOperand &MO,
     case EpiphanyII::MO_LOW:
       TargetKind = EpiphanyMCExpr::CEK_LOW;
       break;
-    case EpiphanyII::MO_GPREL:
-      TargetKind = EpiphanyMCExpr::CEK_GPREL;
+    case EpiphanyII::MO_SIMM8:
+      TargetKind = EpiphanyMCExpr::CEK_SIMM8;
+      break;
+    case EpiphanyII::MO_SIMM24:
+      TargetKind = EpiphanyMCExpr::CEK_SIMM24;
+      break;
+    case EpiphanyII::MO_PCREL8:
+      TargetKind = EpiphanyMCExpr::CEK_PCREL8;
+      break;
+    case EpiphanyII::MO_PCREL16:
+      TargetKind = EpiphanyMCExpr::CEK_PCREL16;
+      break;
+    case EpiphanyII::MO_PCREL32:
+      TargetKind = EpiphanyMCExpr::CEK_PCREL32;
       break;
   }
 

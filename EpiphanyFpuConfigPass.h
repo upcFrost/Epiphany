@@ -33,6 +33,15 @@ namespace llvm {
   class EpiphanyFpuConfigPass : public MachineFunctionPass {
 
     private:
+      const EpiphanyInstrInfo *TII;
+
+      unsigned originalFrameIdx;
+      unsigned fpuFrameIdx;
+      unsigned ialuFrameIdx;
+
+      enum PredState {
+        PRED_START, PRED_FPU, PRED_IALU, PRED_MIXED
+      };
 
     public:
       static char ID;
@@ -43,6 +52,9 @@ namespace llvm {
       StringRef getPassName() const {
         return "Epiphany FPU/IALU2 config flag optimization pass";
       }
+
+      void insertConfigInst(MachineBasicBlock *MBB, MachineBasicBlock::iterator insertPos, 
+          MachineRegisterInfo &MRI, const EpiphanySubtarget &ST, unsigned frameIdx);
       bool runOnMachineFunction(MachineFunction &MF);
   };
 

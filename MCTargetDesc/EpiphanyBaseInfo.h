@@ -35,11 +35,17 @@ namespace EpiphanyII {
 
     MO_NO_FLAG,
 
-    /// MO_GPREL - Represents the offset from the current gp value to be used
+    /// MO_PCREL* - Represents the offset from the current gp value to be used
     /// for the relocatable object file being produced.
-    MO_GPREL,
+    MO_PCREL8,
+    MO_PCREL16,
+    MO_PCREL32,
 
-    /// MO_GOT_HI16/LO16 - Relocations used for large GOTs.
+    // MO_SIMM* - Immediates
+    MO_SIMM8,
+    MO_SIMM24,
+
+    /// MO_HIGH/LOW - Relocations used for large GOTs.
     MO_HIGH,
     MO_LOW
   }; // enum TOF {

@@ -44,13 +44,18 @@ static unsigned adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     default:
       llvm_unreachable("Unimplemented fixup kind: " + Kind);
       break;
+    case Epiphany::fixup_Epiphany_PCREL8:
+    case Epiphany::fixup_Epiphany_PCREL16:
+    case Epiphany::fixup_Epiphany_PCREL32:
+      DEBUG(dbgs() << "PCREL fixup"; dbgs().write_hex(Value); dbgs() << "\n");
+      break;
     case Epiphany::fixup_Epiphany_SIMM8:
     case Epiphany::fixup_Epiphany_SIMM24:
       // Sign-extend and shift by 7 bits
       // Shift by 7 as it will be shifted by 1 afterwards, See Arch reference
-      DEBUG(dbgs() << "PCREL24 Value before adjust "; dbgs().write_hex(Value); dbgs() << "\n");
+      DEBUG(dbgs() << "SIMM Value before adjust "; dbgs().write_hex(Value); dbgs() << "\n");
       Value = Value << 7;
-      DEBUG(dbgs() << "PCREL24 Value after adjust "; dbgs().write_hex(Value); dbgs() << "\n");
+      DEBUG(dbgs() << "SIMM Value after adjust "; dbgs().write_hex(Value); dbgs() << "\n");
       break;
     case FK_Data_4:
     case Epiphany::fixup_Epiphany_LOW:
@@ -132,7 +137,10 @@ getFixupKindInfo(MCFixupKind Kind) const {
     { "fixup_Epiphany_HIGH",           0,     16,   0 },
     { "fixup_Epiphany_LOW",            0,     16,   0 },
     { "fixup_Epiphany_SIMM8"  ,        0,     16,   MCFixupKindInfo::FKF_IsPCRel },
-    { "fixup_Epiphany_SIMM24",         0,     32,   MCFixupKindInfo::FKF_IsPCRel }
+    { "fixup_Epiphany_SIMM24",         0,     32,   MCFixupKindInfo::FKF_IsPCRel },
+    { "fixup_Epiphany_PCREL8",         0,     8,    MCFixupKindInfo::FKF_IsPCRel },
+    { "fixup_Epiphany_PCREL16",        0,     16,   MCFixupKindInfo::FKF_IsPCRel },
+    { "fixup_Epiphany_PCREL32",        0,     32,   MCFixupKindInfo::FKF_IsPCRel }
   };
 
   if (Kind < FirstTargetFixupKind)

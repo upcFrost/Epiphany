@@ -45,7 +45,7 @@ def EpiphanyInstrInfo : InstrInfo;
 // Asm parser
 //===----------------------------------------------------------------------===//
 def EpiphanyAsmParser : AsmParser {
-  let ShouldEmitMatchRegisterName = 0;
+  let ShouldEmitMatchRegisterName = 1;
 }
 
 def EpiphanyAsmParserVariant : AsmParserVariant {

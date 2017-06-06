@@ -45,12 +45,20 @@ namespace llvm {
       MOVT,
       MOVCC,
 
+      // Conditional branch wrapper
+      BRCC,
+      BRCC64,
+
+      // FIX/FLOAT wrappers
+      FIX,
+      FLOAT,
+
       // Store and load instruction wrappers
       STORE,
       LOAD,
 
-      // SUB instruction is used in some compares
-      SUB
+      // CMP instruction 
+      CMP
     };
   }
 
@@ -72,7 +80,9 @@ namespace llvm {
       // Offset handling for arrays for non-PIC mode
       bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
 
+      // Overriding operation and custom inserter lowering
       SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+      MachineBasicBlock *EmitInstrWithCustomInserter(MachineInstr &MI, MachineBasicBlock *MBB) const override;
 
     protected:
       /// ByValArgInfo - Byval argument information.
@@ -143,12 +153,25 @@ namespace llvm {
     private:
       // Lower Operand specifics
       SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpExtend(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerFpRound(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerFpToInt(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerIntToFp(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerFastDiv(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSelectCC(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSelect(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSetCC(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerBrCC(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerBrCond(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerAdd64(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerSub64(SDValue Op, SelectionDAG &DAG) const;
+
+      // Custom inserters
+      MachineBasicBlock *emitBrCC(MachineInstr &MI, MachineBasicBlock *MBB) const;
 
       //- must be exist even without function all
       SDValue LowerFormalArguments(SDValue Chain,
@@ -182,6 +205,10 @@ namespace llvm {
           const SmallVectorImpl<SDValue> &OutVals,
           const SmallVectorImpl<ISD::InputArg> &Ins,
           SelectionDAG& DAG) const { return false;}
+
+      std::pair<unsigned, const TargetRegisterClass *> parseRegForInlineAsmConstraint(StringRef C, MVT VT) const;
+      std::pair<unsigned, const TargetRegisterClass *> getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+          StringRef Constraint, MVT VT) const override;
 
   };
 } // namespace llvm
