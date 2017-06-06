@@ -142,8 +142,8 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
 
   // Step 3 - if we have both FPU and IALU2 instructions, run through the whole routine and insert config
   // FIXME: config based on on successors and first use
+  std::vector<PredState> lastState(blockCount, PRED_START);
   if (hasFPU && hasIALU2) {
-    std::vector<PredState> lastState(blockCount, PRED_START);
     for(MachineFunction::iterator it = MF.begin(), E = MF.end(); it != E; ++it) {
       MachineBasicBlock *MBB = &*it;
       int blockNumber = MBB->getNumber();
@@ -183,7 +183,47 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
-  // Step 4 - find the last FPU/IALU2 instruction of the last block and restore the config flags
+  // Step 4 - resolving loops and predeccessors
+  // Run on every block until we hit the first IALU/FPU inst and check ALL predeccessors
+  if (hasFPU && hasIALU2) {
+    for(MachineFunction::iterator it = MF.begin(), E = MF.end(); it != E; ++it) {
+      MachineBasicBlock *MBB = &*it;
+      int blockNumber = MBB->getNumber();
+      // Loop over all instructions search for FPU instructions
+      for(MachineBasicBlock::iterator MBBI = MBB->begin(), MBBE = MBB->end(); MBBI != MBBE; ++MBBI) {
+        MachineInstr *MI = &*MBBI;
+        // Already have smth, falling out
+        if (MI->getOpcode() == Epiphany::GID) {
+          break;
+        }
+        // Check if the opcode used is one of the FPU opcodes
+        bool isFPU = std::find(std::begin(opcodesFPU), std::end(opcodesFPU), MI->getOpcode()) != std::end(opcodesFPU);
+        bool isIALU2 = std::find(std::begin(opcodesIALU2), std::end(opcodesIALU2), MI->getOpcode()) != std::end(opcodesIALU2);
+        if (isFPU || isIALU2) {
+          // Check all predeccessors
+          for (MachineBasicBlock::pred_iterator PBBI = MBB->pred_begin(), PBBE = MBB->pred_end(); PBBI != PBBE; ++PBBI) {
+            MachineBasicBlock *pred = *PBBI;
+            int predNumber = pred->getNumber();
+            // Remember than now we can be, for example, in mixed state
+            if (lastState[predNumber] != lastState[blockNumber]) {
+              if (isFPU) {
+                insertConfigInst(MBB, MBBI, MRI, ST, fpuFrameIdx);
+              }
+              if (isIALU2) {
+                insertConfigInst(MBB, MBBI, MRI, ST, ialuFrameIdx);
+              }
+              // Fix applied, nothing to do here
+              break;
+            }
+          }
+          // Break out as the first instruction was already processed
+          break;
+        }
+      }
+    }
+  }
+
+  // Step 5 - find the last FPU/IALU2 instruction of the last block and restore the config flags
   if (hasFPU || hasIALU2) {
     MachineBasicBlock *MBB = &MF.back();
     MachineBasicBlock::iterator MBBI = MBB->end();
