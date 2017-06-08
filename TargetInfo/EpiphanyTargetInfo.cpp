@@ -12,6 +12,5 @@ using namespace llvm;
 Target llvm::TheEpiphanyTarget;
 
 extern "C" void LLVMInitializeEpiphanyTargetInfo() {
-  RegisterTarget<Triple::epiphany,
-        /*HasJIT=*/true> X(TheEpiphanyTarget, "epiphany", "Epiphany");
+  RegisterTarget<Triple::epiphany> X(TheEpiphanyTarget, "epiphany", "Epiphany");
 }

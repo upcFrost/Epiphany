@@ -23,7 +23,9 @@ include "llvm/Target/Target.td"
 
 include "EpiphanySchedule.td"
 
-def : Processor<"E16", EpiphanyGenericItineraries, []>;
+/*def : Processor<"E16", EpiphanyGenericItineraries, []>;*/
+
+def CPU_E16: ProcessorModel<"E16", EpiphanyModel, []>;
 
 //===----------------------------------------------------------------------===//
 // Register File Description

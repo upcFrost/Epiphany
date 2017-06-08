@@ -109,3 +109,12 @@ def EpiphanyGenericItineraries : ProcessorItineraries<[FE, IM, DE, RA, E1, E2, E
                                InstrStage<4, [E1]>],
                                [4, 3]>
 ]>;
+
+def EpiphanyModel : SchedMachineModel {
+  let IssueWidth = 2; // At max we can dual-issue
+  let Itineraries = EpiphanyGenericItineraries;
+  let LoadLatency = 2;
+  let CompleteModel = 0;
+  let MispredictPenalty = 0;
+  let PostRAScheduler = 1;
+}

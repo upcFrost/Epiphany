@@ -71,6 +71,10 @@ static unsigned getMatchingPairOpcode(unsigned Opc) {
     case Epiphany::LDRi32_r16:
     case Epiphany::LDRi32_r32:
       return Epiphany::LDRi64;
+    case Epiphany::STRf32:
+      return Epiphany::STRf64;
+    case Epiphany::LDRf32:
+      return Epiphany::LDRf64;
   }
 }
 

@@ -174,6 +174,12 @@ EpiphanyRegisterInfo::trackLivenessAfterRegAlloc(const MachineFunction &MF) cons
 	return true;
 }
 
+const TargetRegisterClass *
+EpiphanyRegisterInfo::getPointerRegClass(const MachineFunction &MF,
+                                          unsigned Kind) const {
+  return &Epiphany::GPR32RegClass;
+}
+
 bool EpiphanyRegisterInfo::hasBasePointer(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   // When we need stack realignment and there are dynamic allocas, we can't
@@ -206,3 +212,22 @@ EpiphanyRegisterInfo::GPR16(unsigned Size) const {
 	return &Epiphany::GPR16RegClass;
 }
 
+unsigned EpiphanyRegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC, MachineFunction &MF) const {
+  switch (RC->getID()) {
+    default:
+      return 0;
+    case Epiphany::GPR32RegClassID:
+    case Epiphany::FPR32RegClassID:
+      return 55; // We currently have 9 reserved regs
+    case Epiphany::GPR16RegClassID:
+    case Epiphany::FPR16RegClassID:
+      return 8;
+    case Epiphany::GPR64RegClassID:
+    case Epiphany::FPR64RegClassID:
+      return 26; // We currently have 6 reserved double regs
+  }
+}
+
+unsigned EpiphanyRegisterInfo::getRegUnitWeight(unsigned RegUnit) const {
+  return 1;
+}
