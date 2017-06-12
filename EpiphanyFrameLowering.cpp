@@ -247,6 +247,7 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MI, const std::vector<CalleeSavedInfo> &CSI, const TargetRegisterInfo *TRI) const {
   MachineFunction *MF = MBB.getParent();
   const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
+  MachineFrameInfo &MFI = MF->getFrameInfo();
 
   // Debug output
   DebugLoc DL;
@@ -259,6 +260,7 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
       TRI->dumpReg(I->getReg());
       });
 
+  int i = 0;
   for (auto I = CSI.begin(), E = CSI.end(); I != E; ++I) {
     // Add the callee-saved register as live-in.
     // It's killed at the spill, unless the register is LR and return address
@@ -268,11 +270,44 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
     if (!IsRAAndRetAddrIsTaken) {
       MBB.addLiveIn(Reg);
     }
+    bool IsKill = !IsRAAndRetAddrIsTaken;
+
+    // Try to pair the spill
+    bool Pair = false;
+
+    // FIXME: Wrong frame indexing. Probably should use fixed stack objects or smth like this.
+/*    bool stepForward = true;*/
+    //unsigned suba, subb, frameidx, sra = 0, srb = 0;
+    //if(i+1 < CSI.size()){
+      //suba = I->getReg();
+      //subb = (++I)->getReg();
+      //// Getting target class and matching superreg
+      //const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(suba) == &Epiphany::GPR32RegClass ? &Epiphany::GPR64RegClass : &Epiphany::FPR64RegClass;
+      //sra = TRI->getMatchingSuperReg (suba, Epiphany::isub_lo, RC);
+      //srb = TRI->getMatchingSuperReg (subb, Epiphany::isub_hi, RC);
+      //frameidx = (--I)->getFrameIdx();
+      //if( (!sra || !srb) || sra != srb){
+        //srb = TRI->getMatchingSuperReg (suba, Epiphany::isub_hi, RC);
+        //sra = TRI->getMatchingSuperReg (subb, Epiphany::isub_lo, RC);
+        //std::swap(suba,subb);
+        //frameidx = (++I)->getFrameIdx();
+        //stepForward = false;
+      //}
+    //}
+    //if ((sra && srb) && sra == srb) {
+      //Pair = true;
+      //const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(sra);
+      //TII.storeRegToStackSlot(MBB, MI, sra, IsKill, I->getFrameIdx(), RC, TRI);
+      //if (stepForward) {
+        //I++;
+      //}
+    /*}*/
 
     // Insert the spill to the stack frame.
-    bool IsKill = !IsRAAndRetAddrIsTaken;
-    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-    TII.storeRegToStackSlot(MBB, MI, Reg, IsKill, I->getFrameIdx(), RC, TRI);
+    if (!Pair) {
+      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+      TII.storeRegToStackSlot(MBB, MI, Reg, IsKill, I->getFrameIdx(), RC, TRI);
+    }
   }
 
   return true;

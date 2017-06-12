@@ -359,17 +359,19 @@ bool EpiphanyInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
 // touch volatiles or load/stores that have a hint to avoid pair formation.
 bool EpiphanyInstrInfo::isCandidateToMergeOrPair(MachineInstr &MI) const {
   // If this is a volatile load/store, don't mess with it.
-  if (MI.hasOrderedMemoryRef())
+  if (MI.hasOrderedMemoryRef()) {
+    DEBUG(dbgs() << "Volatile load/store, skipping\n");
     return false;
+  }
 
   // Make sure this is a reg+imm (as opposed to an address reloc).
-  assert(MI.getOperand(1).isReg() && "Expected a reg operand.");
+  assert((MI.getOperand(1).isReg() || MI.getOperand(1).isFI()) && "Expected a reg operand.");
   if (!MI.getOperand(2).isImm())
     return false;
 
   // Can't merge/pair if the instruction modifies the base register.
   // e.g., ldr r0, [r0]
-  unsigned BaseReg = MI.getOperand(1).getReg();
+  unsigned BaseReg = MI.getOperand(1).isReg() ? MI.getOperand(1).getReg() : Epiphany::FP;
   const TargetRegisterInfo *TRI = &getRegisterInfo();
   if (MI.modifiesRegister(BaseReg, TRI))
     return false;
