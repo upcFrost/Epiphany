@@ -29,13 +29,13 @@ char EpiphanyLoadStoreOptimizer::ID = 0;
 // Check if the instruction is on the promotable list
 static bool isPairableLoadStoreInst(MachineInstr &MI) {
   unsigned inst[] = {
-    Epiphany::STRi16_r16,
-    Epiphany::STRi16_r32,
+    //Epiphany::STRi16_r16,
+    //Epiphany::STRi16_r32,
     Epiphany::STRi32_r16,
     Epiphany::STRi32_r32,
     Epiphany::STRf32,
-    Epiphany::LDRi32_r16,
-    Epiphany::LDRi32_r32,
+    //Epiphany::LDRi32_r16,
+    //Epiphany::LDRi32_r32,
     Epiphany::LDRf32
   };
   unsigned Opc = MI.getOpcode();
@@ -230,11 +230,23 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
       //PairedReg = TRI->getMatchingSuperReg(RegOp1.getReg(), Epiphany::isub_lo, &Epiphany::GPR64RegClass);
     /*}*/
     unsigned PairedReg = RegOp0.getReg();
-    MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
-      .addReg(PairedReg)
-      .addOperand(BaseRegOp)
-      .addImm(OffsetImm)
-      .setMemRefs(I->mergeMemRefsWith(*Paired));
+    if (!TRI->isVirtualRegister(PairedReg)) {
+      MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
+        .addReg(PairedReg)
+        .addOperand(BaseRegOp)
+        .addImm(OffsetImm)
+        .setMemRefs(I->mergeMemRefsWith(*Paired));
+    } else {
+      // FIXME: it can be float
+      unsigned parentReg = MRI->createVirtualRegister(&Epiphany::GPR64RegClass);
+      RegOp0.setSubReg(Epiphany::isub_lo);
+      RegOp1.setSubReg(Epiphany::isub_hi);
+      MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
+        .addReg(PairedReg)
+        .addOperand(BaseRegOp)
+        .addImm(OffsetImm)
+        .setMemRefs(I->mergeMemRefsWith(*Paired));    
+    }
   } else {
     // Standard 32-bit reg
     MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
@@ -505,6 +517,7 @@ bool EpiphanyLoadStoreOptimizer::runOnMachineFunction(MachineFunction &Fn) {
   TII = static_cast<const EpiphanyInstrInfo *>(Subtarget->getInstrInfo());
   TRI = Subtarget->getRegisterInfo();
   MFI = &Fn.getFrameInfo();
+  MRI = &Fn.getRegInfo();
 
   // Resize the modified and used register bitfield trackers.  We do this once
   // per function and then clear the bitfield each time we optimize a load or

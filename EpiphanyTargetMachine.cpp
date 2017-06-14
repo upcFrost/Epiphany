@@ -129,7 +129,7 @@ bool EpiphanyPassConfig::addInstSelector() {
 
 void EpiphanyPassConfig::addPreRegAlloc() {
   addPass(&LiveVariablesID, false);
-  //addPass(createEpiphanyLoadStoreOptimizationPass());
+//  addPass(createEpiphanyLoadStoreOptimizationPass());
 }
 
 void EpiphanyPassConfig::addPreSched2() {

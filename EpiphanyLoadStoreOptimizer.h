@@ -51,6 +51,7 @@ namespace llvm {
       const EpiphanyInstrInfo  *TII;
       const TargetRegisterInfo *TRI;
       const EpiphanySubtarget  *Subtarget;
+      MachineRegisterInfo *MRI;
       MachineFrameInfo   *MFI;
       // Track which registers have been modified and used.
       BitVector ModifiedRegs, UsedRegs;
