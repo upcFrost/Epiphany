@@ -18,6 +18,7 @@
 
 #include "MCTargetDesc/EpiphanyABIInfo.h"
 #include "EpiphanySubtarget.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/Target/TargetFrameLowering.h"
@@ -52,6 +53,8 @@ public:
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
+
+  TargetIRAnalysis getTargetIRAnalysis() override;
   
   const EpiphanyABIInfo &getABI() const { return ABI; }
   //const DataLayout *getDataLayout() const { return &DL; }

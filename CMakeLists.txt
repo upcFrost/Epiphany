@@ -27,6 +27,7 @@ add_llvm_target(EpiphanyCodeGen
   EpiphanySubtarget.cpp
   EpiphanyTargetMachine.cpp
   EpiphanyTargetObjectFile.cpp
+  EpiphanyTargetTransformInfo.cpp
   )
 
 add_subdirectory(MCTargetDesc)

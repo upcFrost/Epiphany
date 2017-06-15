@@ -19,10 +19,12 @@
 #include "EpiphanyISelDAGToDAG.h"
 #include "EpiphanySubtarget.h"
 #include "EpiphanyTargetObjectFile.h"
+#include "EpiphanyTargetTransformInfo.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Support/TargetRegistry.h"
+#include "llvm/Transforms/Vectorize.h"
 
 using namespace llvm;
 
@@ -100,6 +102,7 @@ public:
 
   bool addILPOpts() override;
   bool addInstSelector() override;
+  void addCodeGenPrepare() override;
   void addPreRegAlloc() override;
   void addPreSched2() override;
   void addPreEmitPass() override;
@@ -127,6 +130,12 @@ bool EpiphanyPassConfig::addInstSelector() {
   return false;
 }
 
+void EpiphanyPassConfig::addCodeGenPrepare() {
+  TargetPassConfig::addCodeGenPrepare();
+
+  addPass(createLoadStoreVectorizerPass());
+}
+
 void EpiphanyPassConfig::addPreRegAlloc() {
   addPass(&LiveVariablesID, false);
 //  addPass(createEpiphanyLoadStoreOptimizationPass());
@@ -139,3 +148,10 @@ void EpiphanyPassConfig::addPreSched2() {
 void EpiphanyPassConfig::addPreEmitPass() {
   addPass(createEpiphanyLoadStoreOptimizationPass());
 }
+
+TargetIRAnalysis EpiphanyTargetMachine::getTargetIRAnalysis() {
+  return TargetIRAnalysis([this](const Function &F) {
+      return TargetTransformInfo(EpiphanyTTIImpl(this, F));
+      });
+}
+
