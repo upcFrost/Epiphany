@@ -24,9 +24,17 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Support/TargetRegistry.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Vectorize.h"
 
 using namespace llvm;
+
+static cl::opt<bool> EnableSROA(
+  "epiphany-sroa",
+  cl::desc("Run SROA after promote alloca pass"),
+  cl::ReallyHidden,
+  cl::init(true));
 
 #define DEBUG_TYPE "epiphany"
 
@@ -102,6 +110,7 @@ public:
 
   bool addILPOpts() override;
   bool addInstSelector() override;
+  void addIRPasses() override;
   void addCodeGenPrepare() override;
   void addPreRegAlloc() override;
   void addPreSched2() override;
@@ -115,6 +124,15 @@ public:
 
 TargetPassConfig *EpiphanyTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new EpiphanyPassConfig(this, PM);
+}
+
+void EpiphanyPassConfig::addIRPasses() {
+  addPass(createAtomicExpandPass(&getEpiphanyTargetMachine()));
+  if (EnableSROA) {
+    addPass(createSROAPass());
+  }
+
+  TargetPassConfig::addIRPasses();
 }
 
 bool EpiphanyPassConfig::addILPOpts() {
@@ -138,7 +156,7 @@ void EpiphanyPassConfig::addCodeGenPrepare() {
 
 void EpiphanyPassConfig::addPreRegAlloc() {
   addPass(&LiveVariablesID, false);
-//  addPass(createEpiphanyLoadStoreOptimizationPass());
+  addPass(createEpiphanyLoadStoreOptimizationPass());
 }
 
 void EpiphanyPassConfig::addPreSched2() {
@@ -149,9 +167,9 @@ void EpiphanyPassConfig::addPreEmitPass() {
   addPass(createEpiphanyLoadStoreOptimizationPass());
 }
 
-TargetIRAnalysis EpiphanyTargetMachine::getTargetIRAnalysis() {
-  return TargetIRAnalysis([this](const Function &F) {
-      return TargetTransformInfo(EpiphanyTTIImpl(this, F));
-      });
-}
+/*TargetIRAnalysis EpiphanyTargetMachine::getTargetIRAnalysis() {*/
+  //return TargetIRAnalysis([this](const Function &F) {
+      //return TargetTransformInfo(EpiphanyTTIImpl(this, F));
+      //});
+/*}*/
 
