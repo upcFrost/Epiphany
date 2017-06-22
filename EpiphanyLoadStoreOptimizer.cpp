@@ -182,8 +182,7 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
   MachineBasicBlock::iterator InsertionPoint = MergeForward ? Paired : I;
   // Also based on MergeForward is from where we copy the base register operand
   // so we get the flags compatible with the input code.
-  const MachineOperand &BaseRegOp =
-    MergeForward ? getBaseOperand(*Paired) : getBaseOperand(*I);
+  const MachineOperand &BaseRegOp = MergeForward ? getBaseOperand(*Paired) : getBaseOperand(*I);
   int Offset = BaseRegOp.isFI() ? BaseRegOp.getIndex() : getOffsetOperand(*I).getImm();
   int PairedOffset = BaseRegOp.isFI() ? getBaseOperand(*Paired).getIndex() : getOffsetOperand(*Paired).getImm();
 
@@ -239,13 +238,19 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
     } else {
       // FIXME: it can be float
       unsigned parentReg = MRI->createVirtualRegister(&Epiphany::GPR64RegClass);
-      RegOp0.setSubReg(Epiphany::isub_lo);
-      RegOp1.setSubReg(Epiphany::isub_hi);
+      // Insert reg sequence
+      const MCInstrDesc &II = TII->get(TargetOpcode::REG_SEQUENCE);
+      MIB = BuildMI(*MBB, InsertionPoint, DL, II, parentReg)
+        .addReg(RegOp0.getReg())
+        .addImm(Epiphany::isub_hi)
+        .addReg(RegOp1.getReg())
+        .addImm(Epiphany::isub_lo);
+      // Insert paired instruction
       MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
-        .addReg(PairedReg)
+        .addReg(parentReg)
         .addOperand(BaseRegOp)
         .addImm(OffsetImm)
-        .setMemRefs(I->mergeMemRefsWith(*Paired));    
+        .setMemRefs(Paired->mergeMemRefsWith(*I));
     }
   } else {
     // Standard 32-bit reg
@@ -293,6 +298,7 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
   unsigned Reg = getRegOperand(FirstMI).getReg();
   unsigned RegIdx = TRI->isVirtualRegister(Reg) ? TRI->virtReg2Index(Reg) : Reg;
   unsigned BaseReg = getBaseOperand(FirstMI).isReg() ? getBaseOperand(FirstMI).getReg() : Epiphany::FP;
+  unsigned BaseRegIdx = TRI->isVirtualRegister(BaseReg) ? TRI->virtReg2Index(BaseReg) : BaseReg;
   int Offset = getBaseOperand(FirstMI).isFI() ? getBaseOperand(FirstMI).getIndex() : getOffsetOperand(FirstMI).getImm();
   // Offset stride -1 for FI as stack grows down
   int OffsetStride = getBaseOperand(FirstMI).isFI() ? -1 : getMemScale(FirstMI);
@@ -430,7 +436,7 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
 
     // Otherwise, if the base register is modified, we have no match, so
     // return early.
-    if (ModifiedRegs[BaseReg])
+    if (ModifiedRegs[BaseRegIdx])
       return E;
 
     // Update list of instructions that read/write memory.
@@ -518,6 +524,7 @@ bool EpiphanyLoadStoreOptimizer::runOnMachineFunction(MachineFunction &Fn) {
   TRI = Subtarget->getRegisterInfo();
   MFI = &Fn.getFrameInfo();
   MRI = &Fn.getRegInfo();
+  MF  = &Fn; 
 
   // Resize the modified and used register bitfield trackers.  We do this once
   // per function and then clear the bitfield each time we optimize a load or

@@ -79,6 +79,9 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     addRegisterClass(MVT::i64, &Epiphany::GPR64RegClass);
     addRegisterClass(MVT::f64, &Epiphany::FPR64RegClass);
 
+    // Max atomic instruction size is 64 for load/store instruction
+    setMaxAtomicSizeInBitsSupported(64);
+
     //- Set .align 2
     // It will emit .align 2 later
     setMinFunctionAlignment(STI.stackAlignment());

@@ -174,28 +174,42 @@ multiclass StorePostM<LS_size StoreSize, ValueType Ty, PatFrag StoreType> {
 }
 
 // Load
-defm LDRi8   : LoadM<LS_byte,   i32, zextloadi8>,  LoadPreM<LS_byte,   i32, zextloadi8>,  LoadPostM<LS_byte,   i32, zextloadi8>;
-defm LDRi16  : LoadM<LS_hword,  i32, zextloadi16>, LoadPreM<LS_hword,  i32, zextloadi16>, LoadPostM<LS_hword,  i32, zextloadi16>;
-defm LDRi32  : LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, pre_load>,        LoadPostM<LS_word,   i32, post_load>;
+let mayLoad = 1 in {
+  defm LDRi8:     LoadM<LS_byte,   i32, zextloadi8>,  LoadPreM<LS_byte,   i32, zextloadi8>,  LoadPostM<LS_byte,   i32, zextloadi8>;
+  defm LDRi16:    LoadM<LS_hword,  i32, zextloadi16>, LoadPreM<LS_hword,  i32, zextloadi16>, LoadPostM<LS_hword,  i32, zextloadi16>;
+  defm LDRi32:    LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, pre_load>,        LoadPostM<LS_word,   i32, post_load>;
+  def LDRf32:     LoadDisp32<0,  FPR32, load,   LS_word,  f32>;
+  def LDRi64:     LoadDisp32<0, GPR64, load,    LS_dword, i64>;
+  def LDRi64_pmd: LoadPmd32<0, GPR64, load,     LS_dword, i64>;
+  def LDRv2i32:   LoadDisp32<0, GPR64, load,    LS_dword, v2i32>;
+  def LDRf64:     LoadDisp32<0, FPR64, load,    LS_dword, f64>;
+}
 
 // Store
-defm STRi8   : StoreM<LS_byte,  i32, truncstorei8>,  StorePreM<LS_byte,  i32, pre_truncsti8>,  StorePostM<LS_byte,  i32, post_truncsti8>;
-defm STRi16  : StoreM<LS_hword, i32, truncstorei16>, StorePreM<LS_hword, i32, pre_truncsti16>, StorePostM<LS_hword, i32, post_truncsti16>;
-defm STRi32  : StoreM<LS_word,  i32, store>,         StorePreM<LS_word,  i32, pre_store>,      StorePostM<LS_word,  i32, post_store>;
+let mayStore = 1 in {
+  defm STRi8:     StoreM<LS_byte,  i32, truncstorei8>,  StorePreM<LS_byte,  i32, pre_truncsti8>,  StorePostM<LS_byte,  i32, post_truncsti8>;
+  defm STRi16:    StoreM<LS_hword, i32, truncstorei16>, StorePreM<LS_hword, i32, pre_truncsti16>, StorePostM<LS_hword, i32, post_truncsti16>;
+  defm STRi32:    StoreM<LS_word,  i32, store>,         StorePreM<LS_word,  i32, pre_store>,      StorePostM<LS_word,  i32, post_store>;
+  def STRf32:     StoreDisp32<0, FPR32, store, LS_word,  f32>;
+  def STRi64:     StoreDisp32<0, GPR64, store, LS_dword, i64>;
+  def STRi64_pmd: StorePmd32<0, GPR64, store,  LS_dword, i64>;
+  def STRv2i32:   StoreDisp32<0, GPR64, store, LS_dword, v2i32>;
+  def STRf64:     StoreDisp32<0, FPR64, store, LS_dword, f64>;
+}
 
-def LDRf32   : LoadDisp32<0,  FPR32, load,   LS_word,  f32>;
-def STRf32   : StoreDisp32<0, FPR32, store, LS_word,  f32>;
+// atomic_load addr -> load addr
+def : Pat<(i32   (atomic_load_8  (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))), (LDRi8_r32  GPR32:$Rn, imm:$imm)>;
+def : Pat<(i32   (atomic_load_16 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))), (LDRi16_r32 GPR32:$Rn, imm:$imm)>;
+def : Pat<(i32   (atomic_load_32 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))), (LDRi32_r32 GPR32:$Rn, imm:$imm)>;
+def : Pat<(v2i32 (atomic_load_64 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))), (LDRi64     GPR32:$Rn, imm:$imm)>;
+def : Pat<(i64   (atomic_load_64 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))), (LDRv2i32   GPR32:$Rn, imm:$imm)>;
 
-def LDRi64     : LoadDisp32<0, GPR64, load,    LS_dword, i64>;
-def LDRi64_pmd : LoadPmd32<0, GPR64, load,     LS_dword, i64>;
-def STRi64     : StoreDisp32<0, GPR64, store, LS_dword, i64>;
-def STRi64_pmd : StorePmd32<0, GPR64, store,  LS_dword, i64>;
-
-def LDRv2i32 : LoadDisp32<0, GPR64, load,    LS_dword, v2i32>;
-def STRv2i32 : StoreDisp32<0, GPR64, store, LS_dword, v2i32>;
-
-def LDRf64  : LoadDisp32<0, FPR64, load,    LS_dword, f64>;
-def STRf64  : StoreDisp32<0, FPR64, store, LS_dword, f64>;
+// atomic_store val, addr -> store val, addr
+def : Pat<(atomic_store_8  (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)), (i32 GPR32:$Rd)),   (STRi8_r32  GPR32:$Rd, GPR32:$Rn, imm:$imm)>;
+def : Pat<(atomic_store_16 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)), (i32 GPR32:$Rd)),   (STRi16_r32 GPR32:$Rd, GPR32:$Rn, imm:$imm)>;
+def : Pat<(atomic_store_32 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)), (i32 GPR32:$Rd)),   (STRi32_r32 GPR32:$Rd, GPR32:$Rn, imm:$imm)>;
+def : Pat<(atomic_store_64 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)), (v2i32 GPR64:$Rd)), (STRv2i32   GPR64:$Rd, GPR32:$Rn, imm:$imm)>;
+def : Pat<(atomic_store_64 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)), (i64 GPR64:$Rd)),   (STRi64     GPR64:$Rd, GPR32:$Rn, imm:$imm)>;
 
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with registers
