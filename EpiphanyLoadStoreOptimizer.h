@@ -59,10 +59,24 @@ namespace llvm {
       bool optimizeBlock(MachineBasicBlock &MBB);
       bool tryToMergeZeroStInst(MachineBasicBlock::iterator &MBBI);
       bool tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI);
+      bool isAlignmentCorrect(unsigned MainReg, unsigned PairedReg, int MainOffset, int PairedOffset);
+      bool canFormSuperReg(unsigned MainReg, unsigned PairedReg);
+
       MachineBasicBlock::iterator findMatchingInst(MachineBasicBlock::iterator I, 
           LoadStoreFlags &Flags, unsigned Limit);
+
       MachineBasicBlock::iterator mergePairedInsns(MachineBasicBlock::iterator I,
           MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags);
+      MachineInstrBuilder mergeVregInsns(unsigned PairedOp, int OffsetImm,
+          MachineOperand RegOp0, MachineOperand RegOp1, 
+          MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
+          bool MergeForward);
+      MachineInstrBuilder mergeRealRegInsns(MachineBasicBlock::iterator I,
+          MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags);
+
+      void cleanKillFlags(MachineOperand RegOp0, MachineOperand RegOp1, 
+          MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
+          bool MergeForward);
     public:
       static char ID;
       EpiphanyLoadStoreOptimizer() : MachineFunctionPass(ID) {
