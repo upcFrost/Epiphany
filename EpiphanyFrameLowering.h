@@ -38,10 +38,15 @@ namespace llvm {
 
       void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs, RegScavenger *RS) const override;
       int getFrameIndexReference(const MachineFunction &MF, int FI, unsigned &FrameReg) const override;
+      void processFunctionBeforeFrameFinalized(MachineFunction &MF, RegScavenger *RS) const override;
 
       bool spillCalleeSavedRegisters(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
           const std::vector<CalleeSavedInfo> &CSI, const TargetRegisterInfo *TRI) const override;
 
+      /// Returns true if the specified function should have a dedicated frame
+      /// pointer register.  This is true if the function has variable sized allocas,
+      /// if it needs dynamic stack realignment, if frame pointer elimination is
+      /// disabled, or if the frame address is taken.
       bool hasFP(const MachineFunction &MF) const override;
 
       bool hasReservedCallFrame(const MachineFunction &MF) const override;

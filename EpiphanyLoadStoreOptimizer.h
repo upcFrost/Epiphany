@@ -51,15 +51,20 @@ namespace llvm {
       const EpiphanyInstrInfo  *TII;
       const TargetRegisterInfo *TRI;
       const EpiphanySubtarget  *Subtarget;
+      const EpiphanyFrameLowering *TFI;
       MachineFunction     *MF;
       MachineRegisterInfo *MRI;
       MachineFrameInfo    *MFI;
       // Track which registers have been modified and used.
-      BitVector ModifiedRegs, UsedRegs;
+      BitVector ModifiedRegs, UsedRegs, ModifiedFrameIdxs, UsedFrameIdxs, ObjectMapped;
+      SmallVector<std::pair<int, int>, 128> PairedIdxs;
+      bool StackGrowsDown;
+      int64_t LastLocalBlockOffset = -4;
+
       bool optimizeBlock(MachineBasicBlock &MBB);
       bool tryToMergeZeroStInst(MachineBasicBlock::iterator &MBBI);
       bool tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI);
-      bool isAlignmentCorrect(unsigned MainReg, unsigned PairedReg, int MainOffset, int PairedOffset);
+      bool isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI);
       bool canFormSuperReg(unsigned MainReg, unsigned PairedReg);
 
       MachineBasicBlock::iterator findMatchingInst(MachineBasicBlock::iterator I, 

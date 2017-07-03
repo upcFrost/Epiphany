@@ -313,10 +313,8 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
   return true;
 }
 
-// hasFP - Return true if the specified function should have a dedicated frame
-// pointer register.  This is true if the function has variable sized allocas,
-// if it needs dynamic stack realignment, if frame pointer elimination is
-// disabled, or if the frame address is taken.
+// hasFP - Returns true if the specified function should have a dedicated frame
+// pointer register.
 bool EpiphanyFrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterInfo *TRI = STI.getRegisterInfo();
@@ -344,8 +342,15 @@ bool EpiphanyFrameLowering::hasFP(const MachineFunction &MF) const {
       MFI.isFrameAddressTaken());
 }
 
-// Eliminate pseudo ADJCALLSTACKUP/ADJCALLSTACKDOWN instructions
-// See EpiphanyInstrInfo.td and EpiphanyInstrInfo.cpp
+/// Set local frame max alignment to 8, used by EpiphanyLoadStoreOptimizer
+void EpiphanyFrameLowering::processFunctionBeforeFrameFinalized(MachineFunction &MF, 
+    RegScavenger *RS) const {
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  MFI.setLocalFrameMaxAlign(8);
+}
+
+/// Eliminate pseudo ADJCALLSTACKUP/ADJCALLSTACKDOWN instructions
+/// See EpiphanyInstrInfo.td and EpiphanyInstrInfo.cpp
 MachineBasicBlock::iterator EpiphanyFrameLowering::eliminateCallFramePseudoInstr(
     MachineFunction &MF, MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const {
   unsigned SP = Epiphany::SP;

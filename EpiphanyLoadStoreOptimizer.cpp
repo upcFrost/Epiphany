@@ -10,6 +10,8 @@
 /// \file
 /// This file contains a pass that performs load / store related peephole
 /// optimizations. This pass should be run after register allocation.
+/// 
+/// For now, the pass only joins two 32-bit ld/st into a single 64-bit one.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -30,8 +32,6 @@ char EpiphanyLoadStoreOptimizer::ID = 0;
 // Check if the instruction is on the promotable list
 static bool isPairableLoadStoreInst(MachineInstr &MI) {
   unsigned inst[] = {
-    //Epiphany::STRi16_r16,
-    //Epiphany::STRi16_r32,
     Epiphany::STRi32_r16,
     Epiphany::STRi32_r32,
     Epiphany::STRf32,
@@ -159,40 +159,71 @@ static void trackRegDefsUses(const MachineInstr &MI, BitVector &ModifiedRegs,
   }
 }
 
+/// Keeps track on which frame indexes were used between two candidates to merge
+static void trackFrameIdxs(const MachineInstr &MI, BitVector &ModifiedFrameIdxs, 
+    BitVector &UsedFrameIdxs, const MachineFrameInfo *MFI) {
+  for (const MachineOperand &MO : MI.operands()) {
+    if (MO.isFI()) {
+      if (MI.mayStore()) {
+        ModifiedFrameIdxs.set(MO.getIndex());
+      } else {
+        UsedFrameIdxs.set(MO.getIndex());
+      }
+    }
+  }
+}
+
 /// Returns true if the alignment for specified regs and their offsets is correct
 ///
 /// Only applicable when the frame is finalized
-bool EpiphanyLoadStoreOptimizer::isAlignmentCorrect(unsigned MainReg, unsigned PairedReg, 
-    int MainOffset, int PairedOffset) {
+bool EpiphanyLoadStoreOptimizer::isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI) {
   // Resolve target reg class
-  const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(MainReg) == &Epiphany::GPR32RegClass ? 
-    &Epiphany::GPR64RegClass : &Epiphany::FPR64RegClass;
+  unsigned MainReg = getRegOperand(FirstMI).getReg();
+  unsigned PairedReg = getRegOperand(SecondMI).getReg();
+  int MainOffset = getBaseOperand(FirstMI).isFI() ? 
+    getBaseOperand(FirstMI).getIndex() : getOffsetOperand(FirstMI).getImm();
+  int PairedOffset = getBaseOperand(SecondMI).isFI() ? 
+    getBaseOperand(SecondMI).getIndex() : getOffsetOperand(SecondMI).getImm();
 
-  // Check if no offset is dword-aligned
-  if ((MainOffset % 8 != 0) && (PairedOffset % 8 != 0)) {
-    return false;
-  }
+  if (TRI->isVirtualRegister(MainReg)) {
+    // VReg checks
+    // Check if both ops have correct alignment required
+    if (MFI->getObjectAlignment(MainOffset) != 4 || MFI->getObjectAlignment(PairedOffset) != 4) {
+      return false;
+    }
+  } else {
+    // Machine reg checks
+    // Offset stride -1 for FI as stack grows down
+    int OffsetStride = getBaseOperand(FirstMI).isFI() ? -1 : getMemScale(FirstMI);
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(MainReg) == &Epiphany::GPR32RegClass ? 
+      &Epiphany::GPR64RegClass : &Epiphany::FPR64RegClass;
 
-  // Determine which offset should be higher
-  unsigned sra = TRI->getMatchingSuperReg (MainReg, Epiphany::isub_lo, RC);
-  unsigned srb = TRI->getMatchingSuperReg (PairedReg, Epiphany::isub_hi, RC);
-  int HighOffset = PairedOffset;
-  int LowOffset = MainOffset;
-  if( (!sra || !srb) || (sra != srb)) {
-    sra = TRI->getMatchingSuperReg (PairedReg, Epiphany::isub_lo, RC);
-    srb = TRI->getMatchingSuperReg (MainReg, Epiphany::isub_hi, RC);
-    HighOffset = MainOffset;
-    LowOffset = PairedOffset;
-  }
+    // Check if no offset is dword-aligned
+    if ((MainOffset % 8 != 0) && (PairedOffset % 8 != 0)) {
+      return false;
+    }
 
-  // Can't form super reg
-  if (!(sra && srb) || (sra != srb)) {
-    return false;
-  }
+    // Determine which offset should be higher
+    unsigned sra = TRI->getMatchingSuperReg (MainReg, Epiphany::isub_lo, RC);
+    unsigned srb = TRI->getMatchingSuperReg (PairedReg, Epiphany::isub_hi, RC);
+    int HighOffset = PairedOffset;
+    int LowOffset = MainOffset;
+    if( (!sra || !srb) || (sra != srb)) {
+      sra = TRI->getMatchingSuperReg (PairedReg, Epiphany::isub_lo, RC);
+      srb = TRI->getMatchingSuperReg (MainReg, Epiphany::isub_hi, RC);
+      HighOffset = MainOffset;
+      LowOffset = PairedOffset;
+    }
 
-  // High reg offset should be always lower than low reg offset, and it should be double-aligned
-  if ((LowOffset > HighOffset) || (LowOffset % 8 != 0)) {
-    return false;
+    // Can't form super reg
+    if (!(sra && srb) || (sra != srb)) {
+      return false;
+    }
+
+    // High reg offset should be always lower than low reg offset, and it should be double-aligned
+    if ((LowOffset > HighOffset) || (LowOffset % 8 != 0)) {
+      return false;
+    }
   }
   return true;
 }
@@ -272,6 +303,7 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeVregInsns(unsigned PairedOp
   const MachineOperand &BaseRegOp = isVirtual 
     ? (PairedBase.getIndex() > MainBase.getIndex() ? PairedBase : MainBase)
     : (MergeForward ? PairedBase : MainBase);
+  const MachineOperand &PairedBaseOp = &BaseRegOp == &MainBase ? PairedBase : MainBase;
 
   // Resolve target reg class
   const TargetRegisterClass *RC = MRI->getRegClass(RegOp0.getReg()) == &Epiphany::GPR32RegClass ? 
@@ -308,6 +340,19 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeVregInsns(unsigned PairedOp
       .addReg(parentReg, /* flags = */ 0, Epiphany::isub_hi);
     BuildMI(*MBB, InsertionPoint, DL, Copy, RegOp1.getReg())
       .addReg(parentReg, /* flags = */ 0, Epiphany::isub_lo);
+  }
+
+  // Adjust alignment
+  MFI->setObjectAlignment(BaseRegOp.getIndex(), 8);
+
+  // Create local stack allocation block
+  if (!ObjectMapped[PairedBaseOp.getIndex()]) {
+    MFI->mapLocalFrameObject(PairedBaseOp.getIndex(), LastLocalBlockOffset);
+    LastLocalBlockOffset -= StackGrowsDown ? 4 : -4;
+    MFI->mapLocalFrameObject(BaseRegOp.getIndex(), LastLocalBlockOffset);
+    LastLocalBlockOffset -= StackGrowsDown ? 4 : -4;
+    ObjectMapped.set(BaseRegOp.getIndex());
+    ObjectMapped.set(PairedBaseOp.getIndex());
   }
 
   return MIB;
@@ -383,12 +428,6 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
       .setMemRefs(I->mergeMemRefsWith(*Paired));
   }
 
-  // Set main frame index to 8-byte alignment
-  if (BaseRegOp.isFI()) {
-    MFI->setObjectAlignment(BaseRegOp.getIndex(), 8);
-  }
-  
-
   (void)MIB;
 
   DEBUG(dbgs() << "Creating pair load/store. Replacing instructions:\n    ");
@@ -429,6 +468,8 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
   // (inclusive) and the second insn.
   ModifiedRegs.reset();
   UsedRegs.reset();
+  ModifiedFrameIdxs.reset();
+  UsedFrameIdxs.reset();
 
   // Remember any instructions that read/write memory between FirstMI and MI.
   SmallVector<MachineInstr *, 4> MemInsns;
@@ -453,7 +494,9 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
       unsigned MIReg = getRegOperand(MI).getReg();
       unsigned MIRegIdx = TRI->isVirtualRegister(MIReg) ? TRI->virtReg2Index(MIReg) : MIReg;
       unsigned MIBaseReg = getBaseOperand(MI).isReg() ? getBaseOperand(MI).getReg() : Epiphany::FP;
-      int MIOffset = getBaseOperand(MI).isFI() ? getBaseOperand(MI).getIndex() : getOffsetOperand(FirstMI).getImm();
+      int MIOffset = getBaseOperand(MI).isFI() ? 
+        getBaseOperand(MI).getIndex() : 
+        getOffsetOperand(FirstMI).getImm();
       if (isBaseAndOffsetCorrect(BaseReg, MIBaseReg, Offset, MIOffset, OffsetStride)) {
         DEBUG(dbgs() << "Checking instruction "; MI.dump());
         unsigned Opc = MI.getOpcode();
@@ -463,25 +506,30 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
           // First, check register parity
           if (!canFormSuperReg(Reg, MIReg)) {
             trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+            trackFrameIdxs(MI, ModifiedFrameIdxs, UsedFrameIdxs, MFI);
             MemInsns.push_back(&MI);
             DEBUG(dbgs() << "Can't find matching superreg\n");
             continue;
           }
-
-          // Check if the alignment is correct
-          if (!isAlignmentCorrect(Reg, MIReg, Offset, MIOffset)){
-            DEBUG(dbgs() << "Can't be paired due to alignment\n");
-            continue;
-          }
+        }
+        // Check if the alignment is correct
+        if (!isAlignmentCorrect(FirstMI, MI)) {
+          trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+          trackFrameIdxs(MI, ModifiedFrameIdxs, UsedFrameIdxs, MFI);
+          MemInsns.push_back(&MI);
+          DEBUG(dbgs() << "Can't be paired due to alignment\n");
+          continue;
         }
 
         // Get the left-lowest offset
         int MinOffset = Offset < MIOffset ? Offset : MIOffset;
+
         // If the resultant immediate offset of merging these 
         // instructions is out of range for
         // a pairwise instruction, bail and keep looking.
         if (!inBoundsForPair(MinOffset)) {
           trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+          trackFrameIdxs(MI, ModifiedFrameIdxs, UsedFrameIdxs, MFI);
           MemInsns.push_back(&MI);
           DEBUG(dbgs() << "Out of bound for pairing\n");
           continue;
@@ -491,9 +539,30 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
         // registers the same is UNPREDICTABLE and will result in an exception.
         if (MayLoad && Reg == getRegOperand(MI).getReg()) {
           trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+          trackFrameIdxs(MI, ModifiedFrameIdxs, UsedFrameIdxs, MFI);
           MemInsns.push_back(&MI);
-          DEBUG(dbgs() << "Can't merge into same reg");
+          DEBUG(dbgs() << "Can't merge into same reg\n");
           continue;
+        }
+
+        if (TRI->isVirtualRegister(Reg)) {
+          bool failed = false;
+          for (std::pair<int, int> IdxPair : PairedIdxs) {
+            if ((Offset == IdxPair.first    && MIOffset != IdxPair.second) || 
+                (Offset == IdxPair.second   && MIOffset != IdxPair.first) ||
+                (MIOffset == IdxPair.first  && Offset != IdxPair.second) || 
+                (MIOffset == IdxPair.second && Offset != IdxPair.first)) {
+              failed = true;
+              break;
+            }
+          }
+          if (failed) {
+            trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+            trackFrameIdxs(MI, ModifiedFrameIdxs, UsedFrameIdxs, MFI);
+            MemInsns.push_back(&MI);
+            DEBUG(dbgs() << "Can't merge as frame idx is already paired\n");
+            continue;
+          }
         }
 
         // If the Rt of the second instruction was not modified or used between
@@ -502,8 +571,13 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
         // first.
         if (!ModifiedRegs[MIRegIdx] &&
             !(MI.mayLoad() && UsedRegs[MIRegIdx])) {
-          Flags.setMergeForward(false);
-          return MBBI;
+          if (!TRI->isVirtualRegister(MIReg) || !UsedFrameIdxs[MIOffset]) {
+            if (TRI->isVirtualRegister(MIReg)) {
+              PairedIdxs.push_back(std::make_pair(Offset, MIOffset));
+            }
+            Flags.setMergeForward(false);
+            return MBBI;
+          }
         }
 
         // Likewise, if the Rt of the first instruction is not modified or used
@@ -512,8 +586,13 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
         // into the second.
         if (!ModifiedRegs[RegIdx] &&
             !(MayLoad && UsedRegs[RegIdx])) {
-          Flags.setMergeForward(true);
-          return MBBI;
+          if (!TRI->isVirtualRegister(Reg) || !UsedFrameIdxs[Offset]) {
+            if (TRI->isVirtualRegister(Reg)) {
+              PairedIdxs.push_back(std::make_pair(Offset, MIOffset));
+            }
+            Flags.setMergeForward(true);
+            return MBBI;
+          }
         }
         // Unable to combine these instructions due to interference in between.
         // Keep looking.
@@ -527,6 +606,7 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
 
     // Update modified / uses register lists.
     trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+    trackFrameIdxs(MI, ModifiedFrameIdxs, UsedFrameIdxs, MFI);
 
     // Otherwise, if the base register is modified, we have no match, so
     // return early. Should only happen when dealing with real registers
@@ -616,19 +696,36 @@ bool EpiphanyLoadStoreOptimizer::runOnMachineFunction(MachineFunction &Fn) {
   Subtarget = &static_cast<const EpiphanySubtarget &>(Fn.getSubtarget());
   TII = static_cast<const EpiphanyInstrInfo *>(Subtarget->getInstrInfo());
   TRI = Subtarget->getRegisterInfo();
+  TFI = Subtarget->getFrameLowering();
   MFI = &Fn.getFrameInfo();
   MRI = &Fn.getRegInfo();
-  MF  = &Fn; 
+  MF  = &Fn;
+
+  // Get stack growth direction
+  StackGrowsDown = TFI->getStackGrowthDirection() == TargetFrameLowering::StackGrowsDown ? true : false;
+  LastLocalBlockOffset = StackGrowsDown ? -4 : 4;
 
   // Resize the modified and used register bitfield trackers.  We do this once
   // per function and then clear the bitfield each time we optimize a load or
   // store.
   ModifiedRegs.resize(TRI->getNumRegs());
   UsedRegs.resize(TRI->getNumRegs());
+  ModifiedFrameIdxs.resize(MFI->getNumObjects());
+  UsedFrameIdxs.resize(MFI->getNumObjects());
+  ObjectMapped.reset();
+  ObjectMapped.resize(MFI->getNumObjects());
 
   bool Modified = false;
-  for (auto &MBB : Fn)
+  for (auto &MBB : Fn) {
     Modified |= optimizeBlock(MBB);
+    if (Modified) {
+      MFI->setUseLocalStackAllocationBlock(true);
+    }
+  }
+
+  // Adjust local frame block size
+  int64_t LocalFrameSize = StackGrowsDown ? -LastLocalBlockOffset - 4 : LastLocalBlockOffset - 4;
+  MFI->setLocalFrameSize(LocalFrameSize);
 
   return Modified;
 }
