@@ -39,6 +39,10 @@ unsigned EpiphanyTTIImpl::getRegisterBitWidth(bool Vector) {
   return Vector ? 64 : 32;
 }
 
+unsigned EpiphanyTTIImpl::getMinVectorRegisterBitWidth() {
+  return 32;
+}
+
 unsigned EpiphanyTTIImpl::getLoadStoreVecRegBitWidth(unsigned AddrSpace) const {
   return 64;
 }
@@ -49,4 +53,26 @@ void EpiphanyTTIImpl::getUnrollingPreferences(Loop *L,
   UP.MaxCount = 8;
   UP.Partial = true;
 }
+
+unsigned EpiphanyTTIImpl::getMaxInterleaveFactor(unsigned VF) {
+  return 1;
+}
+
+// FIXME: setting all costs to 1 for now
+int EpiphanyTTIImpl::getArithmeticInstrCost(
+    unsigned Opcode, Type *Ty,  
+    TTI::OperandValueKind Op1Info, TTI::OperandValueKind Op2Info,
+    TTI::OperandValueProperties Opd1PropInfo,
+    TTI::OperandValueProperties Opd2PropInfo,
+    ArrayRef<const Value *> Args) { return 1; }
+int EpiphanyTTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index) { return 1; }
+int EpiphanyTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
+    unsigned AddressSpace) { return 1; }
+int EpiphanyTTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
+    unsigned AddressSpace) { return 1; }
+int EpiphanyTTIImpl::getGatherScatterOpCost(unsigned Opcode, Type *DataTy, Value *Ptr,
+    bool VariableMask, unsigned Alignment) { return 1; }
+int EpiphanyTTIImpl::getAddressComputationCost(Type *PtrTy, ScalarEvolution *SE,
+    const SCEV *Ptr) { return 1; }
+unsigned EpiphanyTTIImpl::getCFInstrCost(unsigned Opcode) { return 1; }
 

@@ -167,9 +167,9 @@ void EpiphanyPassConfig::addPreEmitPass() {
   addPass(createEpiphanyLoadStoreOptimizationPass());
 }
 
-/*TargetIRAnalysis EpiphanyTargetMachine::getTargetIRAnalysis() {*/
-  //return TargetIRAnalysis([this](const Function &F) {
-      //return TargetTransformInfo(EpiphanyTTIImpl(this, F));
-      //});
-/*}*/
+TargetIRAnalysis EpiphanyTargetMachine::getTargetIRAnalysis() {
+  return TargetIRAnalysis([this](const Function &F) {
+      return TargetTransformInfo(EpiphanyTTIImpl(this, F));
+      });
+}
 

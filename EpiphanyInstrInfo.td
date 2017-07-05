@@ -180,7 +180,7 @@ let mayLoad = 1 in {
   defm LDRi32:    LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, pre_load>,        LoadPostM<LS_word,   i32, post_load>;
   def LDRf32:     LoadDisp32<0,  FPR32, load,   LS_word,  f32>;
   def LDRi64:     LoadDisp32<0, GPR64, load,    LS_dword, i64>;
-  def LDRi64_pmd: LoadPmd32<0, GPR64, load,     LS_dword, i64>;
+  def LDRi64_pmd: LoadPmd32<0,  GPR64, load,    LS_dword, i64>;
   def LDRv2i32:   LoadDisp32<0, GPR64, load,    LS_dword, v2i32>;
   def LDRf64:     LoadDisp32<0, FPR64, load,    LS_dword, f64>;
 }
@@ -192,7 +192,7 @@ let mayStore = 1 in {
   defm STRi32:    StoreM<LS_word,  i32, store>,         StorePreM<LS_word,  i32, pre_store>,      StorePostM<LS_word,  i32, post_store>;
   def STRf32:     StoreDisp32<0, FPR32, store, LS_word,  f32>;
   def STRi64:     StoreDisp32<0, GPR64, store, LS_dword, i64>;
-  def STRi64_pmd: StorePmd32<0, GPR64, store,  LS_dword, i64>;
+  def STRi64_pmd: StorePmd32<0,  GPR64, store, LS_dword, i64>;
   def STRv2i32:   StoreDisp32<0, GPR64, store, LS_dword, v2i32>;
   def STRf64:     StoreDisp32<0, FPR64, store, LS_dword, f64>;
 }
@@ -226,10 +226,17 @@ multiclass SimpleMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNo
 
 // COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
 multiclass SimpleMath64<SDNode OpNode> {
-  def _r64 : Pat<(i64 (OpNode GPR64:$Rn, GPR64:$Rm)),
-                 (REG_SEQUENCE GPR64, 
-                 (i32 (COPY (!cast<Instruction>(NAME # _r32) (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), isub_lo, 
-                 (i32 (COPY (!cast<Instruction>(NAME # _r32) (HiReg GPR64:$Rn), (HiReg GPR64:$Rm)))), isub_hi)>;
+  def _r64   : Pat<(i64 (OpNode GPR64:$Rn, GPR64:$Rm)),
+                   (REG_SEQUENCE GPR64, 
+                   (i32 (COPY (!cast<Instruction>(NAME # _r32) (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), isub_lo, 
+                   (i32 (COPY (!cast<Instruction>(NAME # _r32) (HiReg GPR64:$Rn), (HiReg GPR64:$Rm)))), isub_hi)>;
+}
+
+multiclass SimpleMath_v2i32<SDNode OpNode> {
+  def _v2i32 : Pat<(v2i32 (OpNode (v2i32 GPR64:$Rn), (v2i32 GPR64:$Rm))),
+                   (REG_SEQUENCE GPR64, 
+                   (i32 (COPY (!cast<Instruction>(NAME # _r32) (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), isub_lo, 
+                   (i32 (COPY (!cast<Instruction>(NAME # _r32) (HiReg GPR64:$Rn), (HiReg GPR64:$Rm)))), isub_hi)>;
 }
 
 let isCommutable = 1 in {
@@ -246,14 +253,15 @@ let isCompare = 1 in {
   defm CMPrr  : SimpleMath<0b0111010, 0b0111111, "sub", CMP >;
 }
 
-defm ANDrr  : SimpleMath64<and>;
-defm ORRrr  : SimpleMath64<or >;
-defm EORrr  : SimpleMath64<xor>;
-defm SUBrr  : SimpleMath<0b0111010, 0b0111111, "sub", sub >;
+defm ADDrr  : SimpleMath_v2i32<add>;
+defm ANDrr  : SimpleMath64<and>, SimpleMath_v2i32<and>;
+defm ORRrr  : SimpleMath64<or >, SimpleMath_v2i32<or >;
+defm EORrr  : SimpleMath64<xor>, SimpleMath_v2i32<xor>;
+defm SUBrr  : SimpleMath<0b0111010, 0b0111111, "sub", sub >, SimpleMath_v2i32<sub>;
 defm SUBCrr : SimpleMath<0b0111010, 0b0111111, "sub", subc>;
-defm ASRrr  : SimpleMath<0b1101010, 0b1101111, "asr", sra >;
-defm LSRrr  : SimpleMath<0b1001010, 0b1001111, "lsr", srl >;
-defm LSLrr  : SimpleMath<0b0101010, 0b0101111, "lsl", shl >;
+defm ASRrr  : SimpleMath<0b1101010, 0b1101111, "asr", sra >, SimpleMath_v2i32<sra>;
+defm LSRrr  : SimpleMath<0b1001010, 0b1001111, "lsr", srl >, SimpleMath_v2i32<srl>;
+defm LSLrr  : SimpleMath<0b0101010, 0b0101111, "lsl", shl >, SimpleMath_v2i32<shl>;
 
 // Complex math: f32
 multiclass FPMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
@@ -284,7 +292,7 @@ multiclass Ialu2Math_2<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDN
   def _r16 : ComplexMath2_16rr<opcode16, instr_asm, mul, OpNode, GPR16, Ialu2Itin, i32>;
   def _r32 : ComplexMath2_32rr<opcode32, instr_asm, mul, OpNode, GPR32, Ialu2Itin, i32>;
 }
-let Defs = [STATUS], AddedComplexity = 1 in {
+let Defs = [STATUS] in {
   let isAdd = 1 in {
     defm IADDrr : Ialu2Math<0b0000111, 0b0001111, "iadd", add>;
   }
@@ -293,6 +301,8 @@ let Defs = [STATUS], AddedComplexity = 1 in {
   defm IMADDrr : Ialu2Math_2<0b0110111, 0b0111111, "imadd", add>;
   defm IMSUBrr : Ialu2Math_2<0b1000111, 0b1001111, "imsub", sub>;
 }
+
+defm IMULrr  : SimpleMath_v2i32<mul>;
 
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with immediates

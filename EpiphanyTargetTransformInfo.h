@@ -60,9 +60,20 @@ public:
 
   unsigned getNumberOfRegisters(bool Vector);
   unsigned getRegisterBitWidth(bool Vector);
+  unsigned getMinVectorRegisterBitWidth();
   unsigned getLoadStoreVecRegBitWidth(unsigned AddrSpace) const;
   unsigned getMaxInterleaveFactor(unsigned VF);
 
+  // Instruction costs
+  int getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
+  int getMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
+                      unsigned AddressSpace);
+  int getMaskedMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
+                            unsigned AddressSpace);
+  int getGatherScatterOpCost(unsigned Opcode, Type *DataTy, Value *Ptr,
+                             bool VariableMask, unsigned Alignment);
+  int getAddressComputationCost(Type *PtrTy, ScalarEvolution *SE,
+                                const SCEV *Ptr);
   int getArithmeticInstrCost(
     unsigned Opcode, Type *Ty,
     TTI::OperandValueKind Opd1Info = TTI::OK_AnyValue,
@@ -72,9 +83,6 @@ public:
     ArrayRef<const Value *> Args = ArrayRef<const Value *>());
 
   unsigned getCFInstrCost(unsigned Opcode);
-
-  int getVectorInstrCost(unsigned Opcode, Type *ValTy, unsigned Index);
-  bool isSourceOfDivergence(const Value *V) const;
 
   unsigned getVectorSplitCost() { return 0; }
 };

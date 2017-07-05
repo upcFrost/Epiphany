@@ -321,8 +321,6 @@ bool EpiphanyFrameLowering::hasFP(const MachineFunction &MF) const {
 
   DEBUG(
       const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
-      dbgs() << "\nMax alignment = " << MFI.getMaxAlignment() << "\n";
-      dbgs() << "Current alignment = " << TFI->getStackAlignment() << "\n";
       if (MF.getTarget().Options.DisableFramePointerElim(MF)) {
       dbgs() << "\nHas FP: DisableFramePointerElim set\n";
       }

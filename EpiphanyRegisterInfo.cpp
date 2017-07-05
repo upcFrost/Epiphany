@@ -151,7 +151,7 @@ eliminateFrameIndex(MachineBasicBlock::iterator MBBI, int SPAdj,
       Offset += 8;
     }
   }
-	Offset += MI.getOperand(i+1).getImm();
+	Offset += spOffset > 0 ? MI.getOperand(i+1).getImm() : - MI.getOperand(i+1).getImm();
 	DEBUG(errs() << "Offset     : " << Offset << "\n" << "<--------->\n");
 
 	// If MI is not a debug value, make sure Offset fits in the 16-bit immediate

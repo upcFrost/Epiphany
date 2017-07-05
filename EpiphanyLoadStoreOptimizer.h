@@ -64,7 +64,7 @@ namespace llvm {
       bool optimizeBlock(MachineBasicBlock &MBB);
       bool tryToMergeZeroStInst(MachineBasicBlock::iterator &MBBI);
       bool tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI);
-      bool isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI);
+      bool isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI, bool useOffset);
       bool canFormSuperReg(unsigned MainReg, unsigned PairedReg);
 
       MachineBasicBlock::iterator findMatchingInst(MachineBasicBlock::iterator I, 
@@ -75,7 +75,7 @@ namespace llvm {
       MachineInstrBuilder mergeVregInsns(unsigned PairedOp, int OffsetImm,
           MachineOperand RegOp0, MachineOperand RegOp1, 
           MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
-          bool MergeForward);
+          bool MergeForward, bool useOffset);
       MachineInstrBuilder mergeRealRegInsns(MachineBasicBlock::iterator I,
           MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags);
 

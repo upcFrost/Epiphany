@@ -54,10 +54,10 @@ public:
     return TLOF.get();
   }
 
-  //TargetIRAnalysis getTargetIRAnalysis() override;
+  TargetIRAnalysis getTargetIRAnalysis() override;
   
   const EpiphanyABIInfo &getABI() const { return ABI; }
-  //const DataLayout *getDataLayout() const { return &DL; }
+  const DataLayout *getDataLayout() const { return &DL; }
 };
 
 } // namespace llvm
