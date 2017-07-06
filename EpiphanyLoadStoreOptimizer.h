@@ -38,10 +38,13 @@ namespace llvm {
     // merge is to remove the first instruction and replace the second with
     // a pair-wise insn, and false if the reverse is true.
     bool MergeForward;
-    LoadStoreFlags() : MergeForward(false) {}
+    bool UseOffset;
+    LoadStoreFlags() : MergeForward(false), UseOffset(true) {}
 
     void setMergeForward(bool V = true) { MergeForward = V; }
     bool getMergeForward() const { return MergeForward; }
+    void setUseOffset(bool V = true) { UseOffset = V; }
+    bool getUseOffset() const { return UseOffset; }
   } LoadStoreFlags;
 
 
@@ -75,9 +78,11 @@ namespace llvm {
       MachineInstrBuilder mergeVregInsns(unsigned PairedOp, int OffsetImm,
           MachineOperand RegOp0, MachineOperand RegOp1, 
           MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
-          bool MergeForward, bool useOffset);
-      MachineInstrBuilder mergeRealRegInsns(MachineBasicBlock::iterator I,
-          MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags);
+          const LoadStoreFlags &Flags);
+      MachineInstrBuilder mergeRealRegInsns(unsigned PairedOp, int OffsetImm,
+          MachineOperand RegOp0, MachineOperand RegOp1, 
+          MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
+          const LoadStoreFlags &Flags);
 
       void cleanKillFlags(MachineOperand RegOp0, MachineOperand RegOp1, 
           MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
