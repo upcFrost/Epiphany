@@ -157,6 +157,8 @@ namespace llvm {
       SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerBuildVector(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerExtractVectorElt(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpExtend(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpRound(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpToInt(SDValue Op, SelectionDAG &DAG) const;

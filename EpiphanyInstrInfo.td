@@ -563,3 +563,4 @@ def : Pat<(i64 (or (shl (i64 (anyext (i32 GPR32:$sub_hi))), (i32 32)), (i64 (zex
 def : Pat<(i64 (or (i64 (zext (i32 GPR32:$sub_lo))), (shl (i64 (anyext (i32 GPR32:$sub_hi))), (i32 32)))),
           (REG_SEQUENCE GPR64, $sub_hi, isub_hi, $sub_lo, isub_lo)>;
 }
+

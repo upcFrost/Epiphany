@@ -73,11 +73,14 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
   : TargetLowering(TM), Subtarget(STI), ABI(TM.getABI()) {
 
     // Set up the register classes
-    addRegisterClass(MVT::i32, &Epiphany::GPR16RegClass);
-    addRegisterClass(MVT::i32, &Epiphany::GPR32RegClass);
-    addRegisterClass(MVT::f32, &Epiphany::FPR32RegClass);
-    addRegisterClass(MVT::i64, &Epiphany::GPR64RegClass);
-    addRegisterClass(MVT::f64, &Epiphany::FPR64RegClass);
+    addRegisterClass(MVT::i32,   &Epiphany::GPR16RegClass);
+    addRegisterClass(MVT::i32,   &Epiphany::GPR32RegClass);
+    addRegisterClass(MVT::v2i16, &Epiphany::GPR32RegClass);
+    addRegisterClass(MVT::v4i8,  &Epiphany::GPR32RegClass);
+    addRegisterClass(MVT::f32,   &Epiphany::FPR32RegClass);
+    addRegisterClass(MVT::i64,   &Epiphany::GPR64RegClass);
+    addRegisterClass(MVT::v2i32, &Epiphany::GPR64RegClass);
+    addRegisterClass(MVT::f64,   &Epiphany::FPR64RegClass);
 
     // Max atomic instruction size is 64 for load/store instruction
     setMaxAtomicSizeInBitsSupported(64);
@@ -108,6 +111,11 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::MULHU,      MVT::i32,  Expand);
     setOperationAction(ISD::UMUL_LOHI,  MVT::i32,  Expand);
     setOperationAction(ISD::SMUL_LOHI,  MVT::i32,  Expand);
+
+    // Legilize vector stores and loads
+    ValueTypeActions.setTypeAction(MVT::v2i32, TypeLegal);
+    setOperationAction(ISD::LOAD, MVT::v2i32, Legal);
+    setOperationAction(ISD::STORE, MVT::v2i32, Legal);
 
     for (MVT VT : MVT::fp_valuetypes()) {
       setOperationAction(ISD::FDIV,  VT,  Expand);
@@ -188,7 +196,10 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SUB,       MVT::i64, Custom);
     setOperationAction(ISD::SUBC,      MVT::i64, Custom);
 
-        // Just expand all conversions, as they're getting on the nerves
+    setOperationAction(ISD::BUILD_VECTOR, MVT::v2i32, Custom);
+    setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v2i32, Custom);
+
+        // Just expand all c nversions, as they're getting on the nerves
     for (MVT VT : MVT::all_valuetypes()) {
       setOperationAction(ISD::FP_TO_UINT, VT, Custom);
       setOperationAction(ISD::FP_TO_SINT, VT, Custom);
@@ -261,19 +272,25 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     case ISD::SUBC:
       return LowerSub64(Op, DAG);
       break;
+    case ISD::BUILD_VECTOR:
+      return LowerBuildVector(Op, DAG);
+      break;
+    case ISD::EXTRACT_VECTOR_ELT:
+      return LowerExtractVectorElt(Op, DAG);
+      break;
   }
   return SDValue();
 }
 
 
-static SDValue createGPR64(SelectionDAG &DAG, SDValue High, SDValue Low) {
+static SDValue createGPR64(SelectionDAG &DAG, SDValue High, SDValue Low, MVT VT = MVT::i64) {
   SDLoc DL(High.getNode());
 
   SDValue RegClass = DAG.getTargetConstant(Epiphany::GPR64RegClassID, DL, MVT::i32);
   SDValue SubRegHi = DAG.getTargetConstant(Epiphany::isub_hi, DL, MVT::i32);
   SDValue SubRegLo = DAG.getTargetConstant(Epiphany::isub_lo, DL, MVT::i32);
   const SDValue Ops[] = { RegClass, High, SubRegHi, Low, SubRegLo };
-  return SDValue(DAG.getMachineNode(TargetOpcode::REG_SEQUENCE, DL, MVT::i64, Ops), 0);
+  return SDValue(DAG.getMachineNode(TargetOpcode::REG_SEQUENCE, DL, VT, Ops), 0);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1035,7 +1052,16 @@ SDValue EpiphanyTargetLowering::LowerFpRound(SDValue Op, SelectionDAG &DAG) cons
   return makeLibCall(DAG, LC, Op.getValueType(), SrcVal, /* isSigned = */ false, DL).first;
 }
 
+SDValue EpiphanyTargetLowering::LowerBuildVector(SDValue Op, SelectionDAG &DAG) const {
+  return createGPR64(DAG, Op.getOperand(0), Op.getOperand(1), Op.getSimpleValueType());
+}
 
+SDValue EpiphanyTargetLowering::LowerExtractVectorElt(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  ConstantSDNode *IndexNode = dyn_cast<ConstantSDNode>(Op.getOperand(1));
+  int Index = IndexNode->getZExtValue() == 0 ? Epiphany::isub_lo : Epiphany::isub_hi;
+  return DAG.getTargetExtractSubreg(Index, DL, Op.getValueType(), Op.getOperand(0));
+}
 
 //===----------------------------------------------------------------------===//
 //  Inline asm parsing

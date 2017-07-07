@@ -111,7 +111,7 @@ static const MachineOperand &getOffsetOperand(const MachineInstr &MI) {
 
 /// Returns true if we need to use offset, false if frame index should be used
 static bool useOffsetOrIndex(const MachineInstr &FirstMI, const MachineInstr &SecondMI) {
-  if (getBaseOperand(FirstMI).isFI()) {
+  if (getBaseOperand(FirstMI).isFI() && getBaseOperand(SecondMI).isFI()) {
     return getBaseOperand(FirstMI).getIndex() == getBaseOperand(SecondMI).getIndex();
   }
   return true;
