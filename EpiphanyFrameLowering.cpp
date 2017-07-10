@@ -242,6 +242,105 @@ bool EpiphanyFrameLowering::hasReservedCallFrame(const MachineFunction &MF) cons
     !MFI.hasVarSizedObjects();
 }
 
+// FIXME: this function is quite hackie, as it relies on knowledge of LLVM's frame alloc
+// mechanism
+bool EpiphanyFrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF, 
+    const TargetRegisterInfo *TRI, std::vector<CalleeSavedInfo> &CSI) const {
+  if (CSI.empty())
+    return true; // Early exit if no callee saved registers are modified!
+
+  unsigned MinCSFrameIndex = std::numeric_limits<unsigned>::max();
+  unsigned MaxCSFrameIndex = 0;
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  unsigned NumFixedSpillSlots;
+  const TargetFrameLowering::SpillSlot *FixedSpillSlots = getCalleeSavedSpillSlots(NumFixedSpillSlots);
+
+  // Now that we know which registers need to be saved and restored, allocate
+  // stack slots for them.
+  bool Pair = false;
+  int PrevFrameIdx = -1;
+  for (size_t i = 0; i < CSI.size(); i++) {
+    auto CS = CSI.at(i);
+    unsigned Reg = CS.getReg();
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+
+    int FrameIdx;
+    if (TRI->hasReservedSpillSlot(MF, Reg, FrameIdx)) {
+      CS.setFrameIdx(FrameIdx);
+      continue;
+    }
+
+    // Check to see if this physreg must be spilled to a particular stack slot
+    // on this target.
+    const TargetFrameLowering::SpillSlot *FixedSlot = FixedSpillSlots;
+    while (FixedSlot != FixedSpillSlots + NumFixedSpillSlots && FixedSlot->Reg != Reg) {
+      ++FixedSlot;
+    }
+
+    if (FixedSlot == FixedSpillSlots + NumFixedSpillSlots) {
+      // Nope, just spill it anywhere convenient.
+      unsigned Align = RC->getAlignment();
+      unsigned StackAlign = getStackAlignment();
+
+      // Check if this index can be paired
+      unsigned suba, subb, frameidx, sra = 0, srb = 0;
+      if(i+1 < CSI.size()) {
+        suba = CSI[i].getReg();
+        subb = CSI[i+1].getReg();
+        // Getting target class and matching superreg
+        const TargetRegisterClass *TRC = TRI->getMinimalPhysRegClass(suba) == &Epiphany::GPR32RegClass || 
+          TRI->getMinimalPhysRegClass(suba) == &Epiphany::GPR16RegClass ? 
+          &Epiphany::GPR64RegClass : &Epiphany::FPR64RegClass;
+        sra = TRI->getMatchingSuperReg (suba, Epiphany::isub_lo, TRC);
+        srb = TRI->getMatchingSuperReg (subb, Epiphany::isub_hi, TRC);
+        if( (!sra || !srb) || sra != srb){
+          srb = TRI->getMatchingSuperReg (suba, Epiphany::isub_hi, TRC);
+          sra = TRI->getMatchingSuperReg (subb, Epiphany::isub_lo, TRC);
+        }
+      }
+      if ((sra && srb) && sra == srb) {
+        Pair = true;
+      }
+
+      // We may not be able to satisfy the desired alignment specification of
+      // the TargetRegisterClass if the stack alignment is smaller. Use the
+      // min.
+      Align = std::min(Align, StackAlign);
+      FrameIdx = MFI.CreateStackObject(RC->getSize(), Align, true);
+      if ((unsigned)FrameIdx < MinCSFrameIndex) MinCSFrameIndex = FrameIdx;
+      if ((unsigned)FrameIdx > MaxCSFrameIndex) MaxCSFrameIndex = FrameIdx;
+      // Swap indexes for paires
+      if (Pair && PrevFrameIdx != -1) {
+        // Create two local frame objects aligned to dword
+        bool StackGrowsDown = getStackGrowthDirection() == TargetFrameLowering::StackGrowsDown ? true : false;
+        int64_t LocalFrameSize = (MFI.getLocalFrameSize() + 0x7) & ~0x7;
+        LocalFrameSize = StackGrowsDown ? -LocalFrameSize : LocalFrameSize;
+        LocalFrameSize += StackGrowsDown ? -4 : 4;
+        MFI.mapLocalFrameObject(PrevFrameIdx, LocalFrameSize);
+        LocalFrameSize += StackGrowsDown ? -4 : 4;
+        MFI.mapLocalFrameObject(FrameIdx, LocalFrameSize);
+        MFI.setLocalFrameSize(std::abs(LocalFrameSize));
+        MFI.setObjectAlignment(FrameIdx, 8);
+        CSI[i-1].setFrameIdx(FrameIdx);
+        CSI[i].setFrameIdx(PrevFrameIdx);
+        Pair = false;
+        PrevFrameIdx = -1;
+      } else if (Pair) {
+        PrevFrameIdx = FrameIdx;
+      } else {
+        CSI[i].setFrameIdx(FrameIdx);
+      }
+    } else {
+      // Spill it to the stack where we must.
+      FrameIdx = MFI.CreateFixedSpillStackObject(RC->getSize(), FixedSlot->Offset);
+      CS.setFrameIdx(FrameIdx);
+    }
+  }
+
+  return true;
+}
+
 // Spill callee-saved regs to stack
 bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MI, const std::vector<CalleeSavedInfo> &CSI, const TargetRegisterInfo *TRI) const {
@@ -276,32 +375,31 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
     bool Pair = false;
 
     // FIXME: Wrong frame indexing. Probably should use fixed stack objects or smth like this.
-/*    bool stepForward = true;*/
-    //unsigned suba, subb, frameidx, sra = 0, srb = 0;
-    //if(i+1 < CSI.size()){
-      //suba = I->getReg();
-      //subb = (++I)->getReg();
-      //// Getting target class and matching superreg
-      //const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(suba) == &Epiphany::GPR32RegClass ? &Epiphany::GPR64RegClass : &Epiphany::FPR64RegClass;
-      //sra = TRI->getMatchingSuperReg (suba, Epiphany::isub_lo, RC);
-      //srb = TRI->getMatchingSuperReg (subb, Epiphany::isub_hi, RC);
-      //frameidx = (--I)->getFrameIdx();
-      //if( (!sra || !srb) || sra != srb){
-        //srb = TRI->getMatchingSuperReg (suba, Epiphany::isub_hi, RC);
-        //sra = TRI->getMatchingSuperReg (subb, Epiphany::isub_lo, RC);
-        //std::swap(suba,subb);
-        //frameidx = (++I)->getFrameIdx();
-        //stepForward = false;
-      //}
-    //}
-    //if ((sra && srb) && sra == srb) {
-      //Pair = true;
-      //const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(sra);
-      //TII.storeRegToStackSlot(MBB, MI, sra, IsKill, I->getFrameIdx(), RC, TRI);
-      //if (stepForward) {
-        //I++;
-      //}
-    /*}*/
+    bool stepForward = true;
+    unsigned suba, subb, frameidx, sra = 0, srb = 0;
+    if(i+1 < CSI.size()){
+      suba = I->getReg();
+      subb = (++I)->getReg();
+      // Getting target class and matching superreg
+      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(suba) == &Epiphany::GPR32RegClass ? &Epiphany::GPR64RegClass : &Epiphany::FPR64RegClass;
+      sra = TRI->getMatchingSuperReg (suba, Epiphany::isub_lo, RC);
+      srb = TRI->getMatchingSuperReg (subb, Epiphany::isub_hi, RC);
+      frameidx = (--I)->getFrameIdx();
+      if( (!sra || !srb) || sra != srb){
+        srb = TRI->getMatchingSuperReg (suba, Epiphany::isub_hi, RC);
+        sra = TRI->getMatchingSuperReg (subb, Epiphany::isub_lo, RC);
+        frameidx = (++I)->getFrameIdx();
+        stepForward = false;
+      }
+    }
+    if ((sra && srb) && sra == srb) {
+      Pair = true;
+      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(sra);
+      TII.storeRegToStackSlot(MBB, MI, sra, IsKill, I->getFrameIdx(), RC, TRI);
+      if (stepForward) {
+        I++;
+      }
+    }
 
     // Insert the spill to the stack frame.
     if (!Pair) {
