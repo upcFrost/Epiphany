@@ -171,6 +171,8 @@ namespace llvm {
       SDValue LowerBrCond(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerAdd64(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSub64(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerAdde(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerSube(SDValue Op, SelectionDAG &DAG) const;
 
       // Custom inserters
       MachineBasicBlock *emitBrCC(MachineInstr &MI, MachineBasicBlock *MBB) const;

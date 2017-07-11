@@ -417,7 +417,7 @@ def SDT_MOVT  : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
 def SDT_MOVCC : SDTypeProfile<1, 4, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
 def MOV       : SDNode<"EpiphanyISD::MOV",   SDT_MOV>;
 def MOVT      : SDNode<"EpiphanyISD::MOVT",  SDT_MOVT>;
-def MOVCCsd   : SDNode<"EpiphanyISD::MOVCC", SDT_MOVCC, [SDNPOptInGlue]>;
+def MOVCCsd   : SDNode<"EpiphanyISD::MOVCC", SDT_MOVCC, [SDNPOptInGlue, SDNPOutGlue]>;
 def : Pat<(i32 (MOV i32immSExt16:$imm)),   (MOVi32ri i32:$imm)>;
 def : Pat<(i32 (MOV i32immSExt32:$imm)),   (MOVTi32ri (MOVi32ri (LO16 i32:$imm)), (HI16 i32:$imm))>;
 def : Pat<(i32 (MOV tglobaladdr:$dst)),    (MOVi32ri tglobaladdr:$dst)>;
@@ -508,11 +508,11 @@ let isCall = 1, Defs = [LR], hasDelaySlot = 0, isBarrier = 0 in {
 
 // Extended Addsub i32, exploiting the fact that MOVGTEU depend only on the carry
 def : Pat<(adde GPR32:$Rn, simm11:$imm), 
-          (ADDrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_GT.Code))>;
+          (ADDCrr_r32 (ADDCri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_GT.Code))>;
 def : Pat<(sube GPR32:$Rn, simm11:$imm), 
           (SUBrr_r32 (SUBri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_LT.Code))>;
 def : Pat<(adde (i32 GPR32:$Rn), (i32 GPR32:$Rm)), 
-          (ADDrr_r32 (ADDrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_GT.Code))>;
+          (ADDCrr_r32 (ADDCrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_GT.Code))>;
 def : Pat<(sube (i32 GPR32:$Rn), (i32 GPR32:$Rm)), 
           (SUBrr_r32 (SUBrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_LT.Code))>;
 

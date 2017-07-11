@@ -285,7 +285,7 @@ bool EpiphanyFrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF,
 
       // Check if this index can be paired
       unsigned suba, subb, frameidx, sra = 0, srb = 0;
-      if(i+1 < CSI.size()) {
+      if(!Pair && (i+1 < CSI.size())) {
         suba = CSI[i].getReg();
         subb = CSI[i+1].getReg();
         // Getting target class and matching superreg
@@ -299,7 +299,7 @@ bool EpiphanyFrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF,
           sra = TRI->getMatchingSuperReg (subb, Epiphany::isub_lo, TRC);
         }
       }
-      if ((sra && srb) && sra == srb) {
+      if (!Pair && (sra && srb) && sra == srb) {
         Pair = true;
       }
 
@@ -359,12 +359,11 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
       TRI->dumpReg(I->getReg());
       });
 
-  int i = 0;
-  for (auto I = CSI.begin(), E = CSI.end(); I != E; ++I) {
+  for (size_t i = 0; i < CSI.size(); i++) {
     // Add the callee-saved register as live-in.
     // It's killed at the spill, unless the register is LR and return address
     // is taken.
-    unsigned Reg = I->getReg();
+    unsigned Reg = CSI[i].getReg();
     bool IsRAAndRetAddrIsTaken = (Reg == Epiphany::LR) && MF->getFrameInfo().isReturnAddressTaken();
     if (!IsRAAndRetAddrIsTaken) {
       MBB.addLiveIn(Reg);
@@ -373,38 +372,33 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
 
     // Try to pair the spill
     bool Pair = false;
-
-    // FIXME: Wrong frame indexing. Probably should use fixed stack objects or smth like this.
     bool stepForward = true;
     unsigned suba, subb, frameidx, sra = 0, srb = 0;
     if(i+1 < CSI.size()){
-      suba = I->getReg();
-      subb = (++I)->getReg();
+      suba = CSI[i].getReg();
+      subb = CSI[i+1].getReg();
       // Getting target class and matching superreg
       const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(suba) == &Epiphany::GPR32RegClass ? &Epiphany::GPR64RegClass : &Epiphany::FPR64RegClass;
       sra = TRI->getMatchingSuperReg (suba, Epiphany::isub_lo, RC);
       srb = TRI->getMatchingSuperReg (subb, Epiphany::isub_hi, RC);
-      frameidx = (--I)->getFrameIdx();
+      frameidx = CSI[i].getFrameIdx();
       if( (!sra || !srb) || sra != srb){
         srb = TRI->getMatchingSuperReg (suba, Epiphany::isub_hi, RC);
         sra = TRI->getMatchingSuperReg (subb, Epiphany::isub_lo, RC);
-        frameidx = (++I)->getFrameIdx();
-        stepForward = false;
+        frameidx = CSI[i+1].getFrameIdx();
       }
     }
     if ((sra && srb) && sra == srb) {
       Pair = true;
       const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(sra);
-      TII.storeRegToStackSlot(MBB, MI, sra, IsKill, I->getFrameIdx(), RC, TRI);
-      if (stepForward) {
-        I++;
-      }
+      TII.storeRegToStackSlot(MBB, MI, sra, IsKill, frameidx, RC, TRI);
+      i++;
     }
 
     // Insert the spill to the stack frame.
     if (!Pair) {
       const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-      TII.storeRegToStackSlot(MBB, MI, Reg, IsKill, I->getFrameIdx(), RC, TRI);
+      TII.storeRegToStackSlot(MBB, MI, Reg, IsKill, CSI[i].getFrameIdx(), RC, TRI);
     }
   }
 

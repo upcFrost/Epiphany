@@ -185,6 +185,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
       setOperationAction(ISD::SETCC,  Ty, Custom);
       setOperationAction(ISD::SELECT, Ty, Custom);
     }
+    setOperationAction(ISD::ADDE,      MVT::i32, Custom);
+    setOperationAction(ISD::SUBE,      MVT::i32, Custom);
     setOperationAction(ISD::BRCOND,    MVT::i32, Custom);
     setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
     setOperationAction(ISD::SELECT_CC, MVT::f32, Custom);
@@ -272,6 +274,12 @@ SDValue EpiphanyTargetLowering::LowerOperation(SDValue Op,
     case ISD::SUBC:
       return LowerSub64(Op, DAG);
       break;
+    case ISD::ADDE:
+      return LowerAdde(Op, DAG);
+      break;
+    case ISD::SUBE:
+      return LowerSube(Op, DAG);
+      break;
     case ISD::BUILD_VECTOR:
       return LowerBuildVector(Op, DAG);
       break;
@@ -317,6 +325,64 @@ SDValue EpiphanyTargetLowering::LowerFastDiv(SDValue Op, SelectionDAG &DAG) cons
 
   // Multiply by divident
   return DAG.getNode(ISD::FMUL, DL, MVT::f32, Divisor.first, LHS, Divisor.second);
+}
+
+SDValue EpiphanyTargetLowering::LowerSube(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+
+  // Get operands
+  SDValue LHS  = Op.getOperand(0);
+  SDValue RHS  = Op.getOperand(1);
+  SDValue Flag = Op.getOperand(2);
+
+  // Required constants
+  SDValue CarryZero   = DAG.getConstant(0, DL, MVT::i32);
+  SDValue CarryOne    = DAG.getConstant(1, DL, MVT::i32);
+  SDValue MaxRegValue = DAG.getConstant(0x7FFFFFFF, DL, MVT::i32);
+  SDValue Condition   = DAG.getConstant(::EpiphanyCC::COND_GTEU, DL, MVT::i32);
+  SDValue STATUS      = DAG.getRegister(Epiphany::STATUS, MVT::i32);
+
+  // Required VTs
+  SDVTList VTs = DAG.getVTList(MVT::i32, MVT::Glue);
+
+  // Instructions
+  SDValue Carry  = DAG.getNode(Epiphany::MOVCC, DL, VTs, CarryOne, CarryZero, Condition, STATUS, Flag);
+  SDValue Result = DAG.getNode(ISD::SUBC, DL, VTs, LHS, RHS, Carry.getValue(1));
+  SDValue ResultCarry = DAG.getNode(Epiphany::MOVCC, DL, VTs, CarryOne, CarryZero, Condition, Result.getValue(1));
+  SDValue AddedCarry  = DAG.getNode(ISD::SUBC, DL, VTs, Result.getValue(0), Carry, ResultCarry.getValue(1));
+  SDValue LastCarry   = DAG.getNode(Epiphany::MOVCC, DL, VTs, CarryOne, CarryZero, Condition, AddedCarry.getValue(1));
+  SDValue FinalCarry  = DAG.getNode(ISD::OR, DL, MVT::i32, ResultCarry, LastCarry);
+  SDValue SetFlag     = DAG.getNode(ISD::ADDC, DL, VTs, FinalCarry, MaxRegValue, LastCarry.getValue(1));
+  return DAG.getNode(ISD::SUBC, DL, VTs, AddedCarry, CarryZero, STATUS, SetFlag.getValue(1));
+}
+
+SDValue EpiphanyTargetLowering::LowerAdde(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+
+  // Get operands
+  SDValue LHS  = Op.getOperand(0);
+  SDValue RHS  = Op.getOperand(1);
+  SDValue Flag = Op.getOperand(2);
+
+  // Required constants
+  SDValue CarryZero   = DAG.getConstant(0, DL, MVT::i32);
+  SDValue CarryOne    = DAG.getConstant(1, DL, MVT::i32);
+  SDValue MaxRegValue = DAG.getConstant(0x7FFFFFFF, DL, MVT::i32);
+  SDValue Condition   = DAG.getConstant(::EpiphanyCC::COND_GTEU, DL, MVT::i32);
+  SDValue STATUS      = DAG.getRegister(Epiphany::STATUS, MVT::i32);
+
+  // Required VTs
+  SDVTList VTs = DAG.getVTList(MVT::i32, MVT::Glue);
+
+  // Instructions
+  SDValue Carry  = DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, CarryOne, CarryZero, Condition, STATUS, Flag);
+  SDValue Result = DAG.getNode(ISD::ADDC, DL, VTs, LHS, RHS, Carry.getValue(1));
+  SDValue ResultCarry = DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, CarryOne, CarryZero, Condition, STATUS, Result.getValue(1));
+  SDValue AddedCarry  = DAG.getNode(ISD::ADDC, DL, VTs, Result.getValue(0), Carry, ResultCarry.getValue(1));
+  SDValue LastCarry   = DAG.getNode(EpiphanyISD::MOVCC, DL, VTs, CarryOne, CarryZero, Condition, STATUS, AddedCarry.getValue(1));
+  SDValue FinalCarry  = DAG.getNode(ISD::OR, DL, MVT::i32, ResultCarry, LastCarry);
+  SDValue SetFlag     = DAG.getNode(ISD::ADDC, DL, VTs, FinalCarry, MaxRegValue, LastCarry.getValue(1));
+  return DAG.getNode(ISD::ADDC, DL, VTs, AddedCarry, CarryZero, STATUS, SetFlag.getValue(1));
 }
 
 SDValue EpiphanyTargetLowering::LowerAdd64(SDValue Op, SelectionDAG &DAG) const {
