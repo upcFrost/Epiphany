@@ -76,23 +76,23 @@ def EpiphanyGenericItineraries : ProcessorItineraries<[FE, IM, DE, RA, E1, E2, E
 
   // IALU2 instructions take steps FE-E1, 1 cycle per step
   // Read on cycle 3, result at cycle 4 (after issue)
-  InstrItinData<Ialu2Itin   , [InstrStage<1, [FE_2]>, 
-                               InstrStage<1, [IM_2]>,
-                               InstrStage<1, [DE_2]>, 
-                               InstrStage<1, [RA_2]>, 
-                               InstrStage<1, [E1_2]>],
+  InstrItinData<Ialu2Itin   , [InstrStage<1, [FE]>, 
+                               InstrStage<1, [IM]>,
+                               InstrStage<1, [DE]>, 
+                               InstrStage<1, [RA]>, 
+                               InstrStage<1, [E1]>],
                                [4, 3]>,
 
   // FPU instructions take steps FE-E4, 1 cycle per step
   // Read on cycle 3, result at cycle 7 (after issue)
-  InstrItinData<FpuItin     , [InstrStage<1, [FE_2]>, 
-                               InstrStage<1, [IM_2]>,
-                               InstrStage<1, [DE_2]>, 
-                               InstrStage<1, [RA_2]>, 
-                               InstrStage<1, [E1_2]>, 
-                               InstrStage<1, [E2_2]>, 
-                               InstrStage<1, [E3_2]>, 
-                               InstrStage<1, [E4_2]>],
+  InstrItinData<FpuItin     , [InstrStage<1, [FE]>, 
+                               InstrStage<1, [IM]>,
+                               InstrStage<1, [DE]>, 
+                               InstrStage<1, [RA]>, 
+                               InstrStage<1, [E1]>, 
+                               InstrStage<1, [E2]>, 
+                               InstrStage<1, [E3]>, 
+                               InstrStage<1, [E4]>],
                                [7, 3]>,
 
   // LOAD instructions take steps FE-E2, 1 cycle per step 
@@ -134,7 +134,7 @@ def EpiphanyGenericItineraries : ProcessorItineraries<[FE, IM, DE, RA, E1, E2, E
 ]>;
 
 def EpiphanyModel : SchedMachineModel {
-  let IssueWidth = 2; // At max we can dual-issue
+  let IssueWidth = 1; // At max we can dual-issue, but let's keep 1 for now
   let Itineraries = EpiphanyGenericItineraries;
   let LoadLatency = 2;
   let CompleteModel = 0;

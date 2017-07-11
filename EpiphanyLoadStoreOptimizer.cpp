@@ -774,8 +774,8 @@ bool EpiphanyLoadStoreOptimizer::runOnMachineFunction(MachineFunction &Fn) {
   // Resize the modified and used register bitfield trackers.  We do this once
   // per function and then clear the bitfield each time we optimize a load or
   // store.
-  ModifiedRegs.resize(TRI->getNumRegs());
-  UsedRegs.resize(TRI->getNumRegs());
+  ModifiedRegs.resize(MRI->getNumVirtRegs() + TRI->getNumRegs());
+  UsedRegs.resize(MRI->getNumVirtRegs() + TRI->getNumRegs());
   ModifiedFrameIdxs.resize(MFI->getNumObjects());
   UsedFrameIdxs.resize(MFI->getNumObjects());
   ObjectMapped.reset();

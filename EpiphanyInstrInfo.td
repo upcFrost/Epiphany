@@ -121,11 +121,18 @@ multiclass bitconvert_32<ValueType a, ValueType b> {
   def : Pat <(a (bitconvert (b GPR32:$src))),
              (a GPR32:$src)>;
 }
+multiclass bitconvert_64<ValueType a, ValueType b> {
+  def : Pat <(b (bitconvert (a GPR64:$src))),
+             (b GPR64:$src)>;
+  def : Pat <(a (bitconvert (b GPR64:$src))),
+             (a GPR64:$src)>;
+}
 
 // Bit convert vector types.
 defm : bitconvert_32<v4i8,  i32>;
 defm : bitconvert_32<v2i16, i32>;
 defm : bitconvert_32<v2i16, v4i8>;
+defm : bitconvert_64<v2i32, i64>;
 
 //===----------------------------------------------------------------------===//
 // Load/store instructions

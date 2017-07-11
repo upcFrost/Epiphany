@@ -215,7 +215,7 @@ EpiphanyRegisterInfo::GPR16(unsigned Size) const {
 unsigned EpiphanyRegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC, MachineFunction &MF) const {
   switch (RC->getID()) {
     default:
-      return 0;
+      return 8;
     case Epiphany::GPR32RegClassID:
     case Epiphany::FPR32RegClassID:
       return 55; // We currently have 9 reserved regs
@@ -224,6 +224,7 @@ unsigned EpiphanyRegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC
       return 8;
     case Epiphany::GPR64RegClassID:
     case Epiphany::FPR64RegClassID:
+    case Epiphany::FPR64_with_isub_lo_in_FPR32RegClassID:
       return 26; // We currently have 6 reserved double regs
   }
 }
