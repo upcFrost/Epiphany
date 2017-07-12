@@ -349,9 +349,9 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeVregInsns(unsigned PairedOp
   // so we get the flags compatible with the input code.
   const MachineOperand &PairedBase = getBaseOperand(*Paired);
   const MachineOperand &MainBase   = getBaseOperand(*I);
-  const MachineOperand &BaseRegOp = isVirtual 
-    ? (PairedBase.getIndex() > MainBase.getIndex() ? PairedBase : MainBase)
-    : (MergeForward ? PairedBase : MainBase);
+  const MachineOperand &BaseRegOp = useOffset
+    ? (MergeForward ? PairedBase : MainBase)
+    : (PairedBase.getIndex() > MainBase.getIndex() ? PairedBase : MainBase);
   const MachineOperand &PairedBaseOp = &BaseRegOp == &MainBase ? PairedBase : MainBase;
 
   // Resolve target reg class
@@ -392,7 +392,9 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeVregInsns(unsigned PairedOp
   }
 
   // Adjust alignment
-  MFI->setObjectAlignment(BaseRegOp.getIndex(), 8);
+  if (!useOffset) {
+	  MFI->setObjectAlignment(BaseRegOp.getIndex(), 8);
+  }
 
   // Create local stack allocation block
   if (!useOffset && !ObjectMapped[PairedBaseOp.getIndex()]) {
