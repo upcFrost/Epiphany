@@ -1,6 +1,6 @@
 language: c++
 sudo: false 
-dist: xenial
+dist: trusty
 cache: ccache
 os: linux
 env: 
@@ -10,7 +10,17 @@ env:
     ENABLE_MEMCHECK=true
 compiler: clang
 
+addons:
+  apt:
+    sources: &sources
+      - llvm-toolchain-trusty-4.0
+      - ubuntu-toolchain-r-test
+    packages:
+      - clang-4.0
+      - cmake
+
 before_install:
+  - export CXX="clang++-4.0" && export CC="clang-4.0"; 
   - mkdir -p llvm && mkdir -p llvm-build
   - wget http://releases.llvm.org/${LLVM_VERSION}/llvm-${LLVM_VERSION}.src.tar.xz -O llvm.tar.xz && tar xf llvm.tar.xz -C llvm --strip-components=1
   - wget http://releases.llvm.org/${LLVM_VERSION}/cfe-${LLVM_VERSION}.src.tar.xz -O clang.tar.xz && mkdir -p llvm/tools/clang && tar xf clang.tar.xz -C llvm/tools/clang --strip-components=1
