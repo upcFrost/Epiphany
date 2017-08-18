@@ -30,7 +30,7 @@ addons:
       - clang-4.0
       - cmake
       - ccache
-      - timeout
+      - coreutils
 
 before_install:
   - export CXX="ccache clang++-4.0" && export CC="ccache clang-4.0"; 
