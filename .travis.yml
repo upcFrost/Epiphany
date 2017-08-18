@@ -39,6 +39,7 @@ before_install:
   - wget http://releases.llvm.org/${LLVM_VERSION}/cfe-${LLVM_VERSION}.src.tar.xz -O clang.tar.xz && mkdir -p llvm/tools/clang && tar xf clang.tar.xz -C llvm/tools/clang --strip-components=1
   - ln -s `pwd` llvm/lib/Target/Epiphany
   - patch -d llvm -p 1 < LLVM_Epiphany.patch && patch -d llvm -p 1 < CLANG_Epiphany.patch
+  - echo "max_size = 2.0G" > $HOME/.ccache/ccache.conf
 
 install:
   - cd llvm-build && cmake  -DLLVM_TARGETS_TO_BUILD=Epiphany \
