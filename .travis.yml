@@ -1,13 +1,23 @@
 language: c++
 sudo: false 
 dist: trusty
-cache: ccache
+cache:
+  apt: true
+  ccache: true
+  directories:
+    - $HOME/.ccache
 os: linux
 env: 
   - UNIT_TESTS=true 
     LLVM_VERSION=4.0.0 
     BOOST_VERSION=default 
     ENABLE_MEMCHECK=true
+    USE_CCACHE=1
+    CCACHE_COMPRESS=1
+    CCACHE_MAXSIZE=500M
+    CCACHE_CPP2=1
+    TIMEOUT='30m'
+
 compiler: clang
 
 addons:
@@ -20,6 +30,7 @@ addons:
       - clang-4.0
       - cmake
       - ccache
+      - timeout
 
 before_install:
   - export CXX="ccache clang++-4.0" && export CC="ccache clang-4.0"; 
@@ -48,4 +59,7 @@ install:
     -LLVM_TOOL_MSBUILD_BUILD=OFF \
     -DLLVM_TOOL_LLVM_CXXDUMP_BUILD=OFF \
     -DLLVM_INCLUDE_TESTS=OFF ../llvm
-  - make -j2
+  - timeout -s SIGTERM $TIMEOUT make -j2
+    RESULT="$?"
+    echo "Build Result: $RESULT"
+    ccache -s
