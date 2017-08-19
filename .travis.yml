@@ -6,6 +6,7 @@ cache:
   ccache: true
   directories:
     - $HOME/.ccache
+    - $HOME/build/Epiphany/llvm-build
 os: linux
 env: 
   - UNIT_TESTS=true 
