@@ -6,7 +6,6 @@ cache:
   ccache: true
   directories:
     - $HOME/.ccache
-    - $TRAVIS_BUILD_DIR/llvm
     - $TRAVIS_BUILD_DIR/llvm-build
 os: linux
 env: 
