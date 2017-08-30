@@ -6,7 +6,8 @@ cache:
   ccache: true
   directories:
     - $HOME/.ccache
-    - $TRAVIS_BUILD_DIR/llvm-build
+    - $HOME/build/Epiphany/llvm
+    - $HOME/build/Epiphany/llvm-build
 os: linux
 env: 
   - UNIT_TESTS=true 
@@ -43,7 +44,7 @@ before_install:
   - echo "max_size = 2.0G" > $HOME/.ccache/ccache.conf
 
 install:
-  - cd llvm-build && pwd
+  - cd llvm-build 
   - if [ ! -f "CMakeCache.txt" ]; then cmake -DLLVM_TARGETS_TO_BUILD=Epiphany \
     -DLLVM_TOOL_XCODE_TOOLCHAIN_BUILD=OFF \
     -DLLVM_TOOL_LTO_BUILD=OFF \
