@@ -252,8 +252,8 @@ bool EpiphanyLoadStoreOptimizer::isAlignmentCorrect(MachineInstr &FirstMI, Machi
       return false;
     }
 
-    // High reg offset should be always lower than low reg offset, and it should be double-aligned
-    if ((LowOffset > HighOffset) || (LowOffset % 8 != 0)) {
+    // Low reg offset should be always lower than high reg offset, and it should be double-aligned
+    if (!(LowOffset < HighOffset) || (LowOffset % 8 != 0)) {
       return false;
     }
   }
@@ -369,9 +369,9 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeVregInsns(unsigned PairedOp
     const MCInstrDesc &RegSeq = TII->get(TargetOpcode::REG_SEQUENCE);
     BuildMI(*MBB, InsertionPoint, DL, RegSeq, parentReg)
       .addReg(RegOp0.getReg())
-      .addImm(Epiphany::isub_hi)
+      .addImm(Epiphany::isub_lo)
       .addReg(RegOp1.getReg())
-      .addImm(Epiphany::isub_lo);
+      .addImm(Epiphany::isub_hi);
   }
 
   // Insert paired instruction
@@ -409,6 +409,49 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeVregInsns(unsigned PairedOp
   return MIB;
 }
 
+MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeRegInsns(unsigned PairedOp, int OffsetImm,
+    MachineOperand RegOp0, MachineOperand RegOp1, 
+    MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired,
+    const LoadStoreFlags &Flags) {
+
+  MachineInstrBuilder MIB;
+  bool useOffset = Flags.getUseOffset();
+  bool MergeForward = Flags.getMergeForward();
+  // Insert our new paired instruction after whichever of the paired
+  // instructions MergeForward indicates.
+  MachineBasicBlock::iterator InsertionPoint = MergeForward ? Paired : I;
+  unsigned PairedReg = RegOp0.getReg();
+  const MachineOperand &PairedBase = getBaseOperand(*Paired);
+  const MachineOperand &MainBase   = getBaseOperand(*I);
+  const MachineOperand &BaseRegOp = useOffset
+    ? (MergeForward ? PairedBase : MainBase)
+    : (PairedBase.getIndex() > MainBase.getIndex() ? PairedBase : MainBase);
+  DebugLoc DL = I->getDebugLoc();
+
+  MachineBasicBlock *MBB = I->getParent();
+  if (PairedOp == Epiphany::STRi64 || PairedOp == Epiphany::LDRi64) {
+    const TargetRegisterClass *RC = &Epiphany::GPR64RegClass;
+    unsigned sreg = TRI->getMatchingSuperReg (PairedReg, Epiphany::isub_hi, RC);
+    if (!sreg) {
+      sreg = TRI->getMatchingSuperReg (PairedReg, Epiphany::isub_lo, RC);
+    }
+    MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
+      .addReg(sreg)
+      .addOperand(BaseRegOp)
+      .addImm(OffsetImm)
+      .setMemRefs(I->mergeMemRefsWith(*Paired));
+  } else {
+    // Standard 32-bit reg
+    MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
+      .addOperand(RegOp0)
+      .addOperand(BaseRegOp)
+      .addImm(OffsetImm)
+      .setMemRefs(I->mergeMemRefsWith(*Paired));
+  }
+
+  return MIB;
+}
+
 /// Merges two 32-bit load/store instructions into a single 64-bit one
 MachineBasicBlock::iterator
 EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
@@ -425,9 +468,6 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
   unsigned Opc = I->getOpcode();
 
   bool MergeForward = Flags.getMergeForward();
-  // Insert our new paired instruction after whichever of the paired
-  // instructions MergeForward indicates.
-  MachineBasicBlock::iterator InsertionPoint = MergeForward ? Paired : I;
   // Also based on MergeForward is from where we copy the base register operand
   // so we get the flags compatible with the input code.
   const MachineOperand &BaseRegOp = MergeForward ? getBaseOperand(*Paired) : getBaseOperand(*I);
@@ -449,7 +489,6 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
   // Construct the new instruction.
   MachineInstrBuilder MIB;
   DebugLoc DL = I->getDebugLoc();
-  MachineBasicBlock *MBB = I->getParent();
   MachineOperand RegOp0 = getRegOperand(*RtMI);
   MachineOperand RegOp1 = getRegOperand(*Rt2MI);
 
@@ -461,20 +500,7 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
   unsigned PairedOp = getMatchingPairOpcode(Opc);
   unsigned PairedReg = RegOp0.getReg();
   if (!TRI->isVirtualRegister(PairedReg)) {
-    if (PairedOp == Epiphany::STRi64 || PairedOp == Epiphany::LDRi64) {
-      MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
-        .addReg(PairedReg)
-        .addOperand(BaseRegOp)
-        .addImm(OffsetImm)
-        .setMemRefs(I->mergeMemRefsWith(*Paired));
-    } else {
-      // Standard 32-bit reg
-      MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
-        .addOperand(RegOp0)
-        .addOperand(BaseRegOp)
-        .addImm(OffsetImm)
-        .setMemRefs(I->mergeMemRefsWith(*Paired));
-    }
+    MIB = mergeRegInsns(PairedOp, OffsetImm, RegOp0, RegOp1, I, Paired, Flags);
   } else {
     MIB = mergeVregInsns(PairedOp, OffsetImm, RegOp0, RegOp1, I, Paired, Flags);
   }

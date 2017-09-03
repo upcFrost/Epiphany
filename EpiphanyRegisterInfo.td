@@ -27,7 +27,7 @@ class EpiphanyReg64<bits<16> enc, string n, list<Register> subregs> : RegisterWi
   let HWEncoding = enc;
   let Namespace = "Epiphany";
   let SubRegs = subregs;
-  let SubRegIndices = [isub_hi, isub_lo];
+  let SubRegIndices = [isub_lo, isub_hi];
   let CoveredBySubRegs = 1;
 }
 

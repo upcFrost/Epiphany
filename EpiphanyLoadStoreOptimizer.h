@@ -75,6 +75,10 @@ namespace llvm {
 
       MachineBasicBlock::iterator mergePairedInsns(MachineBasicBlock::iterator I,
           MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags);
+      MachineInstrBuilder mergeRegInsns(unsigned PairedOp, int OffsetImm,
+          MachineOperand RegOp0, MachineOperand RegOp1, 
+          MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
+          const LoadStoreFlags &Flags);
       MachineInstrBuilder mergeVregInsns(unsigned PairedOp, int OffsetImm,
           MachineOperand RegOp0, MachineOperand RegOp1, 
           MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
