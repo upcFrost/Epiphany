@@ -36,6 +36,12 @@ static cl::opt<bool> EnableSROA(
   cl::ReallyHidden,
   cl::init(true));
 
+static cl::opt<bool> EnableLSOpt(
+  "epiphany-lsopt",
+  cl::desc("Run Epiphany Load/Store Optimization Pass"),
+  cl::ReallyHidden,
+  cl::init(true));
+
 #define DEBUG_TYPE "epiphany"
 
 extern "C" void LLVMInitializeEpiphanyTarget() {
@@ -128,7 +134,7 @@ TargetPassConfig *EpiphanyTargetMachine::createPassConfig(PassManagerBase &PM) {
 
 void EpiphanyPassConfig::addIRPasses() {
   addPass(createAtomicExpandPass(&getEpiphanyTargetMachine()));
-  if (EnableSROA) {
+  if (EnableSROA && (TM->getOptLevel() != CodeGenOpt::None)) {
     addPass(createSROAPass());
   }
 
@@ -156,7 +162,8 @@ void EpiphanyPassConfig::addCodeGenPrepare() {
 
 void EpiphanyPassConfig::addPreRegAlloc() {
   addPass(&LiveVariablesID, false);
-  addPass(createEpiphanyLoadStoreOptimizationPass());
+  if (EnableLSOpt && TM->getOptLevel() != CodeGenOpt::None)
+    addPass(createEpiphanyLoadStoreOptimizationPass());
 }
 
 void EpiphanyPassConfig::addPreSched2() {
@@ -164,7 +171,8 @@ void EpiphanyPassConfig::addPreSched2() {
 }
 
 void EpiphanyPassConfig::addPreEmitPass() {
-  addPass(createEpiphanyLoadStoreOptimizationPass());
+  if (EnableLSOpt && TM->getOptLevel() != CodeGenOpt::None)
+    addPass(createEpiphanyLoadStoreOptimizationPass());
 }
 
 TargetIRAnalysis EpiphanyTargetMachine::getTargetIRAnalysis() {
