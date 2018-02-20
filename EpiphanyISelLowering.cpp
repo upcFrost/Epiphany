@@ -188,6 +188,7 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::ADDE,      MVT::i32, Custom);
     setOperationAction(ISD::SUBE,      MVT::i32, Custom);
     setOperationAction(ISD::BRCOND,    MVT::i32, Custom);
+    setOperationAction(ISD::BRCOND,    MVT::Other, Custom);
     setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
     setOperationAction(ISD::SELECT_CC, MVT::f32, Custom);
     setOperationAction(ISD::FP_EXTEND, MVT::f64, Custom);
@@ -649,7 +650,7 @@ MachineBasicBlock *EpiphanyTargetLowering::EmitInstrWithCustomInserter(MachineIn
 
 MachineBasicBlock *EpiphanyTargetLowering::emitBrCC(MachineInstr &MI, MachineBasicBlock *MBB) const {
   // We can have 3 cases - GT, LT and EQ (and their unsigned versions).
-  // LT is converted to GT by swapping comparison operands
+  // LT is converted to GTE by swapping comparison operands
   // EQ does not have the first comparison, we simply jump out if high subregs are not equal
   // LowCmpBB is needed because of the MBB elimination mechanism (CMP is not a terminator)
 
@@ -688,16 +689,16 @@ MachineBasicBlock *EpiphanyTargetLowering::emitBrCC(MachineInstr &MI, MachineBas
       swap = false;
       break;
     case ::EpiphanyCC::COND_LTE:
-      CondCode = ::EpiphanyCC::COND_GTE;
+      CondCode = ::EpiphanyCC::COND_GT;
       break;
     case ::EpiphanyCC::COND_LTU:
-      CondCode = ::EpiphanyCC::COND_GTU;
-      break;
-    case ::EpiphanyCC::COND_LTEU:
       CondCode = ::EpiphanyCC::COND_GTEU;
       break;
+    case ::EpiphanyCC::COND_LTEU:
+      CondCode = ::EpiphanyCC::COND_GTU;
+      break;
     case ::EpiphanyCC::COND_LT:
-      CondCode = ::EpiphanyCC::COND_GT;
+      CondCode = ::EpiphanyCC::COND_GTE;
       break;
   }
 
@@ -936,7 +937,7 @@ SDValue EpiphanyTargetLowering::LowerBrCC(SDValue Op, SelectionDAG &DAG) const {
     // Use integer sub to set the flag, see GCC Soft-Float Library Routines
     SDVTList VTs      = DAG.getVTList(Flag.getValueType(), MVT::i32);
     Flag              = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
-    CCode             = ConvertCC(Cond, DL, Flag, swap);
+    CCode             = ConvertCC(DAG.getCondCode(getUnsignedToSigned(Cond)), DL, Flag, swap);
   }
 
   // Prepare conditional move
@@ -994,6 +995,7 @@ SDValue EpiphanyTargetLowering::LowerSelectCC(SDValue Op, SelectionDAG &DAG) con
     // Use integer sub to set the flag, see GCC Soft-Float Library Routines
     SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::i32);
     Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
+    Cond         = DAG.getCondCode(getUnsignedToSigned(Cond));
   }
 
   // Get condition code
@@ -1085,6 +1087,7 @@ SDValue EpiphanyTargetLowering::LowerSetCC(SDValue Op, SelectionDAG &DAG) const 
     // Use integer sub to set the flag, see GCC Soft-Float Library Routines
     SDVTList VTs = DAG.getVTList(Flag.getValueType(), MVT::i32);
     Flag         = DAG.getNode(EpiphanyISD::CMP, DL, VTs, Flag, DAG.getConstant(0, DL, MVT::i32));
+    Cond         = DAG.getCondCode(getUnsignedToSigned(Cond));
   }
 
   // Get condition code
