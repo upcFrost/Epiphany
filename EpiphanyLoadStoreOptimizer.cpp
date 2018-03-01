@@ -386,9 +386,9 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeVregInsns(unsigned PairedOp
     // In terms of load - issue two copy instruction for vregs we had
     const MCInstrDesc &Copy = TII->get(TargetOpcode::COPY);
     BuildMI(*MBB, InsertionPoint, DL, Copy, RegOp0.getReg())
-      .addReg(parentReg, /* flags = */ 0, Epiphany::isub_hi);
-    BuildMI(*MBB, InsertionPoint, DL, Copy, RegOp1.getReg())
       .addReg(parentReg, /* flags = */ 0, Epiphany::isub_lo);
+    BuildMI(*MBB, InsertionPoint, DL, Copy, RegOp1.getReg())
+      .addReg(parentReg, /* flags = */ 0, Epiphany::isub_hi);
   }
 
   // Adjust alignment

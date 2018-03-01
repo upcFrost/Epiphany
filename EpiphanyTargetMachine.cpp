@@ -69,7 +69,7 @@ static std::string computeDataLayout(const Triple &TT, StringRef CPU,
   Ret += "-i8:8-i16:16-i32:32-i64:64";
 
   // Vector alignment
-  Ret += "-v32:64-v64:64";
+  Ret += "-v32:32-v64:64";
   
   // 32 and 64 bit floats should have natural alignment
   Ret += "-f32:32-f64:64";

@@ -369,6 +369,11 @@ bool EpiphanyInstrInfo::isCandidateToMergeOrPair(MachineInstr &MI) const {
   if (!MI.getOperand(2).isImm())
     return false;
 
+  if (MI.getOperand(1).isReg() && MI.getOperand(1).getReg() != Epiphany::FP) {
+      DEBUG(dbgs() << "It's unsafe to pair reg-based offsets as we can't guarantee the reg value to be aligned");
+      return false;
+  }
+
   // Can't merge/pair if the instruction modifies the base register.
   // e.g., ldr r0, [r0]
   unsigned BaseReg = MI.getOperand(1).isReg() ? MI.getOperand(1).getReg() : Epiphany::FP;

@@ -79,13 +79,13 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     addRegisterClass(MVT::v4i8,  &Epiphany::GPR32RegClass);
     addRegisterClass(MVT::f32,   &Epiphany::FPR32RegClass);
     addRegisterClass(MVT::i64,   &Epiphany::GPR64RegClass);
-    addRegisterClass(MVT::v2i32, &Epiphany::GPR64RegClass);
+//    addRegisterClass(MVT::v2i32, &Epiphany::GPR64RegClass);
     addRegisterClass(MVT::f64,   &Epiphany::FPR64RegClass);
 
     // Max atomic instruction size is 64 for load/store instruction
     setMaxAtomicSizeInBitsSupported(64);
 
-    //- Set .align 2
+    //- Set function alignment to 2 bytes
     // It will emit .align 2 later
     setMinFunctionAlignment(STI.stackAlignment());
 
@@ -113,9 +113,9 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SMUL_LOHI,  MVT::i32,  Expand);
 
     // Legilize vector stores and loads
-    ValueTypeActions.setTypeAction(MVT::v2i32, TypeLegal);
-    setOperationAction(ISD::LOAD, MVT::v2i32, Legal);
-    setOperationAction(ISD::STORE, MVT::v2i32, Legal);
+//    ValueTypeActions.setTypeAction(MVT::v2i32, TypeLegal);
+//    setOperationAction(ISD::LOAD, MVT::v2i32, Legal);
+//    setOperationAction(ISD::STORE, MVT::v2i32, Legal);
 
     for (MVT VT : MVT::fp_valuetypes()) {
       setOperationAction(ISD::FDIV,  VT,  Expand);
@@ -199,8 +199,8 @@ EpiphanyTargetLowering::EpiphanyTargetLowering(const EpiphanyTargetMachine &TM,
     setOperationAction(ISD::SUB,       MVT::i64, Custom);
     setOperationAction(ISD::SUBC,      MVT::i64, Custom);
 
-    setOperationAction(ISD::BUILD_VECTOR, MVT::v2i32, Custom);
-    setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v2i32, Custom);
+//    setOperationAction(ISD::BUILD_VECTOR, MVT::v2i32, Custom);
+//    setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v2i32, Custom);
 
         // Just expand all c nversions, as they're getting on the nerves
     for (MVT VT : MVT::all_valuetypes()) {
