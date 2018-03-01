@@ -36,9 +36,17 @@ char EpiphanyLoadStoreOptimizer::ID = 0;
 /// \return true if this instruction should be considered for pairing
 static bool isPairableLoadStoreInst(MachineInstr &MI) {
   unsigned inst[] = {
+    Epiphany::STRi8_r16,
+    Epiphany::STRi8_r32,
+    Epiphany::STRi16_r16,
+    Epiphany::STRi16_r32,
     Epiphany::STRi32_r16,
     Epiphany::STRi32_r32,
     Epiphany::STRf32,
+    Epiphany::LDRi8_r16,
+    Epiphany::LDRi8_r32,
+    Epiphany::LDRi16_r16,
+    Epiphany::LDRi16_r32,
     Epiphany::LDRi32_r16,
     Epiphany::LDRi32_r32,
     Epiphany::LDRf32
@@ -47,12 +55,19 @@ static bool isPairableLoadStoreInst(MachineInstr &MI) {
   return std::find(std::begin(inst), std::end(inst), Opc) != std::end(inst);
 }
 
-static int getMemScale(MachineInstr &MI) {
-  switch (MI.getOpcode()) {
+static int getMemScale(unsigned Opc) {
+  switch (Opc) {
     default:
       llvm_unreachable("Opcode has unknown scale!");
+    case Epiphany::STRi8_r16:
+    case Epiphany::STRi8_r32:
+    case Epiphany::LDRi8_r16:
+    case Epiphany::LDRi8_r32:
+      return 1;
     case Epiphany::STRi16_r16:
     case Epiphany::STRi16_r32:
+    case Epiphany::LDRi16_r16:
+    case Epiphany::LDRi16_r32:
       return 2;
     case Epiphany::STRi32_r16:
     case Epiphany::STRi32_r32:
@@ -61,7 +76,25 @@ static int getMemScale(MachineInstr &MI) {
     case Epiphany::STRf32:
     case Epiphany::LDRf32:
       return 4;
+    case Epiphany::STRi64:
+    case Epiphany::LDRi64:
+    case Epiphany::STRf64:
+    case Epiphany::LDRf64:
+      return 8;
   }
+}
+
+static int getMemScale(MachineInstr &MI) {
+    return getMemScale(MI.getOpcode());
+}
+
+/// Returns correct instruction alignment. For Epiphany it is equal to memory scale
+static int getAlignment(MachineInstr &MI) {
+    return getMemScale(MI);
+}
+
+static int getAlignment(unsigned Opc) {
+    return getMemScale(Opc);
 }
 
 /// Return paired opcode for the provided one, e.g. STRi64_r32 for STRi32_r32
@@ -70,6 +103,10 @@ static unsigned getMatchingPairOpcode(unsigned Opc) {
     default:
       llvm_unreachable("Opcode has no pairwise equivalent");
       break;
+    case Epiphany::STRi8_r16:
+      return Epiphany::STRi16_r16;
+    case Epiphany::STRi8_r32:
+      return Epiphany::STRi16_r32;
     case Epiphany::STRi16_r16:
       return Epiphany::STRi32_r16;
     case Epiphany::STRi16_r32:
@@ -77,6 +114,14 @@ static unsigned getMatchingPairOpcode(unsigned Opc) {
     case Epiphany::STRi32_r16:
     case Epiphany::STRi32_r32:
       return Epiphany::STRi64;
+    case Epiphany::LDRi8_r16:
+      return Epiphany::LDRi16_r16;
+    case Epiphany::LDRi8_r32:
+      return Epiphany::LDRi16_r32;
+    case Epiphany::LDRi16_r16:
+      return Epiphany::LDRi32_r16;
+    case Epiphany::LDRi16_r32:
+      return Epiphany::LDRi32_r32;
     case Epiphany::LDRi32_r16:
     case Epiphany::LDRi32_r32:
       return Epiphany::LDRi64;
@@ -137,12 +182,13 @@ static bool areCandidatesToMergeOrPair(MachineInstr &FirstMI, MachineInstr &Seco
     return false;
   }
 
-  // If using frame index - check object sizes, both should be equal to 4
+  // If using frame index - check object sizes, both should be equal to their mem scales
   Flags.setUseOffset(useOffsetOrIndex(FirstMI, SecondMI));
   if (!Flags.getUseOffset()) {
     int FirstBase  = getBaseOperand(FirstMI).getIndex();
     int SecondBase = getBaseOperand(SecondMI).getIndex();
-    if (MFI->getObjectSize(FirstBase) != 4 || MFI->getObjectSize(SecondBase) != 4) {
+    if (MFI->getObjectSize(FirstBase) != getMemScale(FirstMI)
+        || MFI->getObjectSize(SecondBase) != getMemScale(SecondMI)) {
       return false;
     }
   }
@@ -217,12 +263,15 @@ bool EpiphanyLoadStoreOptimizer::isAlignmentCorrect(MachineInstr &FirstMI, Machi
   if (!useOffset) {
     // VReg checks
     // Check if both ops have correct alignment required
-    if (MFI->getObjectAlignment(MainOffset) != 4 || MFI->getObjectAlignment(PairedOffset) != 4) {
+    if (MFI->getObjectAlignment(MainOffset) != getAlignment(FirstMI)
+        || MFI->getObjectAlignment(PairedOffset) != getAlignment(SecondMI)) {
       return false;
     }
   } else {
-    // Check if no offset is dword-aligned
-    if ((MainOffset % 8 != 0) && (PairedOffset % 8 != 0)) {
+    // Check if at least one instruction is aligned to the paired opcode alignment
+    if ((MainOffset % getAlignment(getMatchingPairOpcode(FirstMI.getOpcode())) != 0)
+        && (PairedOffset % getAlignment(getMatchingPairOpcode(SecondMI.getOpcode())) != 0)) {
+      DEBUG(dbgs() << "Offsets alignment out, skipping\n");
       return false;
     }
   }
@@ -252,8 +301,8 @@ bool EpiphanyLoadStoreOptimizer::isAlignmentCorrect(MachineInstr &FirstMI, Machi
       return false;
     }
 
-    // Low reg offset should be always lower than high reg offset, and it should be double-aligned
-    if (!(LowOffset < HighOffset) || (LowOffset % 8 != 0)) {
+    // Low reg offset should be always lower than high reg offset, and it should be aligned to the paired opcode align
+    if (!(LowOffset < HighOffset) || (LowOffset % getAlignment(getMatchingPairOpcode(FirstMI.getOpcode())) != 0)) {
       return false;
     }
   }
@@ -393,15 +442,15 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeVregInsns(unsigned PairedOp
 
   // Adjust alignment
   if (!useOffset) {
-	  MFI->setObjectAlignment(BaseRegOp.getIndex(), 8);
+	  MFI->setObjectAlignment(BaseRegOp.getIndex(), getAlignment(PairedOp));
   }
 
   // Create local stack allocation block
   if (!useOffset && !ObjectMapped[PairedBaseOp.getIndex()]) {
     MFI->mapLocalFrameObject(PairedBaseOp.getIndex(), LastLocalBlockOffset);
-    LastLocalBlockOffset -= StackGrowsDown ? 4 : -4;
+    LastLocalBlockOffset -= StackGrowsDown ? getMemScale(*I) : -getMemScale(*I);
     MFI->mapLocalFrameObject(BaseRegOp.getIndex(), LastLocalBlockOffset);
-    LastLocalBlockOffset -= StackGrowsDown ? 4 : -4;
+    LastLocalBlockOffset -= StackGrowsDown ? getMemScale(*I) : -getMemScale(*I);
     ObjectMapped.set(BaseRegOp.getIndex());
     ObjectMapped.set(PairedBaseOp.getIndex());
   }
@@ -452,7 +501,7 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeRegInsns(unsigned PairedOp,
   return MIB;
 }
 
-/// Merges two 32-bit load/store instructions into a single 64-bit one
+/// Merges two n-bit load/store instructions into a single 2*n-bit one
 MachineBasicBlock::iterator
 EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
     MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags) {
