@@ -38,13 +38,13 @@ namespace llvm {
     // merge is to remove the first instruction and replace the second with
     // a pair-wise insn, and false if the reverse is true.
     bool MergeForward;
-    bool UseOffset;
-    LoadStoreFlags() : MergeForward(false), UseOffset(true) {}
+    bool BaseIsFrameIndex;
+    LoadStoreFlags() : MergeForward(false), BaseIsFrameIndex(true) {}
 
     void setMergeForward(bool V = true) { MergeForward = V; }
     bool getMergeForward() const { return MergeForward; }
-    void setUseOffset(bool V = true) { UseOffset = V; }
-    bool getUseOffset() const { return UseOffset; }
+    void setBaseIsFrameIndex(bool V = true) { BaseIsFrameIndex = V; }
+    bool getBaseIsFrameIndex() const { return BaseIsFrameIndex; }
   } LoadStoreFlags;
 
 
@@ -67,7 +67,7 @@ namespace llvm {
       bool optimizeBlock(MachineBasicBlock &MBB);
       bool tryToMergeZeroStInst(MachineBasicBlock::iterator &MBBI);
       bool tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI);
-      bool isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI, bool useOffset);
+      bool isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI, bool BaseIsFrameIndex);
       bool canFormSuperReg(unsigned MainReg, unsigned PairedReg);
 
       MachineBasicBlock::iterator findMatchingInst(MachineBasicBlock::iterator I, 
