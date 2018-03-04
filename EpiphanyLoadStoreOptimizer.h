@@ -38,13 +38,13 @@ namespace llvm {
     // merge is to remove the first instruction and replace the second with
     // a pair-wise insn, and false if the reverse is true.
     bool MergeForward;
-    bool BaseIsFrameIndex;
-    LoadStoreFlags() : MergeForward(false), BaseIsFrameIndex(true) {}
+    bool BasedOnVirtualFI;
+    LoadStoreFlags() : MergeForward(false), BasedOnVirtualFI(true) {}
 
     void setMergeForward(bool V = true) { MergeForward = V; }
     bool getMergeForward() const { return MergeForward; }
-    void setBaseIsFrameIndex(bool V = true) { BaseIsFrameIndex = V; }
-    bool getBaseIsFrameIndex() const { return BaseIsFrameIndex; }
+    void setBasedOnVirtualFI(bool V = true) { BasedOnVirtualFI = V; }
+    bool isBasedOnVirtualFI() const { return BasedOnVirtualFI; }
   } LoadStoreFlags;
 
 
@@ -65,9 +65,9 @@ namespace llvm {
       int64_t LastLocalBlockOffset = -4;
 
       bool optimizeBlock(MachineBasicBlock &MBB);
-      bool tryToMergeZeroStInst(MachineBasicBlock::iterator &MBBI);
-      bool tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI);
-      bool isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI, bool BaseIsFrameIndex);
+
+    bool tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI);
+      bool isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI, bool UsingVirtualFI);
       bool canFormSuperReg(unsigned MainReg, unsigned PairedReg);
 
       MachineBasicBlock::iterator findMatchingInst(MachineBasicBlock::iterator I, 
@@ -75,20 +75,16 @@ namespace llvm {
 
       MachineBasicBlock::iterator mergePairedInsns(MachineBasicBlock::iterator I,
           MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags);
-      MachineInstrBuilder mergeRegInsns(unsigned PairedOp, int OffsetImm,
+      MachineInstrBuilder mergeRegInsns(unsigned PairedOp, int64_t OffsetImm,
           MachineOperand RegOp0, MachineOperand RegOp1, 
           MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
           const LoadStoreFlags &Flags);
-      MachineInstrBuilder mergeVregInsns(unsigned PairedOp, int OffsetImm,
-          MachineOperand RegOp0, MachineOperand RegOp1, 
-          MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
-          const LoadStoreFlags &Flags);
-      MachineInstrBuilder mergeRealRegInsns(unsigned PairedOp, int OffsetImm,
+      MachineInstrBuilder mergeVregInsns(unsigned PairedOp, int64_t OffsetImm,
           MachineOperand RegOp0, MachineOperand RegOp1, 
           MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
           const LoadStoreFlags &Flags);
 
-      void cleanKillFlags(MachineOperand RegOp0, MachineOperand RegOp1, 
+    void cleanKillFlags(MachineOperand RegOp0, MachineOperand RegOp1,
           MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
           bool MergeForward);
     public:
