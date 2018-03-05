@@ -184,11 +184,13 @@ multiclass StorePostM<LS_size StoreSize, ValueType Ty, PatFrag StoreType> {
 let mayLoad = 1 in {
   defm LDRi8:     LoadM<LS_byte,   i32, zextloadi8>,  LoadPreM<LS_byte,   i32, zextloadi8>,  LoadPostM<LS_byte,   i32, zextloadi8>;
   defm LDRi16:    LoadM<LS_hword,  i32, zextloadi16>, LoadPreM<LS_hword,  i32, zextloadi16>, LoadPostM<LS_hword,  i32, zextloadi16>;
-  defm LDRi32:    LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, pre_load>,        LoadPostM<LS_word,   i32, post_load>;
+  defm LDRi32:    LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, pre_load>,    LoadPostM<LS_word,   i32, post_load>;
   def LDRf32:     LoadDisp32<0,  FPR32, load,   LS_word,  f32>;
   def LDRi64:     LoadDisp32<0, GPR64, load,    LS_dword, i64>;
   def LDRi64_pmd: LoadPmd32<0,  GPR64, load,    LS_dword, i64>;
+  def LDRv2i16:   LoadDisp32<0, GPR32, load,    LS_word,  v2i16>;
   def LDRv2i32:   LoadDisp32<0, GPR64, load,    LS_dword, v2i32>;
+  def LDRv4i16:   LoadDisp32<0, GPR64, load,    LS_dword, v4i16>;
   def LDRf64:     LoadDisp32<0, FPR64, load,    LS_dword, f64>;
 }
 
@@ -200,7 +202,9 @@ let mayStore = 1 in {
   def STRf32:     StoreDisp32<0, FPR32, store, LS_word,  f32>;
   def STRi64:     StoreDisp32<0, GPR64, store, LS_dword, i64>;
   def STRi64_pmd: StorePmd32<0,  GPR64, store, LS_dword, i64>;
+  def STRv2i16:   StoreDisp32<0, GPR32, store, LS_word,  v2i16>;
   def STRv2i32:   StoreDisp32<0, GPR64, store, LS_dword, v2i32>;
+  def STRv4i16:   StoreDisp32<0, GPR64, store, LS_dword, v4i16>;
   def STRf64:     StoreDisp32<0, FPR64, store, LS_dword, f64>;
 }
 
@@ -437,7 +441,6 @@ def : Pat<(i32 (MOVT GPR32:$Rd, texternalsym:$dst)),    (MOVTi32ri GPR32:$Rd, te
 def : Pat<(i32 (MOVT GPR32:$Rd, tblockaddress:$dst)),   (MOVTi32ri GPR32:$Rd, tblockaddress:$dst)>;
 def : Pat<(i32 (MOVT GPR32:$Rd, tconstpool:$dst)),      (MOVTi32ri GPR32:$Rd, tconstpool:$dst)>;
 def : Pat<(i32 (MOVT GPR32:$Rd,  tglobaltlsaddr:$dst)), (MOVTi32ri GPR32:$Rd, tglobaltlsaddr:$dst)>;
-
 
 let Constraints = "$src = $Rd", Uses = [STATUS] in {
   def MOVCC : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc), 

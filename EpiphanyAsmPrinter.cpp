@@ -269,6 +269,7 @@ void EpiphanyAsmPrinter::printOperand(const MachineInstr *MI, int opNum,
     case EpiphanyII::MO_PCREL32: 
       O << "%pcrel("; 
       break;
+    default:break;
   }
 
   switch (MO.getType()) {

@@ -18,9 +18,9 @@ class EpiphanyReg<bits<16> enc, string n> : Register<n> {
 }
 
 let Namespace = "Epiphany" in {
-  def isub_lo  : SubRegIndex<32, 32>;
-  def isub_hi  : SubRegIndex<32, 0>;
-  def subreg_overflow : SubRegIndex<1, 0>;
+  def isub_lo  : SubRegIndex<32, 0>;
+  def isub_hi  : SubRegIndex<32, 32>;
+  def subreg_overflow : SubRegIndex<0, 1>;
 }
 
 class EpiphanyReg64<bits<16> enc, string n, list<Register> subregs> : RegisterWithSubRegs<n, subregs> {
@@ -211,7 +211,7 @@ def GPR32 : RegisterClass<"Epiphany", [i32, v4i8, v2i16], 32, (add
 def FPR32 : RegisterClass<"Epiphany", [f32], 32, (add GPR32)>;
 
 // 64 bit
-def GPR64 : RegisterClass<"Epiphany", [i64,v2i32], 64, (add (sequence "D%u", 0, 31))> {
+def GPR64 : RegisterClass<"Epiphany", [i64,v2i32, v4i16], 64, (add (sequence "D%u", 0, 31))> {
   let CopyCost = 4;
   let Size = 64;
 }

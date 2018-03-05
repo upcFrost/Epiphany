@@ -14,14 +14,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "EpiphanyTargetMachine.h"
-#include "Epiphany.h"
 
 #include "EpiphanyISelDAGToDAG.h"
-#include "EpiphanySubtarget.h"
 #include "EpiphanyTargetObjectFile.h"
 #include "EpiphanyTargetTransformInfo.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Transforms/Scalar.h"
@@ -68,8 +65,8 @@ static std::string computeDataLayout(const Triple &TT, StringRef CPU,
   // Minimal alignment for E16 is byte
   Ret += "-i8:8-i16:16-i32:32-i64:64";
 
-  // Vector alignment
-  Ret += "-v32:32-v64:64";
+  // Vector alignment is better to keep at dword for wide loads/stores
+  Ret += "-v32:64-v64:64";
   
   // 32 and 64 bit floats should have natural alignment
   Ret += "-f32:32-f64:64";

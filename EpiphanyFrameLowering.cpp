@@ -68,22 +68,16 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
   assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineModuleInfo &MMI = MF.getMMI();
-  EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
 
-  const EpiphanyInstrInfo &TII =
-    *static_cast<const EpiphanyInstrInfo*>(STI.getInstrInfo());
-  const EpiphanyRegisterInfo &RegInfo =
-    *static_cast<const EpiphanyRegisterInfo *>(STI.getRegisterInfo());
+  const EpiphanyInstrInfo &TII = *STI.getInstrInfo();
 
   MachineBasicBlock::iterator MBBI = MBB.begin();
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
-  EpiphanyABIInfo ABI = STI.getABI();
   unsigned SP = Epiphany::SP;
   unsigned LR = Epiphany::LR;
   unsigned FP = Epiphany::FP;
   unsigned STRi64_pmd = Epiphany::STRi64_pmd;
   unsigned ADDri_r32 = Epiphany::ADDri_r32;
-  const TargetRegisterClass *RC = &Epiphany::GPR32RegClass;
   unsigned CFIIndex;
 
   // First, compute final stack size.
@@ -98,7 +92,6 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
   if (StackSize == 0 && !MFI.adjustsStack()) return;
 
   const MCRegisterInfo *MRI = MMI.getContext().getRegisterInfo();
-  MachineLocation DstML, SrcML;
 
   // Create label for prologue
   MCSymbol *FrameLabel = MF.getContext().createTempSymbol();
@@ -126,7 +119,7 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
   const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
 
   // Spill all callee-saves
-  if (CSI.size()) {
+  if (!CSI.empty()) {
     // Find the instruction past the last instruction that saves a callee-saved
     // register to the stack.
     for (unsigned i = 0; i < CSI.size(); ++i)
@@ -135,9 +128,9 @@ void EpiphanyFrameLowering::emitPrologue(MachineFunction &MF,
     // Iterate over list of callee-saved registers and emit .cfi_offset
     // directives.
     DEBUG(dbgs() << "\nCallee-saved regs spilled in prologue\n");
-    for (std::vector<CalleeSavedInfo>::const_iterator I = CSI.begin(), E = CSI.end(); I != E; ++I) {
-      int64_t Offset = MFI.getObjectOffset(I->getFrameIdx()) - getOffsetOfLocalArea();
-      unsigned Reg = I->getReg();
+    for (auto I : CSI) {
+      int64_t Offset = MFI.getObjectOffset(I.getFrameIdx()) - getOffsetOfLocalArea();
+      unsigned Reg = I.getReg();
       // Reg is in CPURegs.
       DEBUG(dbgs() << Reg << "\n");
       CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(FrameLabel, MRI->getDwarfRegNum(Reg, true), Offset));
@@ -153,15 +146,10 @@ void EpiphanyFrameLowering::emitEpilogue(MachineFunction &MF,
     MachineBasicBlock &MBB) const {
   MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
 
-  const EpiphanyInstrInfo &TII =
-    *static_cast<const EpiphanyInstrInfo *>(STI.getInstrInfo());
-  const EpiphanyRegisterInfo &RegInfo =
-    *static_cast<const EpiphanyRegisterInfo *>(STI.getRegisterInfo());
+  const EpiphanyInstrInfo &TII = *STI.getInstrInfo();
 
   DebugLoc dl = MBBI->getDebugLoc();
-  EpiphanyABIInfo ABI = STI.getABI();
   unsigned SP = Epiphany::SP;
   unsigned LR = Epiphany::LR;
   unsigned LDRi64 = Epiphany::LDRi64;
@@ -195,7 +183,7 @@ int EpiphanyFrameLowering::getFrameIndexReference(const MachineFunction &MF,
     int FI, unsigned &FrameReg) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   if (hasFP(MF)) {
-    const EpiphanyRegisterInfo *RegInfo = static_cast<const EpiphanyRegisterInfo *>(
+    const auto *RegInfo = static_cast<const EpiphanyRegisterInfo *>(
         MF.getSubtarget().getRegisterInfo());
     FrameReg = RegInfo->getFrameRegister(MF);
     //return MFI.getObjectOffset(FI) + 16;
@@ -220,8 +208,7 @@ void EpiphanyFrameLowering::determineCalleeSaves(MachineFunction &MF,
     RegScavenger *RS) const {
   //@determineCalleeSaves-body
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
-  EpiphanyMachineFunctionInfo *FI = MF.getInfo<EpiphanyMachineFunctionInfo>();
-  const EpiphanyRegisterInfo *RegInfo = static_cast<const EpiphanyRegisterInfo *>(MF.getSubtarget().getRegisterInfo());
+  const auto *RegInfo = static_cast<const EpiphanyRegisterInfo *>(MF.getSubtarget().getRegisterInfo());
 
   DEBUG(dbgs() << "*** determineCalleeSaves\nUsed CSRs:";
       for (int Reg = SavedRegs.find_first(); Reg != -1;
@@ -284,7 +271,7 @@ bool EpiphanyFrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF,
       unsigned StackAlign = getStackAlignment();
 
       // Check if this index can be paired
-      unsigned suba, subb, frameidx, sra = 0, srb = 0;
+      unsigned suba, subb, sra = 0, srb = 0;
       if(!Pair && (i+1 < CSI.size())) {
         suba = CSI[i].getReg();
         subb = CSI[i+1].getReg();
@@ -313,7 +300,7 @@ bool EpiphanyFrameLowering::assignCalleeSavedSpillSlots(MachineFunction &MF,
       // Swap indexes for paires
       if (Pair && PrevFrameIdx != -1) {
         // Create two local frame objects aligned to dword
-        bool StackGrowsDown = getStackGrowthDirection() == TargetFrameLowering::StackGrowsDown ? true : false;
+        bool StackGrowsDown = getStackGrowthDirection() == TargetFrameLowering::StackGrowsDown;
         int64_t LocalFrameSize = (MFI.getLocalFrameSize() + 0x7) & ~0x7;
         LocalFrameSize = StackGrowsDown ? -LocalFrameSize : LocalFrameSize;
         LocalFrameSize += StackGrowsDown ? -4 : 4;
@@ -346,7 +333,6 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MI, const std::vector<CalleeSavedInfo> &CSI, const TargetRegisterInfo *TRI) const {
   MachineFunction *MF = MBB.getParent();
   const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
-  MachineFrameInfo &MFI = MF->getFrameInfo();
 
   // Debug output
   DebugLoc DL;
@@ -372,7 +358,6 @@ bool EpiphanyFrameLowering::spillCalleeSavedRegisters(MachineBasicBlock &MBB,
 
     // Try to pair the spill
     bool Pair = false;
-    bool stepForward = true;
     unsigned suba, subb, frameidx, sra = 0, srb = 0;
     if(i+1 < CSI.size()){
       suba = CSI[i].getReg();
@@ -412,7 +397,6 @@ bool EpiphanyFrameLowering::hasFP(const MachineFunction &MF) const {
   const TargetRegisterInfo *TRI = STI.getRegisterInfo();
 
   DEBUG(
-      const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
       if (MF.getTarget().Options.DisableFramePointerElim(MF)) {
       dbgs() << "\nHas FP: DisableFramePointerElim set\n";
       }
@@ -424,7 +408,7 @@ bool EpiphanyFrameLowering::hasFP(const MachineFunction &MF) const {
       }
       if (MFI.isFrameAddressTaken()) {
       dbgs() << "\nHas FP: Frame address taken\n";
-      });
+      };);
 
   return (MF.getTarget().Options.DisableFramePointerElim(MF) || 
       TRI->needsStackRealignment(MF) ||

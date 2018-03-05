@@ -106,11 +106,7 @@ namespace llvm {
           EpiphanyCC(CallingConv::ID CallConv, bool IsE16, CCState &Info,
               SpecialCallingConvType SpecialCallingConv = NoSpecialCallingConv);
 
-          void analyzeCallResult(const SmallVectorImpl<ISD::InputArg> &Ins,
-              bool IsSoftFloat, const SDNode *CallNode,
-              const Type *RetTy) const;
-
-          void analyzeReturn(const SmallVectorImpl<ISD::OutputArg> &Outs,
+        void analyzeReturn(const SmallVectorImpl<ISD::OutputArg> &Outs,
               bool IsSoftFloat, const Type *RetTy) const;
 
           const CCState &getCCInfo() const { return CCInfo; }
