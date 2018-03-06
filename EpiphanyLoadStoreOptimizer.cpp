@@ -49,17 +49,9 @@ char EpiphanyLoadStoreOptimizer::ID = 0;
 /// \return true if this instruction should be considered for pairing
 static bool isPairableLoadStoreInst(MachineInstr &MI) {
   unsigned inst[] = {
-      Epiphany::STRi8_r16,
-      Epiphany::STRi8_r32,
-      Epiphany::STRi16_r16,
-      Epiphany::STRi16_r32,
       Epiphany::STRi32_r16,
       Epiphany::STRi32_r32,
       Epiphany::STRf32,
-      Epiphany::LDRi8_r16,
-      Epiphany::LDRi8_r32,
-      Epiphany::LDRi16_r16,
-      Epiphany::LDRi16_r32,
       Epiphany::LDRi32_r16,
       Epiphany::LDRi32_r32,
       Epiphany::LDRf32
@@ -278,8 +270,8 @@ bool EpiphanyLoadStoreOptimizer::isAlignmentCorrect(MachineInstr &FirstMI, Machi
 
   if (!UsingVirtualFI) {
     // Check if both ops have correct alignment required
-    if (MFI->getObjectAlignment(MainOffset) != getAlignment(FirstMI)
-        || MFI->getObjectAlignment(PairedOffset) != getAlignment(SecondMI)) {
+    if (MFI->getObjectAlignment(MainOffset) < getAlignment(FirstMI)
+        || MFI->getObjectAlignment(PairedOffset) < getAlignment(SecondMI)) {
       return false;
     }
   } else {
@@ -441,11 +433,13 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeVregInsns(unsigned PairedOp
   if (TII->get(PairedOp).mayStore()) {
     // In terms of store - create regsequence before storing
     const MCInstrDesc &RegSeq = TII->get(TargetOpcode::REG_SEQUENCE);
-    BuildMI(*MBB, InsertionPoint, DL, RegSeq, parentReg)
+    MIB = BuildMI(*MBB, InsertionPoint, DL, RegSeq, parentReg)
         .addReg(RegOp0.getReg())
         .addImm(Epiphany::isub_lo)
         .addReg(RegOp1.getReg())
         .addImm(Epiphany::isub_hi);
+    DEBUG(dbgs() << "\t");
+    DEBUG(((MachineInstr *) MIB)->print(dbgs()));
   }
 
   // Insert paired instruction
@@ -455,14 +449,20 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeVregInsns(unsigned PairedOp
       .addOperand(BaseRegOp)
       .addImm(OffsetImm)
       .setMemRefs(Paired->mergeMemRefsWith(*I));
+  DEBUG(dbgs() << "\t");
+  DEBUG(((MachineInstr *) MIB)->print(dbgs()));
 
   if (TII->get(PairedOp).mayLoad()) {
     // In terms of load - issue two copy instruction for vregs we had
     const MCInstrDesc &Copy = TII->get(TargetOpcode::COPY);
-    BuildMI(*MBB, InsertionPoint, DL, Copy, RegOp0.getReg())
+    MIB = BuildMI(*MBB, InsertionPoint, DL, Copy, RegOp0.getReg())
         .addReg(parentReg, /* flags = */ 0, Epiphany::isub_lo);
-    BuildMI(*MBB, InsertionPoint, DL, Copy, RegOp1.getReg())
+    DEBUG(dbgs() << "\t");
+    DEBUG(((MachineInstr *) MIB)->print(dbgs()));
+    MIB = BuildMI(*MBB, InsertionPoint, DL, Copy, RegOp1.getReg())
         .addReg(parentReg, /* flags = */ 0, Epiphany::isub_hi);
+    DEBUG(dbgs() << "\t");
+    DEBUG(((MachineInstr *) MIB)->print(dbgs()));
   }
 
   // Adjust alignment
@@ -535,6 +535,8 @@ MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeRegInsns(unsigned PairedOp,
         .setMemRefs(I->mergeMemRefsWith(*Paired));
   }
 
+  DEBUG(dbgs() << "\t");
+  DEBUG(((MachineInstr *) MIB)->print(dbgs()));
   return MIB;
 }
 
@@ -573,7 +575,6 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
   }
   int64_t OffsetImm = getOffsetOperand(*RtMI).getImm();
   // Construct the new instruction.
-  MachineInstrBuilder MIB;
   DebugLoc DL = I->getDebugLoc();
   MachineOperand RegOp0 = getRegOperand(*RtMI);
   MachineOperand RegOp1 = getRegOperand(*Rt2MI);
@@ -583,23 +584,18 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
     cleanKillFlags(RegOp0, RegOp1, I, Paired, MergeForward);
   }
 
+  DEBUG(dbgs() << "Creating pair load/store. Replacing instructions:\n\t");
+  DEBUG(I->print(dbgs()));
+  DEBUG(dbgs() << "\t");
+  DEBUG(Paired->print(dbgs()));
+  DEBUG(dbgs() << "  with instruction:\n");
   unsigned PairedOp = getMatchingPairOpcode(Opc);
   unsigned PairedReg = RegOp0.getReg();
   if (!TRI->isVirtualRegister(PairedReg)) {
-    MIB = mergeRegInsns(PairedOp, OffsetImm, RegOp0, RegOp1, I, Paired, Flags);
+    mergeRegInsns(PairedOp, OffsetImm, RegOp0, RegOp1, I, Paired, Flags);
   } else {
-    MIB = mergeVregInsns(PairedOp, OffsetImm, RegOp0, RegOp1, I, Paired, Flags);
+    mergeVregInsns(PairedOp, OffsetImm, RegOp0, RegOp1, I, Paired, Flags);
   }
-
-
-  (void) MIB;
-
-  DEBUG(dbgs() << "Creating pair load/store. Replacing instructions:\n    ");
-  DEBUG(I->print(dbgs()));
-  DEBUG(dbgs() << "    ");
-  DEBUG(Paired->print(dbgs()));
-  DEBUG(dbgs() << "  with instruction:\n    ");
-  DEBUG(((MachineInstr *) MIB)->print(dbgs()));
   DEBUG(dbgs() << "\n");
 
   // Erase the old instructions.
