@@ -31,72 +31,72 @@
 #include "llvm/Target/TargetRegisterInfo.h"
 
 namespace llvm {
-  void initializeEpiphanyLoadStoreOptimizerPass(PassRegistry&);
+  void initializeEpiphanyLoadStoreOptimizerPass(PassRegistry &);
 
   typedef struct LoadStoreFlags {
     // If a matching instruction is found, MergeForward is set to true if the
     // merge is to remove the first instruction and replace the second with
     // a pair-wise insn, and false if the reverse is true.
     bool MergeForward;
-    bool BasedOnVirtualFI;
-    LoadStoreFlags() : MergeForward(false), BasedOnVirtualFI(true) {}
+
+    LoadStoreFlags() : MergeForward(false) {}
 
     void setMergeForward(bool V = true) { MergeForward = V; }
+
     bool getMergeForward() const { return MergeForward; }
-    void setBasedOnVirtualFI(bool V = true) { BasedOnVirtualFI = V; }
-    bool isBasedOnVirtualFI() const { return BasedOnVirtualFI; }
   } LoadStoreFlags;
 
 
   class EpiphanyLoadStoreOptimizer : public MachineFunctionPass {
 
-    private:
-      const EpiphanyInstrInfo  *TII;
-      const TargetRegisterInfo *TRI;
-      const EpiphanySubtarget  *Subtarget;
-      const EpiphanyFrameLowering *TFI;
-      MachineFunction     *MF;
-      MachineRegisterInfo *MRI;
-      MachineFrameInfo    *MFI;
-      // Track which registers have been modified and used.
-      BitVector ModifiedRegs, UsedRegs, ModifiedFrameIdxs, UsedFrameIdxs, ObjectMapped;
-      SmallVector<std::pair<int, int>, 128> PairedIdxs;
-      bool StackGrowsDown;
-      int64_t LastLocalBlockOffset = -4;
+  private:
+    const EpiphanyInstrInfo *TII;
+    const TargetRegisterInfo *TRI;
+    const EpiphanySubtarget *Subtarget;
+    const EpiphanyFrameLowering *TFI;
+    MachineFunction *MF;
+    MachineRegisterInfo *MRI;
+    MachineFrameInfo *MFI;
+    // Track which registers have been modified and used.
+    BitVector ModifiedRegs, UsedRegs;
+    bool StackGrowsDown;
+    int64_t LastLocalBlockOffset = -4;
 
-      bool optimizeBlock(MachineBasicBlock &MBB);
+    bool optimizeBlock(MachineBasicBlock &MBB);
 
     bool tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI);
-      bool isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI, bool UsingVirtualFI);
-      bool canFormSuperReg(unsigned MainReg, unsigned PairedReg);
 
-      MachineBasicBlock::iterator findMatchingInst(MachineBasicBlock::iterator I, 
-          LoadStoreFlags &Flags, unsigned Limit);
+    bool isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI);
 
-      MachineBasicBlock::iterator mergePairedInsns(MachineBasicBlock::iterator I,
-          MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags);
-      MachineInstrBuilder mergeRegInsns(unsigned PairedOp, int64_t OffsetImm,
-          MachineOperand RegOp0, MachineOperand RegOp1, 
-          MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
-          const LoadStoreFlags &Flags);
-      MachineInstrBuilder mergeVregInsns(unsigned PairedOp, int64_t OffsetImm,
-          MachineOperand RegOp0, MachineOperand RegOp1, 
-          MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
-          const LoadStoreFlags &Flags);
+    bool canFormSuperReg(unsigned MainReg, unsigned PairedReg);
+
+    MachineBasicBlock::iterator findMatchingInst(MachineBasicBlock::iterator I,
+                                                 LoadStoreFlags &Flags, unsigned Limit);
+
+    MachineBasicBlock::iterator mergePairedInsns(MachineBasicBlock::iterator I,
+                                                 MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags);
+
+    MachineInstrBuilder mergeRegInsns(unsigned PairedOp, int64_t OffsetImm,
+                                      MachineOperand RegOp0, MachineOperand RegOp1,
+                                      MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired,
+                                      const LoadStoreFlags &Flags);
 
     void cleanKillFlags(MachineOperand RegOp0, MachineOperand RegOp1,
-          MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
-          bool MergeForward);
-    public:
-      static char ID;
-      EpiphanyLoadStoreOptimizer() : MachineFunctionPass(ID) {
-        initializeEpiphanyLoadStoreOptimizerPass(*PassRegistry::getPassRegistry());
-      }
+                        MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired,
+                        bool MergeForward);
 
-      StringRef getPassName() const {
-        return "Epiphany Load/Store Optimization Pass";
-      }
-      bool runOnMachineFunction(MachineFunction &MF);
+  public:
+    static char ID;
+
+    EpiphanyLoadStoreOptimizer() : MachineFunctionPass(ID) {
+      initializeEpiphanyLoadStoreOptimizerPass(*PassRegistry::getPassRegistry());
+    }
+
+    StringRef getPassName() const {
+      return "Epiphany Load/Store Optimization Pass";
+    }
+
+    bool runOnMachineFunction(MachineFunction &MF);
   };
 
 } // namespace llvm

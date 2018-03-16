@@ -44,6 +44,7 @@ namespace llvm {
 
   FunctionPass *createEpiphanyFpuConfigPass();
   FunctionPass *createEpiphanyLoadStoreOptimizationPass();
+  FunctionPass *createEpiphanyVregLoadStoreOptimizationPass();
 
 } // end namespace llvm;
 
