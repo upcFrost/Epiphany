@@ -159,8 +159,8 @@ void EpiphanyPassConfig::addCodeGenPrepare() {
 
 void EpiphanyPassConfig::addPreRegAlloc() {
   addPass(&LiveVariablesID, false);
-//  if (EnableLSOpt && TM->getOptLevel() != CodeGenOpt::None)
-//    addPass(createEpiphanyLoadStoreOptimizationPass());
+  if (EnableLSOpt && TM->getOptLevel() != CodeGenOpt::None)
+    addPass(createEpiphanyVregLoadStoreOptimizationPass());
 }
 
 void EpiphanyPassConfig::addPreSched2() {

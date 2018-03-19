@@ -68,17 +68,15 @@ namespace llvm {
 
     bool tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI);
       bool isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI, bool UsingVirtualFI);
-      bool canFormSuperReg(unsigned MainReg, unsigned PairedReg);
 
-      MachineBasicBlock::iterator findMatchingInst(MachineBasicBlock::iterator I, 
+    MachineBasicBlock::iterator findMatchingInst(MachineBasicBlock::iterator I,
           LoadStoreFlags &Flags, unsigned Limit);
 
       MachineBasicBlock::iterator mergePairedInsns(MachineBasicBlock::iterator I,
           MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags);
-      MachineInstrBuilder mergeInsns(unsigned PairedOp, int64_t OffsetImm,
-          MachineOperand RegOp0, MachineOperand RegOp1, 
-          MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
-          const LoadStoreFlags &Flags);
+      MachineInstrBuilder mergeFrameBasedInsns(unsigned PairedOp,
+                                               MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired,
+                                               const LoadStoreFlags &Flags);
 
     void cleanKillFlags(MachineOperand RegOp0, MachineOperand RegOp1,
           MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired, 
@@ -93,6 +91,10 @@ namespace llvm {
         return "Epiphany Vreg Load/Store Optimization Pass";
       }
       bool runOnMachineFunction(MachineFunction &MF);
+
+    void mergeRegBasedInsns(unsigned int PairedOp, MachineBasicBlock::iterator iterator,
+                                MachineBasicBlock::iterator bundleIterator, const LoadStoreFlags &Flags, int64_t i,
+                                MachineOperand operand, MachineOperand machineOperand);
   };
 
 } // namespace llvm
