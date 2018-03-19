@@ -6,6 +6,24 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
+//
+// Epiphany pipeline is shown below
+// +---------+------+------------------------+----------------------------------------------------------------------+
+// | STEP NO | STEP | NAME                   | ACTION                                                               |
+// |---------|------|------------------------|----------------------------------------------------------------------|
+// | 1       | FE   | Fetch Address          | Fetch addr sent to instr memory                                      |
+// | 2       | IM   | Instruction Mem Access | Instr returns from core mem                                          |
+// | 3       | DE   | Decode                 | Decode instr                                                         |
+// | 4       | RA   | Reg Access             | Read operands from regs                                              |
+// | 5       | E1   | Execution              | Load/store address calc Reg read for store Status flag set Branching |
+// | 6       | E2   | Execution              | Load complete                                                        |
+// | 7       | E3   | Execution              | FP result written in trunc mode                                      |
+// | 8       | E4   | Execution              | FP result in round-to-near mode                                      |
+// +---------+------+------------------------+----------------------------------------------------------------------+
+//
+// Epiphany can dual-issue when FPU/IALU2 is used.
+// In addition, it might be a good idea to group stores and loads to widen them.
+//
 
 //===----------------------------------------------------------------------===//
 // Functional units across Epiphany chips sets
@@ -30,6 +48,11 @@ def E2_2 : FuncUnit;
 def E3_2 : FuncUnit;
 def E4_2 : FuncUnit;
 
+// LoadStore grouping bypass
+def LoadStoreBypass : Bypass;
+// IALU2 bypass
+def IaluBypass : Bypass;
+
 //===----------------------------------------------------------------------===//
 // Instruction Itinerary classes used for Epiphany (p58, epiphany_arch_ref.pdf)
 //===----------------------------------------------------------------------===//
@@ -53,23 +76,23 @@ def EpiphanyGenericItineraries : ProcessorItineraries<[FE, IM, DE, RA, E1, E2, E
 
   // IALU2 instructions take steps FE-E1, 1 cycle per step
   // Read on cycle 3, result at cycle 4 (after issue)
-  InstrItinData<Ialu2Itin   , [InstrStage<1, [FE_2]>, 
-                               InstrStage<1, [IM_2]>,
-                               InstrStage<1, [DE_2]>, 
-                               InstrStage<1, [RA_2]>, 
-                               InstrStage<1, [E1_2]>],
+  InstrItinData<Ialu2Itin   , [InstrStage<1, [FE]>, 
+                               InstrStage<1, [IM]>,
+                               InstrStage<1, [DE]>, 
+                               InstrStage<1, [RA]>, 
+                               InstrStage<1, [E1]>],
                                [4, 3]>,
 
   // FPU instructions take steps FE-E4, 1 cycle per step
   // Read on cycle 3, result at cycle 7 (after issue)
-  InstrItinData<FpuItin     , [InstrStage<1, [FE_2]>, 
-                               InstrStage<1, [IM_2]>,
-                               InstrStage<1, [DE_2]>, 
-                               InstrStage<1, [RA_2]>, 
-                               InstrStage<1, [E1_2]>, 
-                               InstrStage<1, [E2_2]>, 
-                               InstrStage<1, [E3_2]>, 
-                               InstrStage<1, [E4_2]>],
+  InstrItinData<FpuItin     , [InstrStage<1, [FE]>, 
+                               InstrStage<1, [IM]>,
+                               InstrStage<1, [DE]>, 
+                               InstrStage<1, [RA]>, 
+                               InstrStage<1, [E1]>, 
+                               InstrStage<1, [E2]>, 
+                               InstrStage<1, [E3]>, 
+                               InstrStage<1, [E4]>],
                                [7, 3]>,
 
   // LOAD instructions take steps FE-E2, 1 cycle per step 
@@ -111,7 +134,7 @@ def EpiphanyGenericItineraries : ProcessorItineraries<[FE, IM, DE, RA, E1, E2, E
 ]>;
 
 def EpiphanyModel : SchedMachineModel {
-  let IssueWidth = 2; // At max we can dual-issue
+  let IssueWidth = 1; // At max we can dual-issue, but let's keep 1 for now
   let Itineraries = EpiphanyGenericItineraries;
   let LoadLatency = 2;
   let CompleteModel = 0;

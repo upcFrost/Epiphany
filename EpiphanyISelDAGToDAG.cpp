@@ -131,8 +131,6 @@ bool EpiphanyDAGToDAGISel::trySelect(SDNode *Node) {
   // Instruction Selection not handled by the auto-generated
   // tablegen selection should be handled here.
   ///
-  EVT NodeTy = Node->getValueType(0);
-  unsigned MultOpc;
 
   switch(Opcode) {
     default: break;

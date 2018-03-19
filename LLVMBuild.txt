@@ -29,12 +29,15 @@ has_asmparser = 1
 type = Library
 name = EpiphanyCodeGen
 parent = Epiphany
-required_libraries = AsmPrinter CodeGen Core MC
+required_libraries = Analysis AsmPrinter CodeGen Core IPO MC
                      EpiphanyAsmPrinter
                      EpiphanyDesc
                      EpiphanyInfo
+                     Scalar
                      SelectionDAG
                      Support
                      Target
+                     TransformUtils
+                     Vectorize
 
 add_to_library_groups = Epiphany

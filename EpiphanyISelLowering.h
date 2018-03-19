@@ -106,11 +106,7 @@ namespace llvm {
           EpiphanyCC(CallingConv::ID CallConv, bool IsE16, CCState &Info,
               SpecialCallingConvType SpecialCallingConv = NoSpecialCallingConv);
 
-          void analyzeCallResult(const SmallVectorImpl<ISD::InputArg> &Ins,
-              bool IsSoftFloat, const SDNode *CallNode,
-              const Type *RetTy) const;
-
-          void analyzeReturn(const SmallVectorImpl<ISD::OutputArg> &Outs,
+        void analyzeReturn(const SmallVectorImpl<ISD::OutputArg> &Outs,
               bool IsSoftFloat, const Type *RetTy) const;
 
           const CCState &getCCInfo() const { return CCInfo; }
@@ -157,6 +153,8 @@ namespace llvm {
       SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerExternalSymbol(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerBuildVector(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerExtractVectorElt(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpExtend(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpRound(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerFpToInt(SDValue Op, SelectionDAG &DAG) const;
@@ -169,6 +167,8 @@ namespace llvm {
       SDValue LowerBrCond(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerAdd64(SDValue Op, SelectionDAG &DAG) const;
       SDValue LowerSub64(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerAdde(SDValue Op, SelectionDAG &DAG) const;
+      SDValue LowerSube(SDValue Op, SelectionDAG &DAG) const;
 
       // Custom inserters
       MachineBasicBlock *emitBrCC(MachineInstr &MI, MachineBasicBlock *MBB) const;

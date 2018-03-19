@@ -23,8 +23,8 @@ using namespace llvm;
 
 char EpiphanyFpuConfigPass::ID = 0;
 
-INITIALIZE_PASS_BEGIN(EpiphanyFpuConfigPass, "epiphany_fpu_config", "Epiphany FPU/IALU2 Config", false, false);
-INITIALIZE_PASS_END(EpiphanyFpuConfigPass, "epiphany_fpu_config", "Epiphany FPU/IALU2 Config", false, false);
+INITIALIZE_PASS_BEGIN(EpiphanyFpuConfigPass, "epiphany_fpu_config", "Epiphany FPU/IALU2 Config", false, false)
+INITIALIZE_PASS_END(EpiphanyFpuConfigPass, "epiphany_fpu_config", "Epiphany FPU/IALU2 Config", false, false)
 
 void EpiphanyFpuConfigPass::insertConfigInst(MachineBasicBlock *MBB, MachineBasicBlock::iterator MBBI, 
     MachineRegisterInfo &MRI, const EpiphanySubtarget &ST, unsigned frameIdx) {
@@ -58,12 +58,12 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     Epiphany::IMSUBrr_r16, Epiphany::IMSUBrr_r32};
 
   // Prepare binary flag and regs
-  bool hasFPU;
-  bool hasIALU2;
+  bool hasFPU = false;
+  bool hasIALU2 = false;
 
   // Step 1: Loop over all of the basic blocks to find the first FPU instruction
-  for(MachineFunction::iterator it = MF.begin(), E = MF.end(); it != E; ++it) {
-    MachineBasicBlock *MBB = &*it;
+  for (auto &it : MF) {
+    MachineBasicBlock *MBB = &it;
     // Loop over all instructions search for FPU instructions
     for(MachineBasicBlock::iterator MBBI = MBB->begin(), MBBE = MBB->end(); MBBI != MBBE; ++MBBI) {
       MachineInstr *MI = &*MBBI;
@@ -94,7 +94,7 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
     MF.insert(MF.begin(), MBB);
     MBB->addSuccessor(Front);
     // Add function live-ins so that they'll be defined in every path
-    for (MachineRegisterInfo::livein_iterator LB = MRI.livein_begin(), LE = MRI.livein_end(); LB != LE; ++LB) {
+    for (auto LB = MRI.livein_begin(), LE = MRI.livein_end(); LB != LE; ++LB) {
       MBB->addLiveIn(LB->first);
     }
     // Create config regs for both cases
@@ -144,8 +144,8 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
   // FIXME: config based on on successors and first use
   std::vector<PredState> lastState(blockCount, PRED_START);
   if (hasFPU && hasIALU2) {
-    for(MachineFunction::iterator it = MF.begin(), E = MF.end(); it != E; ++it) {
-      MachineBasicBlock *MBB = &*it;
+    for (auto &it : MF) {
+      MachineBasicBlock *MBB = &it;
       int blockNumber = MBB->getNumber();
       // Loop over all instructions search for FPU instructions
       for(MachineBasicBlock::iterator MBBI = MBB->begin(), MBBE = MBB->end(); MBBI != MBBE; ++MBBI) {
@@ -171,7 +171,7 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
       }
       // Propagate current flag state to all successors, setting state to MIXED if they 
       // already have some other state except start
-      for (MachineBasicBlock::succ_iterator MBBI = MBB->succ_begin(), MBBE = MBB->succ_end(); MBBI != MBBE; ++MBBI) {
+      for (auto MBBI = MBB->succ_begin(), MBBE = MBB->succ_end(); MBBI != MBBE; ++MBBI) {
         MachineBasicBlock *successor = *MBBI;
         int succNumber = successor->getNumber();
         if (lastState[succNumber] == PRED_START) {
@@ -186,8 +186,8 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
   // Step 4 - resolving loops and predeccessors
   // Run on every block until we hit the first IALU/FPU inst and check ALL predeccessors
   if (hasFPU && hasIALU2) {
-    for(MachineFunction::iterator it = MF.begin(), E = MF.end(); it != E; ++it) {
-      MachineBasicBlock *MBB = &*it;
+    for (auto &it : MF) {
+      MachineBasicBlock *MBB = &it;
       int blockNumber = MBB->getNumber();
       // Loop over all instructions search for FPU instructions
       for(MachineBasicBlock::iterator MBBI = MBB->begin(), MBBE = MBB->end(); MBBI != MBBE; ++MBBI) {
@@ -201,7 +201,7 @@ bool EpiphanyFpuConfigPass::runOnMachineFunction(MachineFunction &MF) {
         bool isIALU2 = std::find(std::begin(opcodesIALU2), std::end(opcodesIALU2), MI->getOpcode()) != std::end(opcodesIALU2);
         if (isFPU || isIALU2) {
           // Check all predeccessors
-          for (MachineBasicBlock::pred_iterator PBBI = MBB->pred_begin(), PBBE = MBB->pred_end(); PBBI != PBBE; ++PBBI) {
+          for (auto PBBI = MBB->pred_begin(), PBBE = MBB->pred_end(); PBBI != PBBE; ++PBBI) {
             MachineBasicBlock *pred = *PBBI;
             int predNumber = pred->getNumber();
             // Remember than now we can be, for example, in mixed state
