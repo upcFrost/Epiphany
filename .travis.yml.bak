@@ -1,0 +1,67 @@
+language: c++
+sudo: false 
+dist: trusty
+cache:
+  apt: true
+  ccache: true
+  directories:
+    - $HOME/.ccache
+    - $HOME/build/Epiphany/llvm
+    - $HOME/build/Epiphany/llvm-build
+os: linux
+env: 
+  - UNIT_TESTS=true 
+    LLVM_VERSION=4.0.0 
+    BOOST_VERSION=default 
+    ENABLE_MEMCHECK=true
+    USE_CCACHE=1
+    CCACHE_COMPRESS=1
+    CCACHE_MAXSIZE=1000M
+    CCACHE_CPP2=1
+    TIMEOUT='30m'
+
+compiler: clang
+
+addons:
+  apt:
+    sources: &sources
+      - llvm-toolchain-trusty-4.0
+      - ubuntu-toolchain-r-test
+      - sourceline: 'ppa:ppsspp/cmake'
+    packages:
+      - clang-4.0
+      - cmake
+      - ccache
+      - coreutils
+
+before_install:
+  - export CXX="ccache clang++-4.0" && export CC="ccache clang-4.0"; 
+  - mkdir -p llvm && mkdir -p llvm-build
+  - wget http://releases.llvm.org/${LLVM_VERSION}/llvm-${LLVM_VERSION}.src.tar.xz -O llvm.tar.xz && tar xf llvm.tar.xz -C llvm --strip-components=1
+  - wget http://releases.llvm.org/${LLVM_VERSION}/cfe-${LLVM_VERSION}.src.tar.xz -O clang.tar.xz && mkdir -p llvm/tools/clang && tar xf clang.tar.xz -C llvm/tools/clang --strip-components=1
+  - ln -s `pwd` llvm/lib/Target/Epiphany
+  - patch -d llvm -p 1 < LLVM_Epiphany.patch && patch -d llvm -p 1 < CLANG_Epiphany.patch
+  - echo "max_size = 2.0G" > $HOME/.ccache/ccache.conf
+
+install:
+  - cd llvm-build 
+  - if [ ! -f "CMakeCache.txt" ]; then cmake -DLLVM_TARGETS_TO_BUILD=Epiphany \
+    -DLLVM_TOOL_XCODE_TOOLCHAIN_BUILD=OFF \
+    -DLLVM_TOOL_LTO_BUILD=OFF \
+    -DLLVM_TOOL_LLVM_GO_BUILD=OFF \
+    -DLLVM_TOOL_LLVM_C_TEST_BUILD=OFF \
+    -DLLVM_TOOL_LLI_BUILD=OFF \
+    -DLLVM_TOOL_LLD_BUILD=OFF \
+    -DLLVM_TOOL_GOLD_BUILD=OFF \
+    -DLLVM_POLLY_BUILD=OFF \
+    -DLLVM_INCLUDE_GO_TESTS=OFF \
+    -DLLVM_INCLUDE_DOCS=OFF \
+    -DLLVM_ENABLE_LTO=OFF \
+    -DLLVM_TOOL_LLVM_LTO_BUILD=OFF \
+    -DLLVM_TOOL_LLVM_LTO2_BUILD=OFF \
+    -DLLVM_TOOL_YAML2OBJ_BUILD=OFF \
+    -LLVM_TOOL_MSBUILD_BUILD=OFF \
+    -DLLVM_TOOL_LLVM_CXXDUMP_BUILD=OFF \
+    -DLLVM_INCLUDE_TESTS=OFF ../llvm; fi 
+  - timeout -s SIGTERM $TIMEOUT make -j2;
+    ccache -s

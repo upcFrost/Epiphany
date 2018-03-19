@@ -1,0 +1,538 @@
+diff -Naur -x '.*.swp' cfe-4.0.0.src/include/clang/Basic/Attr.td llvm-4.0.0.src/tools/clang/include/clang/Basic/Attr.td
+--- cfe-4.0.0.src/include/clang/Basic/Attr.td	2017-01-09 06:12:14.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/include/clang/Basic/Attr.td	2017-06-08 15:34:13.648007750 +0300
+@@ -259,6 +259,7 @@
+ }
+ def TargetARM : TargetArch<["arm", "thumb", "armeb", "thumbeb"]>;
+ def TargetMips : TargetArch<["mips", "mipsel"]>;
++def TargetEpiphany : TargetArch<["epiphany"]>;
+ def TargetMSP430 : TargetArch<["msp430"]>;
+ def TargetX86 : TargetArch<["x86"]>;
+ def TargetAnyX86 : TargetArch<["x86", "x86_64"]>;
+@@ -950,6 +951,16 @@
+   let Documentation = [MSABIDocs];
+ }
+ 
++def EpiphanyInterrupt : InheritableAttr, TargetSpecificAttr<TargetEpiphany> {
++  // NOTE: If you add any additional spellings, ARMInterrupt's, MipsInterrupt's
++  // and AnyX86Interrupt's spellings must match.
++  let Spellings = [GNU<"interrupt">];
++  let Args = [UnsignedArgument<"Number">];
++  let ParseKind = "Interrupt";
++  let HasCustomParsing = 1;
++  let Documentation = [Undocumented];
++}
++
+ def MSP430Interrupt : InheritableAttr, TargetSpecificAttr<TargetMSP430> {
+   // NOTE: If you add any additional spellings, ARMInterrupt's, MipsInterrupt's
+   // and AnyX86Interrupt's spellings must match.
+diff -Naur -x '.*.swp' cfe-4.0.0.src/include/clang/Basic/BuiltinsEpiphany.def llvm-4.0.0.src/tools/clang/include/clang/Basic/BuiltinsEpiphany.def
+--- cfe-4.0.0.src/include/clang/Basic/BuiltinsEpiphany.def	1970-01-01 02:00:00.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/include/clang/Basic/BuiltinsEpiphany.def	2017-06-08 14:59:21.989176817 +0300
+@@ -0,0 +1,19 @@
++// BuiltinsEpiphany.def - Epiphany builtin function database -*- C++ -*-//
++//
++//                     The LLVM Compiler Infrastructure
++//
++// This file is distributed under the University of Illinois Open Source
++// License. See LICENSE.TXT for details.
++//
++//===----------------------------------------------------------------------===//
++///
++/// \file
++/// \brief This file defines the Epiphany-specific builtin function database.
++/// Users of this file must define the BUILTIN macro to make use of this
++/// information.
++///
++//===----------------------------------------------------------------------===//
++
++// The format of this database matches clang/Basic/Builtins.def.
++
++#undef BUILTIN
+diff -Naur -x '.*.swp' cfe-4.0.0.src/include/clang/Basic/TargetBuiltins.h llvm-4.0.0.src/tools/clang/include/clang/Basic/TargetBuiltins.h
+--- cfe-4.0.0.src/include/clang/Basic/TargetBuiltins.h	2016-10-05 01:29:49.000000000 +0300
++++ llvm-4.0.0.src/tools/clang/include/clang/Basic/TargetBuiltins.h	2017-06-08 14:57:58.274511215 +0300
+@@ -150,6 +150,16 @@
+     };
+   }
+ 
++  /// \brief Epiphany builtins
++  namespace Epiphany {
++    enum {
++      LastTIBuiltin = clang::Builtin::FirstTSBuiltin-1,
++#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
++#include "clang/Basic/BuiltinsEpiphany.def"
++      LastTSBuiltin
++    };
++  }
++
+   /// \brief MIPS builtins
+   namespace Mips {
+     enum {
+diff -Naur -x '.*.swp' cfe-4.0.0.src/include/clang/Driver/Options.td llvm-4.0.0.src/tools/clang/include/clang/Driver/Options.td
+--- cfe-4.0.0.src/include/clang/Driver/Options.td	2017-01-12 21:26:54.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/include/clang/Driver/Options.td	2017-06-08 14:09:40.718628023 +0300
+@@ -92,6 +92,8 @@
+                            Group<m_Group>;
+ def m_aarch64_Features_Group : OptionGroup<"<aarch64 features group>">,
+                                Group<m_Group>;
++def m_epiphany_Features_Group : OptionGroup<"<epiphany features group>">,
++                                Group<m_Group>;
+ def m_ppc_Features_Group : OptionGroup<"<ppc features group>">,
+                            Group<m_Group>;
+ def m_wasm_Features_Group : OptionGroup<"<wasm features group>">,
+diff -Naur -x '.*.swp' cfe-4.0.0.src/lib/Basic/Targets.cpp llvm-4.0.0.src/tools/clang/lib/Basic/Targets.cpp
+--- cfe-4.0.0.src/lib/Basic/Targets.cpp	2017-01-19 02:10:50.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/lib/Basic/Targets.cpp	2017-06-08 16:52:14.316009993 +0300
+@@ -8435,6 +8435,115 @@
+   }
+ };
+ 
++class EpiphanyTargetInfo : public TargetInfo {
++  public:
++    EpiphanyTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
++      : TargetInfo(Triple) {
++        TLSSupported = false;
++        PointerWidth = 32;
++        PointerAlign = 32;
++        IntWidth = 32;
++        IntAlign = 32;
++        LongWidth = 32;
++        LongAlign = 32;
++        LongLongWidth = 64;
++        LongLongAlign = 64;
++        HalfWidth = 16;
++        HalfAlign = 16;
++        FloatWidth = 32;
++        FloatAlign = 32;
++        FloatFormat = &llvm::APFloat::IEEEsingle();
++        DoubleWidth = 64;
++        DoubleAlign = 64;
++        DoubleFormat = &llvm::APFloat::IEEEdouble();
++        SizeType = UnsignedInt;
++        PtrDiffType = SignedInt;
++        IntPtrType = SignedInt;
++        Char16Type = UnsignedChar;
++        Char32Type = UnsignedInt;
++
++        resetDataLayout("e-p:32:32-i8:8-i16:16-i32:32-i64:64-v32:32-v64:64"
++            "-f32:32-f64:64-n32-S64");
++      }
++
++    bool setCPU(const std::string &Name) override {
++      return llvm::StringSwitch<bool>(Name)
++        .Case("E16", true)
++        .Default(false);
++    }
++
++    ArrayRef<const char *> getGCCRegNames() const override {
++      static const char * const GCCRegNames[] = {
++        // GPR
++        "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", 
++        "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", 
++        "r21", "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r30", 
++        "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39", "r40", 
++        "r41", "r42", "r43", "r44", "r45", "r46", "r47", "r48", "r49", "r50", 
++        "r51", "r52", "r53", "r54", "r55", "r56", "r57", "r58", "r59", "r60", 
++        "r61", "r62", "r63",
++        // eCore regs
++        "CONFIG", "STATUS", "PC", "DEBUGSTATUS", "LC", "LS", "LE", "IRET", "IMASK", 
++        "ILAT", "ILATST", "ILATCL", "IPEND", "CTIMER0", "CTIMER1", "FSTATUS", "DEBUGCMD", 
++        // DMA
++        "DMA0CONFIG", "DMA0STRIDE", "DMA0COUNT", "DMA0SRCADDR", "DMA0DSTADDR", "DMA0AUTO0", 
++        "DMA0AUTO1", "DMA0STATUS", "DMA1CONFIG", "DMA1STRIDE", "DMA1COUNT", "DMA1SRCADDR", 
++        "DMA1DSTADDR", "DMA1AUTO0", "DMA1AUTO1", "DMA1STATUS", 
++        // Memprotection
++        "MEMSTATUS", "MEMPROTECT", 
++        // Mesh config
++        "MESHCONFIG", "COREID", "MULTICAST", "RESETCORE", "CMESHROUTE", "XMESHROUTE", "RMESHROUTE",
++      };
++      return llvm::makeArrayRef(GCCRegNames);
++    }
++    ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
++      static const TargetInfo::GCCRegAlias RegAliases[] = {
++        {{"a1"}, "r0"}, {{"a2"}, "r1"}, {{"a3"}, "r2"}, {{"a4"}, "r3"}, {{"v1"}, "r4"}, 
++        {{"v2"}, "r5"}, {{"v3"}, "r6"}, {{"v4"}, "r7"}, {{"v5"}, "r8"}, {{"sb"}, "r9"}, 
++        {{"sl"}, "r10"}, {{"v8"}, "r11"}, {{"ip"}, "r12"}, {{"sp"}, "r13"}, 
++        {{"lr"}, "r14"}, {{"fp"}, "r15"}, {{"zero"}, "r31"}, 
++      };
++      return llvm::makeArrayRef(RegAliases);
++    }
++
++    bool hasInt128Type() const override {
++      return false;
++    }
++
++    void getTargetDefines(const LangOptions &Opts, MacroBuilder &Builder) const override {
++      DefineStd(Builder, "epiphany", Opts);
++    }
++
++    ArrayRef<Builtin::Info> getTargetBuiltins() const override {
++      return None;
++    }
++
++    const char *getClobbers() const override {
++      return "";
++    }
++
++    BuiltinVaListKind getBuiltinVaListKind() const override {
++      return TargetInfo::VoidPtrBuiltinVaList;
++    }
++
++    bool hasFeature(StringRef Feature) const override {
++      return llvm::StringSwitch<bool>(Feature)
++        .Case("epiphany", true)
++        .Default(false);
++    }
++
++    bool validateAsmConstraint(const char *&Name,
++        TargetInfo::ConstraintInfo &Info) const override {
++      switch (*Name) {
++        default:
++          return false;
++        case 'r': // CPU registers.
++          Info.setAllowsRegister();
++          return true;
++      }
++    }
++
++};
+ 
+ // AVR Target
+ class AVRTargetInfo : public TargetInfo {
+@@ -8559,6 +8668,9 @@
+   case llvm::Triple::lanai:
+     return new LanaiTargetInfo(Triple, Opts);
+ 
++  case llvm::Triple::epiphany:
++    return new EpiphanyTargetInfo(Triple, Opts);
++
+   case llvm::Triple::aarch64:
+     if (Triple.isOSDarwin())
+       return new DarwinAArch64TargetInfo(Triple, Opts);
+diff -Naur -x '.*.swp' cfe-4.0.0.src/lib/CodeGen/TargetInfo.cpp llvm-4.0.0.src/tools/clang/lib/CodeGen/TargetInfo.cpp
+--- cfe-4.0.0.src/lib/CodeGen/TargetInfo.cpp	2017-01-05 02:20:51.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/lib/CodeGen/TargetInfo.cpp	2017-06-08 13:43:19.425982716 +0300
+@@ -6946,6 +6946,123 @@
+ }
+ 
+ //===----------------------------------------------------------------------===//
++// Epiphany ABI Implementation
++//===----------------------------------------------------------------------===//
++
++namespace {
++  class EpiphanyABIInfo : public ABIInfo {
++    public:
++      EpiphanyABIInfo(CodeGenTypes &CGT) : ABIInfo(CGT) {}
++
++    private:
++      ABIArgInfo classifyReturnType(QualType RetTy) const;
++      ABIArgInfo classifyArgumentType(QualType RetTy) const;
++
++      void computeInfo(CGFunctionInfo &FI) const override;
++
++      Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
++          QualType Ty) const override;
++
++  };
++
++  class EpiphanyTargetCodeGenInfo : public TargetCodeGenInfo {
++    public:
++      EpiphanyTargetCodeGenInfo(CodeGenTypes &CGT)
++        :TargetCodeGenInfo(new EpiphanyABIInfo(CGT)) {}
++
++      int getDwarfEHStackPointer(CodeGen::CodeGenModule &M) const override {
++        return 13;
++      };
++  };
++}
++
++void EpiphanyABIInfo::computeInfo(CGFunctionInfo &FI) const {
++  if (!getCXXABI().classifyReturnType(FI))
++    FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
++  for (auto &I : FI.arguments())
++    I.info = classifyArgumentType(I.type);
++}
++
++ABIArgInfo EpiphanyABIInfo::classifyArgumentType(QualType Ty) const {
++  if (!isAggregateTypeForABI(Ty)) {
++    // Treat an enum type as its underlying type.
++    if (const EnumType *EnumTy = Ty->getAs<EnumType>())
++      Ty = EnumTy->getDecl()->getIntegerType();
++
++    return (Ty->isPromotableIntegerType() ?
++        ABIArgInfo::getExtend() : ABIArgInfo::getDirect());
++  }
++
++  // Ignore empty records.
++  if (isEmptyRecord(getContext(), Ty, true))
++    return ABIArgInfo::getIgnore();
++
++  if (CGCXXABI::RecordArgABI RAA = getRecordArgABI(Ty, getCXXABI()))
++    return getNaturalAlignIndirect(Ty, RAA == CGCXXABI::RAA_DirectInMemory);
++
++  uint64_t Size = getContext().getTypeSize(Ty);
++  if (Size > 64)
++    return getNaturalAlignIndirect(Ty, /*ByVal=*/true);
++  // Pass in the smallest viable integer type.
++  else if (Size > 32)
++    return ABIArgInfo::getDirect(llvm::Type::getInt64Ty(getVMContext()));
++  else if (Size > 16)
++    return ABIArgInfo::getDirect(llvm::Type::getInt32Ty(getVMContext()));
++  else if (Size > 8)
++    return ABIArgInfo::getDirect(llvm::Type::getInt16Ty(getVMContext()));
++  else
++    return ABIArgInfo::getDirect(llvm::Type::getInt8Ty(getVMContext()));
++}
++
++ABIArgInfo EpiphanyABIInfo::classifyReturnType(QualType RetTy) const {
++  if (RetTy->isVoidType())
++    return ABIArgInfo::getIgnore();
++
++  // Large vector types should be returned via memory.
++  if (RetTy->isVectorType() && getContext().getTypeSize(RetTy) > 64)
++    return getNaturalAlignIndirect(RetTy);
++
++  if (!isAggregateTypeForABI(RetTy)) {
++    // Treat an enum type as its underlying type.
++    if (const EnumType *EnumTy = RetTy->getAs<EnumType>())
++      RetTy = EnumTy->getDecl()->getIntegerType();
++
++    return (RetTy->isPromotableIntegerType() ?
++        ABIArgInfo::getExtend() : ABIArgInfo::getDirect());
++  }
++
++  if (isEmptyRecord(getContext(), RetTy, true))
++    return ABIArgInfo::getIgnore();
++
++  // Aggregates <= 8 bytes are returned in r0; other aggregates
++  // are returned indirectly.
++  uint64_t Size = getContext().getTypeSize(RetTy);
++  if (Size <= 64) {
++    // Return in the smallest viable integer type.
++    if (Size <= 8)
++      return ABIArgInfo::getDirect(llvm::Type::getInt8Ty(getVMContext()));
++    if (Size <= 16)
++      return ABIArgInfo::getDirect(llvm::Type::getInt16Ty(getVMContext()));
++    if (Size <= 32)
++      return ABIArgInfo::getDirect(llvm::Type::getInt32Ty(getVMContext()));
++    return ABIArgInfo::getDirect(llvm::Type::getInt64Ty(getVMContext()));
++  }
++
++  return getNaturalAlignIndirect(RetTy, /*ByVal=*/true);
++}
++
++Address EpiphanyABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
++    QualType Ty) const {
++  // FIXME: Someone needs to audit that this handle alignment correctly.
++  return emitVoidPtrVAArg(CGF, VAListAddr, Ty, /*indirect*/ false,
++      getContext().getTypeInfoInChars(Ty),
++      CharUnits::fromQuantity(4),
++      /*AllowHigherAlign*/ true);
++}
++
++
++
++//===----------------------------------------------------------------------===//
+ // Hexagon ABI Implementation
+ //===----------------------------------------------------------------------===//
+ 
+@@ -8509,6 +8626,8 @@
+     return SetCGInfo(new AMDGPUTargetCodeGenInfo(Types));
+   case llvm::Triple::amdgcn:
+     return SetCGInfo(new AMDGPUTargetCodeGenInfo(Types));
++  case llvm::Triple::epiphany:
++    return SetCGInfo(new EpiphanyTargetCodeGenInfo(Types));
+   case llvm::Triple::sparc:
+     return SetCGInfo(new SparcV8TargetCodeGenInfo(Types));
+   case llvm::Triple::sparcv9:
+diff -Naur -x '.*.swp' cfe-4.0.0.src/lib/Driver/Driver.cpp llvm-4.0.0.src/tools/clang/lib/Driver/Driver.cpp
+--- cfe-4.0.0.src/lib/Driver/Driver.cpp	2017-01-05 07:20:27.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/lib/Driver/Driver.cpp	2017-06-08 12:16:34.483504158 +0300
+@@ -3764,6 +3764,9 @@
+       case llvm::Triple::wasm64:
+         TC = new toolchains::WebAssembly(*this, Target, Args);
+         break;
++      case llvm::Triple::epiphany:
++        TC = new toolchains::EpiphanyToolChain(*this, Target, Args);
++        break;
+       case llvm::Triple::avr:
+         TC = new toolchains::AVRToolChain(*this, Target, Args);
+         break;
+diff -Naur -x '.*.swp' cfe-4.0.0.src/lib/Driver/ToolChains.cpp llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.cpp
+--- cfe-4.0.0.src/lib/Driver/ToolChains.cpp	2017-01-10 23:13:08.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.cpp	2017-06-08 13:50:53.792158271 +0300
+@@ -5332,6 +5332,13 @@
+   return Res;
+ }
+ 
++/// Epiphany Toolchain
++EpiphanyToolChain::EpiphanyToolChain(const Driver &D, const llvm::Triple & Triple, const ArgList &Args)
++  : Generic_ELF(D, Triple, Args) {}
++Tool *EpiphanyToolChain::buildLinker() const {
++  return new tools::epiphany::Linker(*this);
++}
++
+ /// AVR Toolchain
+ AVRToolChain::AVRToolChain(const Driver &D, const llvm::Triple &Triple,
+                            const ArgList &Args)
+diff -Naur -x '.*.swp' cfe-4.0.0.src/lib/Driver/ToolChains.h llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.h
+--- cfe-4.0.0.src/lib/Driver/ToolChains.h	2017-01-05 18:52:29.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/lib/Driver/ToolChains.h	2017-06-08 13:42:29.908373929 +0300
+@@ -1371,6 +1371,15 @@
+   SanitizerMask getSupportedSanitizers() const override;
+ };
+ 
++class LLVM_LIBRARY_VISIBILITY EpiphanyToolChain : public Generic_ELF {
++  protected:
++    Tool *buildLinker() const override;
++  public:
++    EpiphanyToolChain(const Driver &D, const llvm::Triple &Triple,
++        const llvm::opt::ArgList &Args);
++    bool IsIntegratedAssemblerDefault() const override { return true; }
++};
++
+ class LLVM_LIBRARY_VISIBILITY AVRToolChain : public Generic_ELF {
+ protected:
+   Tool *buildLinker() const override;
+diff -Naur -x '.*.swp' cfe-4.0.0.src/lib/Driver/Tools.cpp llvm-4.0.0.src/tools/clang/lib/Driver/Tools.cpp
+--- cfe-4.0.0.src/lib/Driver/Tools.cpp	2017-02-21 21:11:22.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/lib/Driver/Tools.cpp	2017-06-08 15:11:33.944107522 +0300
+@@ -770,6 +770,7 @@
+     return false;
+ 
+   case llvm::Triple::hexagon:
++  case llvm::Triple::epiphany:
+   case llvm::Triple::ppc64le:
+   case llvm::Triple::systemz:
+   case llvm::Triple::xcore:
+@@ -1865,6 +1866,13 @@
+   return "";
+ }
+ 
++static std::string getEpiphanyTargetCPU(const ArgList &Args) {
++  if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
++      return A->getValue();
++    }
++  return "E16";
++}
++
+ static std::string getLanaiTargetCPU(const ArgList &Args) {
+   if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
+     return A->getValue();
+@@ -2139,6 +2147,9 @@
+     return "hexagon" +
+            toolchains::HexagonToolChain::GetTargetCPUVersion(Args).str();
+ 
++  case llvm::Triple::epiphany:
++    return getEpiphanyTargetCPU(Args);
++
+   case llvm::Triple::lanai:
+     return getLanaiTargetCPU(Args);
+ 
+@@ -2526,6 +2537,16 @@
+   }
+ }
+ 
++void Clang::AddEpiphanyTargetArgs(const ArgList &Args, 
++    ArgStringList &CmdArgs) const {
++  // Default to "hidden" visibility.
++  if (!Args.hasArg(options::OPT_fvisibility_EQ,
++        options::OPT_fvisibility_ms_compat)) {
++    CmdArgs.push_back("-fvisibility");
++    CmdArgs.push_back("hidden");
++  }
++}
++
+ void Clang::AddWebAssemblyTargetArgs(const ArgList &Args,
+                                      ArgStringList &CmdArgs) const {
+   // Default to "hidden" visibility.
+@@ -2685,6 +2706,12 @@
+     Features.push_back("+reserve-x18");
+ }
+ 
++static void getEpiphanyTargetFeatures(const ArgList &Args,
++                                      std::vector<StringRef> &Features) {
++  handleTargetFeaturesGroup(Args, Features,
++                            options::OPT_m_epiphany_Features_Group);
++}
++
+ static void getHexagonTargetFeatures(const ArgList &Args,
+                                      std::vector<StringRef> &Features) {
+   handleTargetFeaturesGroup(Args, Features,
+@@ -2763,6 +2790,8 @@
+   case llvm::Triple::hexagon:
+     getHexagonTargetFeatures(Args, Features);
+     break;
++  case llvm::Triple::epiphany:
++    getEpiphanyTargetFeatures(Args, Features);
+   case llvm::Triple::wasm32:
+   case llvm::Triple::wasm64:
+     getWebAssemblyTargetFeatures(Args, Features);
+@@ -4783,6 +4812,10 @@
+     AddHexagonTargetArgs(Args, CmdArgs);
+     break;
+ 
++  case llvm::Triple::epiphany:
++    AddEpiphanyTargetArgs(Args, CmdArgs);
++    break;
++
+   case llvm::Triple::wasm32:
+   case llvm::Triple::wasm64:
+     AddWebAssemblyTargetArgs(Args, CmdArgs);
+@@ -7718,6 +7751,23 @@
+                                           CmdArgs, Inputs));
+ }
+ // Hexagon tools end.
++//
++
++void epiphany::Linker::ConstructJob(Compilation &C, const JobAction &JA,
++                                  const InputInfo &Output,
++                                  const InputInfoList &Inputs,
++                                  const ArgList &Args,
++                                  const char *LinkingOutput) const {
++
++  std::string Linker = getToolChain().GetProgramPath(getShortName());
++  ArgStringList CmdArgs;
++  AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
++  CmdArgs.push_back("-o");
++  CmdArgs.push_back(Output.getFilename());
++  C.addCommand(llvm::make_unique<Command>(JA, *this, Args.MakeArgString(Linker),
++                                          CmdArgs, Inputs));
++}
++// Epiphany tools end.
+ 
+ void amdgpu::Linker::ConstructJob(Compilation &C, const JobAction &JA,
+                                   const InputInfo &Output,
+diff -Naur -x '.*.swp' cfe-4.0.0.src/lib/Driver/Tools.h llvm-4.0.0.src/tools/clang/lib/Driver/Tools.h
+--- cfe-4.0.0.src/lib/Driver/Tools.h	2017-01-05 07:20:27.000000000 +0200
++++ llvm-4.0.0.src/tools/clang/lib/Driver/Tools.h	2017-06-08 15:02:53.107846950 +0300
+@@ -74,6 +74,8 @@
+                         llvm::opt::ArgStringList &CmdArgs) const;
+   void AddR600TargetArgs(const llvm::opt::ArgList &Args,
+                          llvm::opt::ArgStringList &CmdArgs) const;
++  void AddEpiphanyTargetArgs(const llvm::opt::ArgList &Args,
++                         llvm::opt::ArgStringList &CmdArgs) const;
+   void AddSparcTargetArgs(const llvm::opt::ArgList &Args,
+                           llvm::opt::ArgStringList &CmdArgs) const;
+   void AddSystemZTargetArgs(const llvm::opt::ArgList &Args,
+@@ -264,6 +266,19 @@
+ };
+ } // end namespace hexagon.
+ 
++namespace epiphany {
++class LLVM_LIBRARY_VISIBILITY Linker : public GnuTool {
++public:
++  Linker(const ToolChain &TC) : GnuTool("epiphany::Linker", "e-ld", TC) {}
++  bool isLinkJob() const override { return true; }
++  bool hasIntegratedCPP() const override { return false; }
++  void ConstructJob(Compilation &C, const JobAction &JA,
++                    const InputInfo &Output, const InputInfoList &Inputs,
++                    const llvm::opt::ArgList &TCArgs,
++                    const char *LinkingOutput) const override;
++};
++} // end namespace epiphany.
++
+ namespace amdgpu {
+ 
+ class LLVM_LIBRARY_VISIBILITY Linker : public GnuTool {

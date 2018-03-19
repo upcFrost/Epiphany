@@ -14,17 +14,30 @@
 //===----------------------------------------------------------------------===//
 
 #include "EpiphanyTargetMachine.h"
-#include "Epiphany.h"
 
 #include "EpiphanyISelDAGToDAG.h"
-#include "EpiphanySubtarget.h"
 #include "EpiphanyTargetObjectFile.h"
+#include "EpiphanyTargetTransformInfo.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Support/TargetRegistry.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/GVN.h"
+#include "llvm/Transforms/Vectorize.h"
 
 using namespace llvm;
+
+static cl::opt<bool> EnableSROA(
+  "epiphany-sroa",
+  cl::desc("Run SROA after promote alloca pass"),
+  cl::ReallyHidden,
+  cl::init(true));
+
+static cl::opt<bool> EnableLSOpt(
+  "epiphany-lsopt",
+  cl::desc("Run Epiphany Load/Store Optimization Pass"),
+  cl::ReallyHidden,
+  cl::init(true));
 
 #define DEBUG_TYPE "epiphany"
 
@@ -51,6 +64,9 @@ static std::string computeDataLayout(const Triple &TT, StringRef CPU,
 
   // Minimal alignment for E16 is byte
   Ret += "-i8:8-i16:16-i32:32-i64:64";
+
+  // Vector alignment is better to keep at dword for wide loads/stores
+  Ret += "-v32:64-v64:64";
   
   // 32 and 64 bit floats should have natural alignment
   Ret += "-f32:32-f64:64";
@@ -97,6 +113,8 @@ public:
 
   bool addILPOpts() override;
   bool addInstSelector() override;
+  void addIRPasses() override;
+  void addCodeGenPrepare() override;
   void addPreRegAlloc() override;
   void addPreSched2() override;
   void addPreEmitPass() override;
@@ -109,6 +127,15 @@ public:
 
 TargetPassConfig *EpiphanyTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new EpiphanyPassConfig(this, PM);
+}
+
+void EpiphanyPassConfig::addIRPasses() {
+  addPass(createAtomicExpandPass(&getEpiphanyTargetMachine()));
+  if (EnableSROA && (TM->getOptLevel() != CodeGenOpt::None)) {
+    addPass(createSROAPass());
+  }
+
+  TargetPassConfig::addIRPasses();
 }
 
 bool EpiphanyPassConfig::addILPOpts() {
@@ -124,8 +151,16 @@ bool EpiphanyPassConfig::addInstSelector() {
   return false;
 }
 
+void EpiphanyPassConfig::addCodeGenPrepare() {
+  TargetPassConfig::addCodeGenPrepare();
+
+  addPass(createLoadStoreVectorizerPass());
+}
+
 void EpiphanyPassConfig::addPreRegAlloc() {
   addPass(&LiveVariablesID, false);
+  if (EnableLSOpt && TM->getOptLevel() != CodeGenOpt::None)
+    addPass(createEpiphanyVregLoadStoreOptimizationPass());
 }
 
 void EpiphanyPassConfig::addPreSched2() {
@@ -133,5 +168,13 @@ void EpiphanyPassConfig::addPreSched2() {
 }
 
 void EpiphanyPassConfig::addPreEmitPass() {
-  addPass(createEpiphanyLoadStoreOptimizationPass());
+  if (EnableLSOpt && TM->getOptLevel() != CodeGenOpt::None)
+    addPass(createEpiphanyLoadStoreOptimizationPass());
 }
+
+TargetIRAnalysis EpiphanyTargetMachine::getTargetIRAnalysis() {
+  return TargetIRAnalysis([this](const Function &F) {
+      return TargetTransformInfo(EpiphanyTTIImpl(this, F));
+      });
+}
+

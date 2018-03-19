@@ -46,6 +46,11 @@ public:
   
   bool trackLivenessAfterRegAlloc(const MachineFunction &MF) const override;
 
+  unsigned getRegPressureLimit(const TargetRegisterClass *RC, MachineFunction &MF) const override;
+  unsigned getRegUnitWeight(unsigned RegUnit) const override;
+
+  const TargetRegisterClass *getPointerRegClass(const MachineFunction &MF, unsigned Kind) const override;
+
   void eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
                            unsigned FIOperandNum,
                            RegScavenger *Rs = nullptr) const override;

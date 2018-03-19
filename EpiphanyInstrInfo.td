@@ -121,11 +121,18 @@ multiclass bitconvert_32<ValueType a, ValueType b> {
   def : Pat <(a (bitconvert (b GPR32:$src))),
              (a GPR32:$src)>;
 }
+multiclass bitconvert_64<ValueType a, ValueType b> {
+  def : Pat <(b (bitconvert (a GPR64:$src))),
+             (b GPR64:$src)>;
+  def : Pat <(a (bitconvert (b GPR64:$src))),
+             (a GPR64:$src)>;
+}
 
 // Bit convert vector types.
 defm : bitconvert_32<v4i8,  i32>;
 defm : bitconvert_32<v2i16, i32>;
 defm : bitconvert_32<v2i16, v4i8>;
+defm : bitconvert_64<v2i32, i64>;
 
 //===----------------------------------------------------------------------===//
 // Load/store instructions
@@ -174,28 +181,46 @@ multiclass StorePostM<LS_size StoreSize, ValueType Ty, PatFrag StoreType> {
 }
 
 // Load
-defm LDRi8   : LoadM<LS_byte,   i32, zextloadi8>,  LoadPreM<LS_byte,   i32, zextloadi8>,  LoadPostM<LS_byte,   i32, zextloadi8>;
-defm LDRi16  : LoadM<LS_hword,  i32, zextloadi16>, LoadPreM<LS_hword,  i32, zextloadi16>, LoadPostM<LS_hword,  i32, zextloadi16>;
-defm LDRi32  : LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, pre_load>,        LoadPostM<LS_word,   i32, post_load>;
+let mayLoad = 1 in {
+  defm LDRi8:     LoadM<LS_byte,   i32, zextloadi8>,  LoadPreM<LS_byte,   i32, zextloadi8>,  LoadPostM<LS_byte,   i32, zextloadi8>;
+  defm LDRi16:    LoadM<LS_hword,  i32, zextloadi16>, LoadPreM<LS_hword,  i32, zextloadi16>, LoadPostM<LS_hword,  i32, zextloadi16>;
+  defm LDRi32:    LoadM<LS_word,   i32, load>,        LoadPreM<LS_word,   i32, pre_load>,    LoadPostM<LS_word,   i32, post_load>;
+  def LDRf32:     LoadDisp32<0,  FPR32, load,   LS_word,  f32>;
+  def LDRi64:     LoadDisp32<0, GPR64, load,    LS_dword, i64>;
+  def LDRi64_pmd: LoadPmd32<0,  GPR64, load,    LS_dword, i64>;
+  def LDRv2i16:   LoadDisp32<0, GPR32, load,    LS_word,  v2i16>;
+  def LDRv2i32:   LoadDisp32<0, GPR64, load,    LS_dword, v2i32>;
+  def LDRv4i16:   LoadDisp32<0, GPR64, load,    LS_dword, v4i16>;
+  def LDRf64:     LoadDisp32<0, FPR64, load,    LS_dword, f64>;
+}
 
 // Store
-defm STRi8   : StoreM<LS_byte,  i32, truncstorei8>,  StorePreM<LS_byte,  i32, pre_truncsti8>,  StorePostM<LS_byte,  i32, post_truncsti8>;
-defm STRi16  : StoreM<LS_hword, i32, truncstorei16>, StorePreM<LS_hword, i32, pre_truncsti16>, StorePostM<LS_hword, i32, post_truncsti16>;
-defm STRi32  : StoreM<LS_word,  i32, store>,         StorePreM<LS_word,  i32, pre_store>,      StorePostM<LS_word,  i32, post_store>;
+let mayStore = 1 in {
+  defm STRi8:     StoreM<LS_byte,  i32, truncstorei8>,  StorePreM<LS_byte,  i32, pre_truncsti8>,  StorePostM<LS_byte,  i32, post_truncsti8>;
+  defm STRi16:    StoreM<LS_hword, i32, truncstorei16>, StorePreM<LS_hword, i32, pre_truncsti16>, StorePostM<LS_hword, i32, post_truncsti16>;
+  defm STRi32:    StoreM<LS_word,  i32, store>,         StorePreM<LS_word,  i32, pre_store>,      StorePostM<LS_word,  i32, post_store>;
+  def STRf32:     StoreDisp32<0, FPR32, store, LS_word,  f32>;
+  def STRi64:     StoreDisp32<0, GPR64, store, LS_dword, i64>;
+  def STRi64_pmd: StorePmd32<0,  GPR64, store, LS_dword, i64>;
+  def STRv2i16:   StoreDisp32<0, GPR32, store, LS_word,  v2i16>;
+  def STRv2i32:   StoreDisp32<0, GPR64, store, LS_dword, v2i32>;
+  def STRv4i16:   StoreDisp32<0, GPR64, store, LS_dword, v4i16>;
+  def STRf64:     StoreDisp32<0, FPR64, store, LS_dword, f64>;
+}
 
-def LDRf32   : LoadDisp32<0,  FPR32, load,   LS_word,  f32>;
-def STRf32   : StoreDisp32<0, FPR32, store, LS_word,  f32>;
+// atomic_load addr -> load addr
+def : Pat<(i32   (atomic_load_8  (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))), (LDRi8_r32  GPR32:$Rn, imm:$imm)>;
+def : Pat<(i32   (atomic_load_16 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))), (LDRi16_r32 GPR32:$Rn, imm:$imm)>;
+def : Pat<(i32   (atomic_load_32 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))), (LDRi32_r32 GPR32:$Rn, imm:$imm)>;
+def : Pat<(v2i32 (atomic_load_64 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))), (LDRi64     GPR32:$Rn, imm:$imm)>;
+def : Pat<(i64   (atomic_load_64 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)))), (LDRv2i32   GPR32:$Rn, imm:$imm)>;
 
-def LDRi64     : LoadDisp32<0, GPR64, load,    LS_dword, i64>;
-def LDRi64_pmd : LoadPmd32<0, GPR64, load,     LS_dword, i64>;
-def STRi64     : StoreDisp32<0, GPR64, store, LS_dword, i64>;
-def STRi64_pmd : StorePmd32<0, GPR64, store,  LS_dword, i64>;
-
-def LDRv2i32 : LoadDisp32<0, GPR64, load,    LS_dword, v2i32>;
-def STRv2i32 : StoreDisp32<0, GPR64, store, LS_dword, v2i32>;
-
-def LDRf64  : LoadDisp32<0, FPR64, load,    LS_dword, f64>;
-def STRf64  : StoreDisp32<0, FPR64, store, LS_dword, f64>;
+// atomic_store val, addr -> store val, addr
+def : Pat<(atomic_store_8  (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)), (i32 GPR32:$Rd)),   (STRi8_r32  GPR32:$Rd, GPR32:$Rn, imm:$imm)>;
+def : Pat<(atomic_store_16 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)), (i32 GPR32:$Rd)),   (STRi16_r32 GPR32:$Rd, GPR32:$Rn, imm:$imm)>;
+def : Pat<(atomic_store_32 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)), (i32 GPR32:$Rd)),   (STRi32_r32 GPR32:$Rd, GPR32:$Rn, imm:$imm)>;
+def : Pat<(atomic_store_64 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)), (v2i32 GPR64:$Rd)), (STRv2i32   GPR64:$Rd, GPR32:$Rn, imm:$imm)>;
+def : Pat<(atomic_store_64 (addr11 (i32 GPR32:$Rn), (i32 imm:$imm)), (i64 GPR64:$Rd)),   (STRi64     GPR64:$Rd, GPR32:$Rn, imm:$imm)>;
 
 //===----------------------------------------------------------------------===//
 // Arithmetic operations with registers
@@ -212,10 +237,17 @@ multiclass SimpleMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNo
 
 // COPY is used as REG_SEQUENCE does not accept multioutput functions (e.g. those defining STATUS reg)
 multiclass SimpleMath64<SDNode OpNode> {
-  def _r64 : Pat<(i64 (OpNode GPR64:$Rn, GPR64:$Rm)),
-                 (REG_SEQUENCE GPR64, 
-                 (i32 (COPY (!cast<Instruction>(NAME # _r32) (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), isub_lo, 
-                 (i32 (COPY (!cast<Instruction>(NAME # _r32) (HiReg GPR64:$Rn), (HiReg GPR64:$Rm)))), isub_hi)>;
+  def _r64   : Pat<(i64 (OpNode GPR64:$Rn, GPR64:$Rm)),
+                   (REG_SEQUENCE GPR64, 
+                   (i32 (COPY (!cast<Instruction>(NAME # _r32) (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), isub_lo, 
+                   (i32 (COPY (!cast<Instruction>(NAME # _r32) (HiReg GPR64:$Rn), (HiReg GPR64:$Rm)))), isub_hi)>;
+}
+
+multiclass SimpleMath_v2i32<SDNode OpNode> {
+  def _v2i32 : Pat<(v2i32 (OpNode (v2i32 GPR64:$Rn), (v2i32 GPR64:$Rm))),
+                   (REG_SEQUENCE GPR64, 
+                   (i32 (COPY (!cast<Instruction>(NAME # _r32) (LoReg GPR64:$Rn), (LoReg GPR64:$Rm)))), isub_lo, 
+                   (i32 (COPY (!cast<Instruction>(NAME # _r32) (HiReg GPR64:$Rn), (HiReg GPR64:$Rm)))), isub_hi)>;
 }
 
 let isCommutable = 1 in {
@@ -232,14 +264,15 @@ let isCompare = 1 in {
   defm CMPrr  : SimpleMath<0b0111010, 0b0111111, "sub", CMP >;
 }
 
-defm ANDrr  : SimpleMath64<and>;
-defm ORRrr  : SimpleMath64<or >;
-defm EORrr  : SimpleMath64<xor>;
-defm SUBrr  : SimpleMath<0b0111010, 0b0111111, "sub", sub >;
+defm ADDrr  : SimpleMath_v2i32<add>;
+defm ANDrr  : SimpleMath64<and>, SimpleMath_v2i32<and>;
+defm ORRrr  : SimpleMath64<or >, SimpleMath_v2i32<or >;
+defm EORrr  : SimpleMath64<xor>, SimpleMath_v2i32<xor>;
+defm SUBrr  : SimpleMath<0b0111010, 0b0111111, "sub", sub >, SimpleMath_v2i32<sub>;
 defm SUBCrr : SimpleMath<0b0111010, 0b0111111, "sub", subc>;
-defm ASRrr  : SimpleMath<0b1101010, 0b1101111, "asr", sra >;
-defm LSRrr  : SimpleMath<0b1001010, 0b1001111, "lsr", srl >;
-defm LSLrr  : SimpleMath<0b0101010, 0b0101111, "lsl", shl >;
+defm ASRrr  : SimpleMath<0b1101010, 0b1101111, "asr", sra >, SimpleMath_v2i32<sra>;
+defm LSRrr  : SimpleMath<0b1001010, 0b1001111, "lsr", srl >, SimpleMath_v2i32<srl>;
+defm LSLrr  : SimpleMath<0b0101010, 0b0101111, "lsl", shl >, SimpleMath_v2i32<shl>;
 
 // Complex math: f32
 multiclass FPMath<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDNode OpNode> {
@@ -270,7 +303,7 @@ multiclass Ialu2Math_2<bits<7> opcode16, bits<7> opcode32, string instr_asm, SDN
   def _r16 : ComplexMath2_16rr<opcode16, instr_asm, mul, OpNode, GPR16, Ialu2Itin, i32>;
   def _r32 : ComplexMath2_32rr<opcode32, instr_asm, mul, OpNode, GPR32, Ialu2Itin, i32>;
 }
-let Defs = [STATUS], AddedComplexity = 1 in {
+let Defs = [STATUS] in {
   let isAdd = 1 in {
     defm IADDrr : Ialu2Math<0b0000111, 0b0001111, "iadd", add>;
   }
@@ -279,6 +312,8 @@ let Defs = [STATUS], AddedComplexity = 1 in {
   defm IMADDrr : Ialu2Math_2<0b0110111, 0b0111111, "imadd", add>;
   defm IMSUBrr : Ialu2Math_2<0b1000111, 0b1001111, "imsub", sub>;
 }
+
+defm IMULrr  : SimpleMath_v2i32<mul>;
 
 //===----------------------------------------------------------------------===//
 // Integer arithmetic operations with immediates
@@ -393,7 +428,7 @@ def SDT_MOVT  : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
 def SDT_MOVCC : SDTypeProfile<1, 4, [SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
 def MOV       : SDNode<"EpiphanyISD::MOV",   SDT_MOV>;
 def MOVT      : SDNode<"EpiphanyISD::MOVT",  SDT_MOVT>;
-def MOVCCsd   : SDNode<"EpiphanyISD::MOVCC", SDT_MOVCC, [SDNPOptInGlue]>;
+def MOVCCsd   : SDNode<"EpiphanyISD::MOVCC", SDT_MOVCC, [SDNPOptInGlue, SDNPOutGlue]>;
 def : Pat<(i32 (MOV i32immSExt16:$imm)),   (MOVi32ri i32:$imm)>;
 def : Pat<(i32 (MOV i32immSExt32:$imm)),   (MOVTi32ri (MOVi32ri (LO16 i32:$imm)), (HI16 i32:$imm))>;
 def : Pat<(i32 (MOV tglobaladdr:$dst)),    (MOVi32ri tglobaladdr:$dst)>;
@@ -406,7 +441,6 @@ def : Pat<(i32 (MOVT GPR32:$Rd, texternalsym:$dst)),    (MOVTi32ri GPR32:$Rd, te
 def : Pat<(i32 (MOVT GPR32:$Rd, tblockaddress:$dst)),   (MOVTi32ri GPR32:$Rd, tblockaddress:$dst)>;
 def : Pat<(i32 (MOVT GPR32:$Rd, tconstpool:$dst)),      (MOVTi32ri GPR32:$Rd, tconstpool:$dst)>;
 def : Pat<(i32 (MOVT GPR32:$Rd,  tglobaltlsaddr:$dst)), (MOVTi32ri GPR32:$Rd, tglobaltlsaddr:$dst)>;
-
 
 let Constraints = "$src = $Rd", Uses = [STATUS] in {
   def MOVCC : MovCond32rr<(outs GPR32:$Rd), (ins GPR32:$Rn, GPR32:$src, cc:$cc), 
@@ -484,11 +518,11 @@ let isCall = 1, Defs = [LR], hasDelaySlot = 0, isBarrier = 0 in {
 
 // Extended Addsub i32, exploiting the fact that MOVGTEU depend only on the carry
 def : Pat<(adde GPR32:$Rn, simm11:$imm), 
-          (ADDrr_r32 (ADDri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_GT.Code))>;
+          (ADDCrr_r32 (ADDCri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_GT.Code))>;
 def : Pat<(sube GPR32:$Rn, simm11:$imm), 
           (SUBrr_r32 (SUBri_r32 GPR32:$Rn, simm11:$imm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_LT.Code))>;
 def : Pat<(adde (i32 GPR32:$Rn), (i32 GPR32:$Rm)), 
-          (ADDrr_r32 (ADDrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_GT.Code))>;
+          (ADDCrr_r32 (ADDCrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_GT.Code))>;
 def : Pat<(sube (i32 GPR32:$Rn), (i32 GPR32:$Rm)), 
           (SUBrr_r32 (SUBrr_r32 GPR32:$Rn, GPR32:$Rm), (MOVCC (MOVi32ri 1), (MOVi32ri 0), COND_LT.Code))>;
 
@@ -539,3 +573,4 @@ def : Pat<(i64 (or (shl (i64 (anyext (i32 GPR32:$sub_hi))), (i32 32)), (i64 (zex
 def : Pat<(i64 (or (i64 (zext (i32 GPR32:$sub_lo))), (shl (i64 (anyext (i32 GPR32:$sub_hi))), (i32 32)))),
           (REG_SEQUENCE GPR64, $sub_hi, isub_hi, $sub_lo, isub_lo)>;
 }
+

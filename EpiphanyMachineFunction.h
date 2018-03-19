@@ -43,9 +43,9 @@ public:
     CallsEhReturn(false), 
     CallsEhDwarf(false),
     HasFpuInst(false),
-    HasIalu2Inst(false),
+    GlobalBaseReg(0),
     EmitNOAT(false),
-    GlobalBaseReg(0)
+    HasIalu2Inst(false)
     {}
 
   ~EpiphanyMachineFunctionInfo();

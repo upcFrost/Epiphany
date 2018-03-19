@@ -113,8 +113,6 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
 
     // Handle unconditional branches.
     if (I->getOpcode() == Epiphany::BNONE32) {
-      UnCondBrIter = I;
-
       // If modification is not allowed
       if (!AllowModify) {
         TBB = I->getOperand(0).getMBB();
@@ -135,7 +133,6 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
         TBB = nullptr;
         I->eraseFromParent();
         I = MBB.end();
-        UnCondBrIter = MBB.end();
         DEBUG(MBB.getParent()->dump(););
         continue;
       }
@@ -149,7 +146,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
     if (I->getOpcode() != Epiphany::BCC) {
       continue;
     }
-    EpiphanyCC::CondCodes BranchCode = static_cast<EpiphanyCC::CondCodes>(I->getOperand(1).getImm());
+    auto BranchCode = static_cast<EpiphanyCC::CondCodes>(I->getOperand(1).getImm());
 
     // Working from the bottom, handle the first conditional branch.
     if (Cond.empty()) {
@@ -169,7 +166,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
     if (TBB != I->getOperand(0).getMBB())
       return true;
 
-    EpiphanyCC::CondCodes OldBranchCode = (EpiphanyCC::CondCodes)Cond[0].getImm();
+    auto OldBranchCode = (EpiphanyCC::CondCodes)Cond[0].getImm();
     // If the conditions are the same, we can leave them alone.
     if (OldBranchCode == BranchCode)
       continue;
@@ -247,7 +244,7 @@ unsigned EpiphanyInstrInfo::insertBranch(MachineBasicBlock &MBB,
 
 bool EpiphanyInstrInfo::reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
   assert(Cond.size() == 1 && "More than 1 condition");
-  EpiphanyCC::CondCodes CC = static_cast<EpiphanyCC::CondCodes>(Cond[0].getImm());
+  auto CC = static_cast<EpiphanyCC::CondCodes>(Cond[0].getImm());
   switch(CC) {
     default:
       llvm_unreachable("Wrong branch condition code!");
@@ -344,10 +341,7 @@ bool EpiphanyInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
   if (MI.getDesc().isTerminator() || MI.isPosition())
     return true;
 
-  if (MI.isInlineAsm())
-    return true;
-
-  return false;
+  return MI.isInlineAsm();
 
 }
 
@@ -359,17 +353,19 @@ bool EpiphanyInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
 // touch volatiles or load/stores that have a hint to avoid pair formation.
 bool EpiphanyInstrInfo::isCandidateToMergeOrPair(MachineInstr &MI) const {
   // If this is a volatile load/store, don't mess with it.
-  if (MI.hasOrderedMemoryRef())
+  if (MI.hasOrderedMemoryRef()) {
+    DEBUG(dbgs() << "Volatile load/store, skipping\n");
     return false;
+  }
 
   // Make sure this is a reg+imm (as opposed to an address reloc).
-  assert(MI.getOperand(1).isReg() && "Expected a reg operand.");
+  assert((MI.getOperand(1).isReg() || MI.getOperand(1).isFI()) && "Expected a reg operand.");
   if (!MI.getOperand(2).isImm())
     return false;
 
   // Can't merge/pair if the instruction modifies the base register.
   // e.g., ldr r0, [r0]
-  unsigned BaseReg = MI.getOperand(1).getReg();
+  unsigned BaseReg = MI.getOperand(1).isReg() ? MI.getOperand(1).getReg() : Epiphany::FP;
   const TargetRegisterInfo *TRI = &getRegisterInfo();
   if (MI.modifiesRegister(BaseReg, TRI))
     return false;
@@ -470,7 +466,7 @@ void EpiphanyInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     const TargetRegisterClass *Rd, const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
   // Get instruction, for stack slots (FP/SP) we can only use 32-bit instructions
-  unsigned Opc;
+  unsigned Opc = 0;
   // Choose instruction
   if (Epiphany::GPR16RegClass.hasSubClassEq(Rd)) {
     Opc = Epiphany::STRi32_r32;
@@ -511,7 +507,7 @@ void EpiphanyInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     const TargetRegisterClass *Rd, const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
   // Choose instruction
-  unsigned Opc;
+  unsigned Opc = 0;
   if (Epiphany::GPR16RegClass.hasSubClassEq(Rd)) {
     Opc = Epiphany::LDRi32_r32;
   } else if (Epiphany::GPR32RegClass.hasSubClassEq(Rd)) {
@@ -595,9 +591,9 @@ bool EpiphanyInstrInfo::areLoadsFromSameBasePtr(SDNode *Load1, SDNode *Load2,
   }
 
   // Get the memory operands
-  MachineSDNode *MachineLoad1 = dyn_cast<MachineSDNode>(Load1);
-  MachineSDNode *MachineLoad2 = dyn_cast<MachineSDNode>(Load2);
-  assert(MachineLoad1 && MachineLoad1);
+  auto *MachineLoad1 = dyn_cast<MachineSDNode>(Load1);
+  auto *MachineLoad2 = dyn_cast<MachineSDNode>(Load2);
+  assert(MachineLoad1 && MachineLoad2);
   MachineMemOperand *MemOp1 = extractMemOp(MachineLoad1);
   MachineMemOperand *MemOp2 = extractMemOp(MachineLoad2);
 

@@ -1,4 +1,4 @@
-//=- EpiphanyLoadStoreOptimizer.cpp - Epiphany load/store opt. pass -*- C++ -*-=//
+//=- EpiphanyVregLoadStoreOptimizer.cpp - Epiphany load/store opt. pass -*- C++ -*-=//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -28,19 +28,19 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "EpiphanyLoadStoreOptimizer.h"
+#include "EpiphanyVregLoadStoreOptimizer.h"
 
 using namespace llvm;
 
-#define DEBUG_TYPE "epiphany_ls_opt"
+#define DEBUG_TYPE "epiphany_vreg_ls_opt"
 
 STATISTIC(NumPairCreated, "Number of load/store pair instructions generated");
 
 // The LdStLimit limits how far we search for load/store pairs.
-static cl::opt<unsigned> LdStLimit("epiphany-load-store-scan-limit", cl::init(20), cl::Hidden);
+static cl::opt<unsigned> LdStLimit("epiphany-vreg-load-store-scan-limit", cl::init(20), cl::Hidden);
 
 
-char EpiphanyLoadStoreOptimizer::ID = 0;
+char EpiphanyVregLoadStoreOptimizer::ID = 0;
 
 /// \brief Returns true if this instruction should be considered for pairing
 ///
@@ -154,8 +154,18 @@ static const MachineOperand &getBaseOperand(const MachineInstr &MI) {
   return MI.getOperand(1);
 }
 
+/// Get base for the store/load machine operand
+static MachineOperand &getBaseOperand(MachineInstr &MI) {
+  return MI.getOperand(1);
+}
+
 /// Get offset for the store/load machine operand
 static const MachineOperand &getOffsetOperand(const MachineInstr &MI) {
+  return MI.getOperand(2);
+}
+
+/// Get offset for the store/load machine operand
+static MachineOperand &getOffsetOperand(MachineInstr &MI) {
   return MI.getOperand(2);
 }
 
@@ -166,7 +176,9 @@ static bool baseIsFrameIndex(const MachineInstr &FirstMI, const MachineInstr &Se
 
 /// Returns true if FirstMI and MI are candidates for merging or pairing.
 /// Otherwise, returns false.
-static bool areCandidatesToMergeOrPair(MachineInstr &FirstMI, MachineInstr &SecondMI, LoadStoreFlags &Flags) {
+static bool areCandidatesToMergeOrPair(MachineInstr &FirstMI, MachineInstr &SecondMI,
+                                       LoadStoreFlags &Flags, const EpiphanyInstrInfo *TII,
+                                       const MachineFrameInfo *MFI) {
   // If this is volatile not a candidate.
   if (SecondMI.hasOrderedMemoryRef())
     return false;
@@ -181,6 +193,18 @@ static bool areCandidatesToMergeOrPair(MachineInstr &FirstMI, MachineInstr &Seco
   // Opcodes match: nothing more to check.
   if (OpcA != OpcB) {
     return false;
+  }
+
+  // If using frame index - check object sizes, both should be equal to their mem scales
+  Flags.setBasedOnVirtualFI(baseIsFrameIndex(FirstMI, SecondMI));
+  if (Flags.isBasedOnVirtualFI()) {
+    int FirstBase = getBaseOperand(FirstMI).getIndex();
+    int SecondBase = getBaseOperand(SecondMI).getIndex();
+    if (MFI->getObjectSize(FirstBase) != getMemScale(FirstMI)
+        || MFI->getObjectSize(SecondBase) != getMemScale(SecondMI)) {
+      DEBUG(dbgs() << "Object sizes not equal to their mem scales, skipping\n");
+      return false;
+    }
   }
 
   return true;
@@ -201,28 +225,17 @@ static void trackRegDefsUses(const MachineInstr &MI, BitVector &ModifiedRegs,
       continue;
     if (MO.isDef()) {
       // WZR/XZR are not modified even when used as a destination register.
-      if (!TRI->isVirtualRegister(Reg)) {
-        for (MCRegAliasIterator AI(Reg, TRI, /* includeSelf = */ true); AI.isValid(); ++AI) {
-          ModifiedRegs.set(*AI);
-        }
-      } else {
-        ModifiedRegs.set(TRI->virtReg2Index(Reg));
-      }
+      ModifiedRegs.set(TRI->isVirtualRegister(Reg) ? TRI->virtReg2Index(Reg) : Reg);
     } else {
       assert(MO.isUse() && "Reg operand not a def and not a use?!?");
-      if (!TRI->isVirtualRegister(Reg)) {
-        for (MCRegAliasIterator AI(Reg, TRI, /* includeSelf = */ true); AI.isValid(); ++AI) {
-          UsedRegs.set(*AI);
-        }
-      } else {
-        UsedRegs.set(TRI->virtReg2Index(Reg));
-      }
+      UsedRegs.set(TRI->isVirtualRegister(Reg) ? TRI->virtReg2Index(Reg) : Reg);
     }
   }
 }
 
 /// Keeps track on which frame indexes were used between two candidates to merge
-static void trackFrameIdxs(const MachineInstr &MI, BitVector &ModifiedFrameIdxs, BitVector &UsedFrameIdxs) {
+static void trackFrameIdxs(const MachineInstr &MI, BitVector &ModifiedFrameIdxs,
+                           BitVector &UsedFrameIdxs, const MachineFrameInfo *MFI) {
   for (const MachineOperand &MO : MI.operands()) {
     if (MO.isFI()) {
       if (MI.mayStore()) {
@@ -239,26 +252,36 @@ static void trackFrameIdxs(const MachineInstr &MI, BitVector &ModifiedFrameIdxs,
 ///
 /// \param FirstMI First instruction to check
 /// \param SecondMI Second instruction to check
+/// \param UsingVirtualFI True if offset is used for alignment checks, false if frame index is used
 ///
 /// \return true if alignment is ok for pairing
-bool EpiphanyLoadStoreOptimizer::isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI) {
+bool EpiphanyVregLoadStoreOptimizer::isAlignmentCorrect(MachineInstr &FirstMI, MachineInstr &SecondMI,
+                                                    bool UsingVirtualFI) {
   // Resolve target reg class
   unsigned MainReg = getRegOperand(FirstMI).getReg();
   unsigned PairedReg = getRegOperand(SecondMI).getReg();
-  int64_t MainOffset = getOffsetOperand(FirstMI).getImm() ;
-  int64_t PairedOffset = getOffsetOperand(SecondMI).getImm();
+  int64_t MainOffset = UsingVirtualFI ? getBaseOperand(FirstMI).getIndex() : getOffsetOperand(FirstMI).getImm() ;
+  int64_t PairedOffset = UsingVirtualFI ? getBaseOperand(SecondMI).getIndex() : getOffsetOperand(SecondMI).getImm();
 
-  // Check that base alignment matches paired opcode alignment
-  int PairedAlignment = getAlignment(getMatchingPairOpcode(FirstMI.getOpcode()));
-  if (getBaseOperand(FirstMI).getReg() != Epiphany::FP) {
-    // Only applicable when we are dealing with non-FP-based offset, as frame is 8-byte aligned
-    MachineInstr::mmo_iterator FirstMMOI = FirstMI.memoperands_begin();
-    MachineMemOperand FirstMO = **FirstMMOI;
-    MachineInstr::mmo_iterator SecondMMOI = SecondMI.memoperands_begin();
-    MachineMemOperand SecondMO = **SecondMMOI;
-    if (FirstMO.getBaseAlignment() != PairedAlignment && SecondMO.getBaseAlignment() != PairedAlignment) {
-      DEBUG(dbgs() << "Base alignment out, skipping\n");
+  if (UsingVirtualFI) {
+    // Check if both ops have correct alignment required
+    if (MFI->getObjectAlignment(MainOffset) < getAlignment(FirstMI)
+        || MFI->getObjectAlignment(PairedOffset) < getAlignment(SecondMI)) {
       return false;
+    }
+  } else {
+    // Check that base alignment matches paired opcode alignment
+    int PairedAlignment = getAlignment(getMatchingPairOpcode(FirstMI.getOpcode()));
+    if (getBaseOperand(FirstMI).getReg() != Epiphany::FP) {
+      // Only applicable when we are dealing with non-FP-based offset, as frame is 8-byte aligned
+      MachineInstr::mmo_iterator FirstMMOI = FirstMI.memoperands_begin();
+      MachineMemOperand FirstMO = **FirstMMOI;
+      MachineInstr::mmo_iterator SecondMMOI = SecondMI.memoperands_begin();
+      MachineMemOperand SecondMO = **SecondMMOI;
+      if (FirstMO.getBaseAlignment() != PairedAlignment && SecondMO.getBaseAlignment() != PairedAlignment) {
+        DEBUG(dbgs() << "Base alignment out, skipping\n");
+        return false;
+      }
     }
 
     // Check if at least one instruction is aligned to the paired opcode alignment
@@ -268,60 +291,10 @@ bool EpiphanyLoadStoreOptimizer::isAlignmentCorrect(MachineInstr &FirstMI, Machi
     }
   }
 
-  // If regs are already defined - check alignment based on regs order
-  if (!TRI->isVirtualRegister(MainReg)) {
-    // Machine reg checks
-    // Offset stride -1 for FI as stack grows down
-    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(MainReg) == &Epiphany::GPR32RegClass ?
-                                    &Epiphany::GPR64RegClass : &Epiphany::FPR64RegClass;
-
-    // Determine which offset should be higher
-    unsigned sra = TRI->getMatchingSuperReg(MainReg, Epiphany::isub_lo, RC);
-    unsigned srb = TRI->getMatchingSuperReg(PairedReg, Epiphany::isub_hi, RC);
-    int64_t HighOffset = PairedOffset;
-    int64_t LowOffset = MainOffset;
-    if ((!sra || !srb) || (sra != srb)) {
-      sra = TRI->getMatchingSuperReg(PairedReg, Epiphany::isub_lo, RC);
-      srb = TRI->getMatchingSuperReg(MainReg, Epiphany::isub_hi, RC);
-      HighOffset = MainOffset;
-      LowOffset = PairedOffset;
-    }
-
-    // Can't form super reg
-    if (!(sra && srb) || (sra != srb)) {
-      return false;
-    }
-
-    // Low reg offset should be always lower than high reg offset, and it should be aligned to the paired opcode align
-    if (LowOffset >= HighOffset || (LowOffset % getAlignment(getMatchingPairOpcode(FirstMI.getOpcode())) != 0)) {
-      return false;
-    }
-  }
   return true;
 }
 
-/// \brief Returns true if specified regs can form a super reg.
-/// Only applicable for real machine registers, not vregs
-///
-/// \param MainReg First reg to check for pairing
-/// \param PairedReg Second reg to check for pairing
-///
-/// \return true if regs can be paired
-bool EpiphanyLoadStoreOptimizer::canFormSuperReg(unsigned MainReg, unsigned PairedReg) {
-  // Resolve target reg class
-  const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(MainReg) == &Epiphany::GPR32RegClass ?
-                                  &Epiphany::GPR64RegClass : &Epiphany::FPR64RegClass;
-
-  unsigned sra = TRI->getMatchingSuperReg(MainReg, Epiphany::isub_lo, RC);
-  unsigned srb = TRI->getMatchingSuperReg(PairedReg, Epiphany::isub_hi, RC);
-  if ((!sra || !srb) || (sra != srb)) {
-    sra = TRI->getMatchingSuperReg(PairedReg, Epiphany::isub_lo, RC);
-    srb = TRI->getMatchingSuperReg(MainReg, Epiphany::isub_hi, RC);
-  }
-  return !(!(sra && srb) || (sra != srb));
-}
-
-/// Checks if two load/store instructions have similar base, and their 
+/// Checks if two load/store instructions have similar base, and their
 /// offsets differ by some fixed stride
 static bool isBaseAndOffsetCorrect(unsigned MainBase, unsigned PairBase, int64_t MainOffset,
                                    int64_t PairOffset, int OffsetStride) {
@@ -345,7 +318,7 @@ static bool isBaseAndOffsetCorrect(unsigned MainBase, unsigned PairBase, int64_t
 ///   USE kill %r1   ; need to clear kill flag when moving STRi32 downwards
 ///   STRi32 %r0
 /// \endcode
-void EpiphanyLoadStoreOptimizer::cleanKillFlags(MachineOperand RegOp0, MachineOperand RegOp1,
+void EpiphanyVregLoadStoreOptimizer::cleanKillFlags(MachineOperand RegOp0, MachineOperand RegOp1,
                                                 MachineBasicBlock::iterator I, MachineBasicBlock::iterator Paired,
                                                 bool MergeForward) {
   if (!MergeForward) {
@@ -360,63 +333,180 @@ void EpiphanyLoadStoreOptimizer::cleanKillFlags(MachineOperand RegOp0, MachineOp
   }
 }
 
-/// \brief Merge two real reg-based 32-bit load/store instructions into a single 64-bit one
+/// \brief Merges two virtual reg-based 32-bit load/store instructions into a single 64-bit one.
 ///
 /// \param PairedOp Wide store/load operation opcode
 /// \param OffsetImm Offset to use
-/// \param RegOp0 Reg operand from the first paired store/load
-/// \param RegOp1 Reg operand from the second paired store/load
+/// \param MainReg Reg operand from the first paired store/load
+/// \param PairedReg Reg operand from the second paired store/load
 /// \param I Iterator pointing at the first paired store/load
 /// \param Paired Iterator pointing at the second paired store/load
 /// \param Flags Store/load flags
 ///
 /// \return Builder result
-MachineInstrBuilder EpiphanyLoadStoreOptimizer::mergeRegInsns(unsigned PairedOp, int64_t OffsetImm,
-                                                              MachineOperand RegOp0, MachineOperand RegOp1,
-                                                              MachineBasicBlock::iterator I,
-                                                              MachineBasicBlock::iterator Paired,
-                                                              const LoadStoreFlags &Flags) {
-
+MachineInstrBuilder EpiphanyVregLoadStoreOptimizer::mergeFrameBasedInsns(unsigned PairedOp,
+                                                                         MachineBasicBlock::iterator I,
+                                                                         MachineBasicBlock::iterator Paired,
+                                                                         const LoadStoreFlags &Flags) {
   MachineInstrBuilder MIB;
   bool MergeForward = Flags.getMergeForward();
   // Insert our new paired instruction after whichever of the paired
   // instructions MergeForward indicates.
   MachineBasicBlock::iterator InsertionPoint = MergeForward ? Paired : I;
-  unsigned PairedReg = RegOp0.getReg();
-  const MachineOperand &PairedBase = getBaseOperand(*Paired);
-  const MachineOperand &MainBase = getBaseOperand(*I);
-  const MachineOperand &BaseRegOp = MergeForward ? PairedBase : MainBase;
-  DebugLoc DL = I->getDebugLoc();
 
+  // Also based on MergeForward is from where we copy the base register operand
+  // so we get the flags compatible with the input code.
+  const MachineOperand &MainReg = getRegOperand(*I);
+  const MachineOperand &PairedReg = getRegOperand(*Paired);
+  const MachineOperand &MainBase = getBaseOperand(*I);
+  const MachineOperand &PairedBase = getBaseOperand(*Paired);
+  const int64_t &OffsetImm = getOffsetOperand(*I).getImm();
+
+  // Resolve target reg class
+  const TargetRegisterClass *RC = MRI->getRegClass(MainReg.getReg()) == &Epiphany::GPR32RegClass
+                                  ? &Epiphany::GPR64RegClass
+                                  : &Epiphany::FPR64RegClass;
+
+  // Get insertion parameters
+  unsigned parentReg = MRI->createVirtualRegister(RC);
+  DebugLoc DL = I->getDebugLoc();
   MachineBasicBlock *MBB = I->getParent();
-  if (PairedOp == Epiphany::STRi64 || PairedOp == Epiphany::LDRi64) {
-    const TargetRegisterClass *RC = &Epiphany::GPR64RegClass;
-    unsigned sreg = TRI->getMatchingSuperReg(PairedReg, Epiphany::isub_hi, RC);
-    if (!sreg) {
-      sreg = TRI->getMatchingSuperReg(PairedReg, Epiphany::isub_lo, RC);
-    }
-    MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
-        .addReg(sreg)
-        .addOperand(BaseRegOp)
-        .addImm(OffsetImm)
-        .setMemRefs(I->mergeMemRefsWith(*Paired));
-  } else {
-    // Standard 32-bit reg
-    MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
-        .addOperand(RegOp0)
-        .addOperand(BaseRegOp)
-        .addImm(OffsetImm)
-        .setMemRefs(I->mergeMemRefsWith(*Paired));
+
+  // Insert reg sequence
+  if (TII->get(PairedOp).mayStore()) {
+    // In terms of store - create regsequence before storing
+    const MCInstrDesc &RegSeq = TII->get(TargetOpcode::REG_SEQUENCE);
+    MIB = BuildMI(*MBB, InsertionPoint, DL, RegSeq, parentReg)
+        .addReg(MainReg.getReg())
+        .addImm(Epiphany::isub_lo)
+        .addReg(PairedReg.getReg())
+        .addImm(Epiphany::isub_hi);
+    DEBUG(dbgs() << "\t");
+    DEBUG(((MachineInstr *) MIB)->print(dbgs()));
   }
 
+  // Insert paired instruction
+  unsigned flags = TII->get(PairedOp).mayLoad() ? RegState::Define : MainReg.getTargetFlags();
+  MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
+      .addReg(parentReg, flags)
+      .addOperand(MainBase)
+      .addImm(OffsetImm)
+      .setMemRefs(I->mergeMemRefsWith(*Paired));
   DEBUG(dbgs() << "\t");
   DEBUG(((MachineInstr *) MIB)->print(dbgs()));
+
+  if (TII->get(PairedOp).mayLoad()) {
+    // In terms of load - issue two copy instruction for vregs we had
+    const MCInstrDesc &Copy = TII->get(TargetOpcode::COPY);
+    MIB = BuildMI(*MBB, InsertionPoint, DL, Copy, MainReg.getReg())
+        .addReg(parentReg, /* flags = */ 0, Epiphany::isub_lo);
+    DEBUG(dbgs() << "\t");
+    DEBUG(((MachineInstr *) MIB)->print(dbgs()));
+    MIB = BuildMI(*MBB, InsertionPoint, DL, Copy, PairedReg.getReg())
+        .addReg(parentReg, /* flags = */ 0, Epiphany::isub_hi);
+    DEBUG(dbgs() << "\t");
+    DEBUG(((MachineInstr *) MIB)->print(dbgs()));
+  }
+
+  // Erasing old instructions
+  I->eraseFromParent();
+  Paired->eraseFromParent();
+
+  // Adjust alignment and update frame index and offset in all loads/stores related
+  MFI->setObjectAlignment(MainBase.getIndex(), getAlignment(PairedOp));
+  MFI->setObjectSize(MainBase.getIndex(), getMemScale(PairedOp));
+  for (MachineBasicBlock &MBB : *MF) {
+    for (MachineInstr &MI : MBB) {
+      for (MachineOperand &MO : MI.operands()) {
+        if (MO.isFI() && MO.getIndex() == PairedBase.getIndex()) {
+          DEBUG(dbgs() << "Changing instruction\n\t";
+                    MI.print(dbgs()));
+          MO.setIndex(MainBase.getIndex());
+          getOffsetOperand(MI).setImm(4);
+          DEBUG(dbgs() << "To\n\t";
+                    MI.print(dbgs()));
+        }
+      }
+    }
+  }
+  MFI->RemoveStackObject(PairedBase.getIndex());
+
   return MIB;
 }
 
+void EpiphanyVregLoadStoreOptimizer::mergeRegBasedInsns(unsigned int PairedOp, MachineBasicBlock::iterator Paired,
+                                                        MachineBasicBlock::iterator I,
+                                                        const LoadStoreFlags &Flags,
+                                                        int64_t OffsetImm,
+                                                        MachineOperand RegOp0,
+                                                        MachineOperand RegOp1) {
+  MachineInstrBuilder MIB;
+  bool MergeForward = Flags.getMergeForward();
+  // Insert our new paired instruction after whichever of the paired
+  // instructions MergeForward indicates.
+  MachineBasicBlock::iterator InsertionPoint = MergeForward ? Paired : I;
+
+  // Also based on MergeForward is from where we copy the base register operand
+  // so we get the flags compatible with the input code.
+  const MachineOperand &PairedBase = getBaseOperand(*Paired);
+  const MachineOperand &MainBase = getBaseOperand(*I);
+  // TODO: Hacky as hell, to be rewritten completely using fixed stack
+  const MachineOperand &BaseRegOp = MergeForward ? PairedBase : MainBase;
+  const MachineOperand &PairedBaseOp = &BaseRegOp == &MainBase ? PairedBase : MainBase;
+  const std::pair<MachineInstr::mmo_iterator, int> MemRefsOrder = &BaseRegOp == &PairedBase
+                                                                  ? I->mergeMemRefsWith(*Paired)
+                                                                  : Paired->mergeMemRefsWith(*I);
+
+  // Resolve target reg class
+  const TargetRegisterClass *RC = MRI->getRegClass(RegOp0.getReg()) == &Epiphany::GPR32RegClass ?
+                                  &Epiphany::GPR64RegClass : &Epiphany::FPR64RegClass;
+
+  // Get insertion parameters
+  unsigned parentReg = MRI->createVirtualRegister(RC);
+  DebugLoc DL = I->getDebugLoc();
+  MachineBasicBlock *MBB = I->getParent();
+
+  // Insert reg sequence
+  if (TII->get(PairedOp).mayStore()) {
+    // In terms of store - create regsequence before storing
+    const MCInstrDesc &RegSeq = TII->get(TargetOpcode::REG_SEQUENCE);
+    MIB = BuildMI(*MBB, InsertionPoint, DL, RegSeq, parentReg)
+        .addReg(RegOp0.getReg())
+        .addImm(Epiphany::isub_lo)
+        .addReg(RegOp1.getReg())
+        .addImm(Epiphany::isub_hi);
+    DEBUG(dbgs() << "\t");
+    DEBUG(((MachineInstr *) MIB)->print(dbgs()));
+  }
+
+  // Insert paired instruction
+  unsigned flags = TII->get(PairedOp).mayLoad() ? RegState::Define : RegOp0.getTargetFlags();
+  MIB = BuildMI(*MBB, InsertionPoint, DL, TII->get(PairedOp))
+      .addReg(parentReg, flags)
+      .addOperand(BaseRegOp)
+      .addImm(OffsetImm)
+      .setMemRefs(MemRefsOrder);
+  DEBUG(dbgs() << "\t");
+  DEBUG(((MachineInstr *) MIB)->print(dbgs()));
+
+  if (TII->get(PairedOp).mayLoad()) {
+    // In terms of load - issue two copy instruction for vregs we had
+    const MCInstrDesc &Copy = TII->get(TargetOpcode::COPY);
+    MIB = BuildMI(*MBB, InsertionPoint, DL, Copy, RegOp0.getReg())
+        .addReg(parentReg, /* flags = */ 0, Epiphany::isub_lo);
+    DEBUG(dbgs() << "\t");
+    DEBUG(((MachineInstr *) MIB)->print(dbgs()));
+    MIB = BuildMI(*MBB, InsertionPoint, DL, Copy, RegOp1.getReg())
+        .addReg(parentReg, /* flags = */ 0, Epiphany::isub_hi);
+    DEBUG(dbgs() << "\t");
+    DEBUG(((MachineInstr *) MIB)->print(dbgs()));
+  }
+}
+
+
 /// Merges two n-bit load/store instructions into a single 2*n-bit one
 MachineBasicBlock::iterator
-EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
+EpiphanyVregLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
                                              MachineBasicBlock::iterator Paired, const LoadStoreFlags &Flags) {
   MachineBasicBlock::iterator NextI = I;
   ++NextI;
@@ -428,50 +518,51 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
     ++NextI;
 
   unsigned Opc = I->getOpcode();
-
-  bool MergeForward = Flags.getMergeForward();
-  // Also based on MergeForward is from where we copy the base register operand
-  // so we get the flags compatible with the input code.
-  const MachineOperand &BaseRegOp = MergeForward ? getBaseOperand(*Paired) : getBaseOperand(*I);
-  int64_t Offset = getOffsetOperand(*I).getImm();
-  int64_t PairedOffset = getOffsetOperand(*Paired).getImm();
-  // Offset stride is 1 frame index or 1 instruction memory size. Sign depends on stack growth direction
-  int OffsetStride = getMemScale(*I);
-  OffsetStride = StackGrowsDown ? OffsetStride : -OffsetStride;
-
-  // Which register is Rt and which is Rt2 depends on the offset order.
-  MachineInstr *RtMI, *Rt2MI;
-  if (Offset == PairedOffset + OffsetStride) {
-    RtMI = &*Paired;
-    Rt2MI = &*I;
-  } else {
-    RtMI = &*I;
-    Rt2MI = &*Paired;
-  }
-  int64_t OffsetImm = getOffsetOperand(*RtMI).getImm();
-  // Construct the new instruction.
-  DebugLoc DL = I->getDebugLoc();
-  MachineOperand RegOp0 = getRegOperand(*RtMI);
-  MachineOperand RegOp1 = getRegOperand(*Rt2MI);
-
-  // Kill flags may become invalid when moving stores for pairing.
-  if (RegOp0.isUse()) {
-    cleanKillFlags(RegOp0, RegOp1, I, Paired, MergeForward);
-  }
-
+  unsigned PairedOp = getMatchingPairOpcode(Opc);
   DEBUG(dbgs() << "Creating pair load/store. Replacing instructions:\n\t");
   DEBUG(I->print(dbgs()));
   DEBUG(dbgs() << "\t");
   DEBUG(Paired->print(dbgs()));
   DEBUG(dbgs() << "  with instruction:\n");
-  unsigned PairedOp = getMatchingPairOpcode(Opc);
-  unsigned PairedReg = RegOp0.getReg();
-  mergeRegInsns(PairedOp, OffsetImm, RegOp0, RegOp1, I, Paired, Flags);
-  DEBUG(dbgs() << "\n");
+  if (Flags.isBasedOnVirtualFI()) {
+    mergeFrameBasedInsns(PairedOp, I, Paired, Flags);
+  } else {
+    bool MergeForward = Flags.getMergeForward();
+    // Also based on MergeForward is from where we copy the base register operand
+    // so we get the flags compatible with the input code.
+    const MachineOperand &BaseRegOp = MergeForward ? getBaseOperand(*Paired) : getBaseOperand(*I);
+    const int64_t Offset = getOffsetOperand(*I).getImm();
+    const int64_t PairedOffset = getOffsetOperand(*Paired).getImm();
+    const int OffsetStride = StackGrowsDown ? getMemScale(*I) : -getMemScale(*I);
 
-  // Erase the old instructions.
-  I->eraseFromParent();
-  Paired->eraseFromParent();
+    // Which register is Rt and which is Rt2 depends on the offset order.
+    MachineInstr *RtMI, *Rt2MI;
+    if (Offset == PairedOffset + OffsetStride) {
+      RtMI = &*Paired;
+      Rt2MI = &*I;
+    } else {
+      RtMI = &*I;
+      Rt2MI = &*Paired;
+    }
+    int64_t OffsetImm = getOffsetOperand(*RtMI).getImm();
+    // Construct the new instruction.
+    DebugLoc DL = I->getDebugLoc();
+    MachineOperand RegOp0 = getRegOperand(*RtMI);
+    MachineOperand RegOp1 = getRegOperand(*Rt2MI);
+
+    // Kill flags may become invalid when moving stores for pairing.
+    if (RegOp0.isUse()) {
+      cleanKillFlags(RegOp0, RegOp1, I, Paired, MergeForward);
+    }
+
+    mergeRegBasedInsns(PairedOp, Paired, I, Flags, OffsetImm,
+                       RegOp0, RegOp1);
+
+    // Erase the old instructions.
+    I->eraseFromParent();
+    Paired->eraseFromParent();
+  }
+  DEBUG(dbgs() << "\n");
 
   return NextI;
 }
@@ -479,7 +570,7 @@ EpiphanyLoadStoreOptimizer::mergePairedInsns(MachineBasicBlock::iterator I,
 /// Scan the instructions looking for a load/store that can be combined with the
 /// current instruction into a wider equivalent or a load/store pair.
 MachineBasicBlock::iterator
-EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
+EpiphanyVregLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
                                              LoadStoreFlags &Flags, unsigned Limit) {
   MachineBasicBlock::iterator E = I->getParent()->end();
   MachineBasicBlock::iterator MBBI = I;
@@ -489,14 +580,16 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
   bool MayLoad = FirstMI.mayLoad();
   // Get first instruction reg data
   unsigned Reg = getRegOperand(FirstMI).getReg();
-  unsigned RegIdx = Reg;
+  unsigned RegIdx = TRI->virtReg2Index(Reg);
   unsigned BaseReg = getBaseOperand(FirstMI).isReg() ? getBaseOperand(FirstMI).getReg() : Epiphany::FP;
-  unsigned BaseRegIdx = BaseReg;
+  unsigned BaseRegIdx = TRI->isVirtualRegister(BaseReg) ? TRI->virtReg2Index(BaseReg) : BaseReg;
 
   // Track which registers have been modified and used between the first insn
   // (inclusive) and the second insn.
   ModifiedRegs.reset();
   UsedRegs.reset();
+  ModifiedFrameIdxs.reset();
+  UsedFrameIdxs.reset();
 
   // Remember any instructions that read/write memory between FirstMI and MI.
   SmallVector<MachineInstr *, 4> MemInsns;
@@ -508,16 +601,17 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
     if (!MI.isTransient())
       ++Count;
 
-    if (areCandidatesToMergeOrPair(FirstMI, MI, Flags) &&
+    if (areCandidatesToMergeOrPair(FirstMI, MI, Flags, TII, MFI) &&
         getOffsetOperand(MI).isImm()) {
       assert(MI.mayLoadOrStore() && "Expected memory operation.");
       // Get second instruction reg data
       unsigned MIReg = getRegOperand(MI).getReg();
-      unsigned MIRegIdx = MIReg;
+      unsigned MIRegIdx = TRI->virtReg2Index(MIReg);
       unsigned MIBaseReg = getBaseOperand(MI).isReg() ? getBaseOperand(MI).getReg() : Epiphany::FP;
       // Get offsets
-      int64_t Offset = getOffsetOperand(FirstMI).getImm();
-      int64_t MIOffset = getOffsetOperand(MI).getImm();
+      bool UsingVirtualFI = Flags.isBasedOnVirtualFI();
+      int64_t Offset = UsingVirtualFI ? getBaseOperand(FirstMI).getIndex() : getOffsetOperand(FirstMI).getImm();
+      int64_t MIOffset = UsingVirtualFI ? getBaseOperand(MI).getIndex() : getOffsetOperand(MI).getImm();
 
       // If we've found another instruction with the same opcode, check to see
       // if regs, base and offset are compatible with our starting instruction.
@@ -525,45 +619,51 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
       // check for +1/-1. Make sure to check the new instruction offset is
       // actually an immediate and not a symbolic reference destined for
       // a relocation.
-      int OffsetStride = getMemScale(FirstMI);
+      int OffsetStride = UsingVirtualFI ? 1 : getMemScale(FirstMI);
       if (isBaseAndOffsetCorrect(BaseReg, MIBaseReg, Offset, MIOffset, OffsetStride)) {
         DEBUG(dbgs() << "Checking instruction "; MI.dump());
 
-        // First, check register parity
-        if (!canFormSuperReg(Reg, MIReg)) {
-          trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
-          MemInsns.push_back(&MI);
-          DEBUG(dbgs() << "Can't find matching superreg\n");
-          continue;
-        }
-
         // Check if the alignment is correct
-        if (!isAlignmentCorrect(FirstMI, MI)) {
+        if (!isAlignmentCorrect(FirstMI, MI, UsingVirtualFI)) {
           trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+          if (UsingVirtualFI) {
+            trackFrameIdxs(MI, ModifiedFrameIdxs, UsedFrameIdxs, MFI);
+          }
           MemInsns.push_back(&MI);
           DEBUG(dbgs() << "Can't be paired due to alignment\n");
           continue;
         }
 
-        // Get the left-lowest offset
-        int64_t MinOffset = Offset < MIOffset ? Offset : MIOffset;
-
-        // If the resultant immediate offset of merging these
-        // instructions is out of range for
-        // a pairwise instruction, bail and keep looking.
-        if (!inBoundsForPair(MinOffset)) {
-          trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
-          MemInsns.push_back(&MI);
-          DEBUG(dbgs() << "Out of bound for pairing\n");
-          continue;
-        }
         // If the destination register of the loads is the same register, bail
         // and keep looking. A load-pair instruction with both destination
         // registers the same is UNPREDICTABLE and will result in an exception.
         if (MayLoad && Reg == getRegOperand(MI).getReg()) {
           trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+          if (UsingVirtualFI) {
+            trackFrameIdxs(MI, ModifiedFrameIdxs, UsedFrameIdxs, MFI);
+          }
           MemInsns.push_back(&MI);
           DEBUG(dbgs() << "Can't merge into same reg\n");
+          continue;
+        }
+
+        bool failed = false;
+        for (std::pair<int, int> IdxPair : PairedIdxs) {
+          if ((Offset == IdxPair.first && MIOffset != IdxPair.second) ||
+              (Offset == IdxPair.second && MIOffset != IdxPair.first) ||
+              (MIOffset == IdxPair.first && Offset != IdxPair.second) ||
+              (MIOffset == IdxPair.second && Offset != IdxPair.first)) {
+            failed = true;
+            break;
+          }
+        }
+        if (failed) {
+          trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+          if (UsingVirtualFI) {
+            trackFrameIdxs(MI, ModifiedFrameIdxs, UsedFrameIdxs, MFI);
+          }
+          MemInsns.push_back(&MI);
+          DEBUG(dbgs() << "Can't merge as frame idx is already paired\n");
           continue;
         }
 
@@ -573,8 +673,11 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
         // first.
         if (!ModifiedRegs[MIRegIdx]) {
           if (!(MI.mayLoad() && UsedRegs[MIRegIdx])) {
-            Flags.setMergeForward(false);
-            return MBBI;
+            if (!UsingVirtualFI || !UsedFrameIdxs[MIOffset]) {
+                PairedIdxs.push_back(std::make_pair(Offset, MIOffset));
+              Flags.setMergeForward(false);
+              return MBBI;
+            }
           }
         } else {
           DEBUG(dbgs() << "Proposed paired reg was modified, will try to merge forward\n");
@@ -585,8 +688,11 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
         // first and the second alias with the first, we can combine the first
         // into the second.
         if (!ModifiedRegs[RegIdx] && !(MayLoad && UsedRegs[RegIdx])) {
-          Flags.setMergeForward(true);
-          return MBBI;
+          if (!UsingVirtualFI || !UsedFrameIdxs[Offset]) {
+              PairedIdxs.push_back(std::make_pair(Offset, MIOffset));
+            Flags.setMergeForward(true);
+            return MBBI;
+          }
         }
         // Unable to combine these instructions due to interference in between.
         // Keep looking.
@@ -600,9 +706,9 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
 
     // Update modified / uses register lists.
     trackRegDefsUses(MI, ModifiedRegs, UsedRegs, TRI);
+    trackFrameIdxs(MI, ModifiedFrameIdxs, UsedFrameIdxs, MFI);
 
-    // Otherwise, if the base register is modified, we have no match, so
-    // return early. Should only happen when dealing with real registers
+    // Otherwise, if the base register is modified, we have no match, so return early.
     if (ModifiedRegs[BaseRegIdx])
       return E;
 
@@ -615,7 +721,7 @@ EpiphanyLoadStoreOptimizer::findMatchingInst(MachineBasicBlock::iterator I,
 
 // Find loads and stores that can be merged into a single load or store pair
 // instruction.
-bool EpiphanyLoadStoreOptimizer::tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI) {
+bool EpiphanyVregLoadStoreOptimizer::tryToPairLoadStoreInst(MachineBasicBlock::iterator &MBBI) {
   MachineInstr &MI = *MBBI;
   MachineBasicBlock::iterator E = MI.getParent()->end();
   DEBUG(dbgs() << "\nTrying to pair instruction: ";
@@ -660,7 +766,7 @@ bool EpiphanyLoadStoreOptimizer::tryToPairLoadStoreInst(MachineBasicBlock::itera
 /// \param MBB Machine basic block to optimize
 ///
 /// \return true if the block was modified
-bool EpiphanyLoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
+bool EpiphanyVregLoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
   bool Modified = false;
 
   // Find loads and stores that can be merged into a single load or store
@@ -682,11 +788,11 @@ bool EpiphanyLoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
 }
 
 
-INITIALIZE_PASS_BEGIN(EpiphanyLoadStoreOptimizer, "epiphany-ls-opt", "Epiphany Load Store Optimization", false, false)
-INITIALIZE_PASS_END(EpiphanyLoadStoreOptimizer, "epiphany-ls-opt", "Epiphany Load Store Optimization", false, false)
+INITIALIZE_PASS_BEGIN(EpiphanyVregLoadStoreOptimizer, "epiphany-vreg-ls-opt", "Epiphany Vreg Load Store Optimization", false, false)
+INITIALIZE_PASS_END(EpiphanyVregLoadStoreOptimizer, "epiphany-vreg-ls-opt", "Epiphany Vreg Load Store Optimization", false, false)
 
-bool EpiphanyLoadStoreOptimizer::runOnMachineFunction(MachineFunction &Fn) {
-  DEBUG(dbgs() << "\nRunning Epiphany Load/Store Optimization Pass\n");
+bool EpiphanyVregLoadStoreOptimizer::runOnMachineFunction(MachineFunction &Fn) {
+  DEBUG(dbgs() << "\nRunning Vreg Epiphany Load/Store Optimization Pass\n");
   if (skipFunction(*Fn.getFunction()))
     return false;
 
@@ -707,6 +813,10 @@ bool EpiphanyLoadStoreOptimizer::runOnMachineFunction(MachineFunction &Fn) {
   // store.
   ModifiedRegs.resize(MRI->getNumVirtRegs() + TRI->getNumRegs());
   UsedRegs.resize(MRI->getNumVirtRegs() + TRI->getNumRegs());
+  ModifiedFrameIdxs.resize(MFI->getNumObjects());
+  UsedFrameIdxs.resize(MFI->getNumObjects());
+  ObjectMapped.reset();
+  ObjectMapped.resize(MFI->getNumObjects());
 
   bool Modified = false;
   for (auto &MBB : Fn) {
@@ -723,8 +833,8 @@ bool EpiphanyLoadStoreOptimizer::runOnMachineFunction(MachineFunction &Fn) {
   return Modified;
 }
 
-/// createEpiphanyLoadStoreOptimizationPass - returns an instance of the
+/// createEpiphanyVregLoadStoreOptimizationPass - returns an instance of the
 /// load / store optimization pass.
-FunctionPass *llvm::createEpiphanyLoadStoreOptimizationPass() {
-  return new EpiphanyLoadStoreOptimizer();
+FunctionPass *llvm::createEpiphanyVregLoadStoreOptimizationPass() {
+  return new EpiphanyVregLoadStoreOptimizer();
 }
