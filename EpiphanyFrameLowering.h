@@ -18,6 +18,7 @@
 #include "EpiphanyConfig.h"
 
 #include "Epiphany.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/Target/TargetFrameLowering.h"
 
 namespace llvm {

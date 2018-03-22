@@ -22,6 +22,7 @@ add_llvm_target(EpiphanyCodeGen
         EpiphanyInstrInfo.cpp
         EpiphanyLoadStoreOptimizer.cpp
         EpiphanyVregLoadStoreOptimizer.cpp
+        EpiphanyHardwareLoops.cpp
         EpiphanyMachineFunction.cpp
         EpiphanyMCInstLower.cpp
         EpiphanyRegisterInfo.cpp

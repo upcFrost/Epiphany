@@ -168,8 +168,10 @@ void EpiphanyPassConfig::addPreSched2() {
 }
 
 void EpiphanyPassConfig::addPreEmitPass() {
-  if (EnableLSOpt && TM->getOptLevel() != CodeGenOpt::None)
+  if (EnableLSOpt && TM->getOptLevel() != CodeGenOpt::None) {
     addPass(createEpiphanyLoadStoreOptimizationPass());
+    addPass(createEpiphanyHardwareLoopsPass());
+  }
 }
 
 TargetIRAnalysis EpiphanyTargetMachine::getTargetIRAnalysis() {

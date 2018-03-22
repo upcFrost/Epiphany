@@ -139,7 +139,7 @@ unsigned EpiphanyMCCodeEmitter::getExprOpValue(const MCExpr *Expr,SmallVectorImp
     return Res;
   }
 
-  if (Kind == MCExpr::Target) {
+  if (Kind == MCExpr::Target || Kind == MCExpr::SymbolRef) {
     const EpiphanyMCExpr *EpiphanyExpr = cast<EpiphanyMCExpr>(Expr);
 
     Epiphany::Fixups FixupKind = Epiphany::Fixups(0);

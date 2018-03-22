@@ -49,29 +49,94 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetRegisterInfo.h"
 
+#include <numeric>
+
 namespace llvm {
- 
+  void initializeEpiphanyHardwareLoopsPass(PassRegistry &);
+
+  class CountValue {
+  private:
+    enum CountValueType {
+      CV_Register,
+      CV_Immediate
+    };
+
+    CountValueType Kind;
+    union Value {
+      unsigned Reg;
+      int64_t Imm;
+    } Value;
+
+  public:
+    CountValue(const MachineOperand &MO) {
+      if (MO.isReg()) {
+        Value.Reg = MO.getReg();
+        Kind = CV_Register;
+      } else if (MO.isImm()) {
+        Value.Imm = MO.getImm();
+        Kind = CV_Immediate;
+      } else {
+        llvm_unreachable("Unknown MachineOperand type passed");
+      }
+    }
+
+    bool isReg() const { return Kind == CV_Register; }
+    bool isImm() const { return Kind == CV_Immediate; }
+
+    unsigned getReg() const {
+      assert(isReg() && "Wrong CountValue accessor");
+      return Value.Reg;
+    }
+    int64_t getImm() const {
+      assert(isImm() && "Wrong CountValue accessor");
+      return Value.Imm;
+    }
+
+    void print(raw_ostream &OS, const TargetRegisterInfo *TRI = nullptr) const {
+      if (isReg()) { OS << PrintReg(Value.Reg, TRI); }
+      if (isImm()) { OS << Value.Imm; }
+    }
+  };
+
   class EpiphanyHardwareLoops : public MachineFunctionPass {
-    private:
-      const EpiphanyInstrInfo  *TII;
-      const TargetRegisterInfo *TRI;
-      const EpiphanySubtarget  *Subtarget;
-      MachineRegisterInfo *MRI;
-      MachineFrameInfo    *MFI;
-      MachineLoopInfo     *MLI;
+  private:
+    const EpiphanyInstrInfo *TII;
+    const TargetRegisterInfo *TRI;
+    const EpiphanySubtarget *Subtarget;
+    MachineRegisterInfo *MRI;
+    MachineFrameInfo *MFI;
+    MachineLoopInfo *MLI;
 
-    public:
-      static char ID;
-      EpiphanyHardwareLoops() : MachineFunctionPass(ID) {
-        initializeEpiphanyHardwareLoopsPass(*PassRegistry::getPassRegistry());
-      }
+  public:
+    static char ID;
 
-      StringRef getPassName() const {
-        return "Epiphany Hardware Loops Pass";
-      }
-      bool runOnMachineFunction(MachineFunction &MF);
+    EpiphanyHardwareLoops() : MachineFunctionPass(ID) {
+      initializeEpiphanyHardwareLoopsPass(*PassRegistry::getPassRegistry());
+    }
 
-  }
+    void getAnalysisUsage(AnalysisUsage &AU) const override {
+      AU.addRequired<MachineDominatorTree>();
+      AU.addRequired<MachineLoopInfo>();
+      MachineFunctionPass::getAnalysisUsage(AU);
+    }
+
+    StringRef getPassName() const {
+      return "Epiphany Hardware Loops Pass";
+    }
+
+    bool runOnMachineFunction(MachineFunction &MF);
+
+    bool containsInvalidInstruction(MachineLoop *pLoop);
+
+    bool isInvalidLoopOperation(MachineInstr &instr);
+
+    bool lessThanEightCalls(MachineLoop *pLoop);
+
+    void findControlInstruction(MachineLoop *L, MachineInstr *&BranchMI, MachineInstr *&CmpMI,
+                                MachineInstr *&BumpMI);
+
+    bool isLoopEligible(MachineLoop *L);
+  };
 
 }
 

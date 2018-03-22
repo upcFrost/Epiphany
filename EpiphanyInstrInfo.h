@@ -124,7 +124,9 @@ namespace llvm {
     bool isSchedulingBoundary(const MachineInstr &MI,
         const MachineBasicBlock *MBB, const MachineFunction &MF) const override;
 
-    private:
+    unsigned int getInstSizeInBytes(const MachineInstr &MI) const override;
+
+  private:
     void expandRTS(MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const;
 
   };

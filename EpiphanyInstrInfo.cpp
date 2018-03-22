@@ -79,7 +79,7 @@ bool EpiphanyInstrInfo::isUnpredicatedTerminator(const MachineInstr &MI) const {
 }
 
 // Analyze if branch can be removed/modified
-bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB, 
+bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
     MachineBasicBlock *&FBB, SmallVectorImpl<MachineOperand> &Cond, bool AllowModify) const {
   DEBUG(dbgs()<< "\n<----------------->";);
   DEBUG(dbgs()<< "\nAnalyzing block " << MBB.getNumber() << "\n";);
@@ -96,7 +96,7 @@ bool EpiphanyInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock 
 
     // Working from the bottom, when we see a non-terminator instruction, we're
     // done.
-    if (!isUnpredicatedTerminator(*I)) {      
+    if (!isUnpredicatedTerminator(*I)) {
       break;
     }
 
@@ -345,6 +345,11 @@ bool EpiphanyInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
 
 }
 
+unsigned int EpiphanyInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
+  const MCInstrDesc &Desc = MI.getDesc();
+  return Desc.getSize();
+}
+
 
 //-------------------------------------------------------------------
 // Load/Store
@@ -493,7 +498,7 @@ void EpiphanyInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   // Get mem operand where to store
   MachineMemOperand *MMO = MF.getMachineMemOperand(
       MachinePointerInfo::getFixedStack(MF, FrameIdx),
-      MachineMemOperand::MOStore, 
+      MachineMemOperand::MOStore,
       MFI.getObjectSize(FrameIdx),
       MFI.getObjectAlignment(FrameIdx));
 
