@@ -72,3 +72,7 @@ bool EpiphanySubtarget::abiUsesSoftFloat() const {
 }
 
 const EpiphanyABIInfo &EpiphanySubtarget::getABI() const { return TM.getABI(); }
+
+bool EpiphanySubtarget::enableEarlyIfConversion() const {
+  return true;
+}

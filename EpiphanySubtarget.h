@@ -98,6 +98,8 @@ public:
 
   bool enablePostRAScheduler() const override { return true; }
 
+  bool enableEarlyIfConversion() const override;
+
 };
 } // End llvm namespace
 

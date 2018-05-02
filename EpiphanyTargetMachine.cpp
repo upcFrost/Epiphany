@@ -159,8 +159,11 @@ void EpiphanyPassConfig::addCodeGenPrepare() {
 
 void EpiphanyPassConfig::addPreRegAlloc() {
   addPass(&LiveVariablesID, false);
-  if (EnableLSOpt && TM->getOptLevel() != CodeGenOpt::None)
+  if (TM->getOptLevel() != CodeGenOpt::None) {
+      if (EnableLSOpt)
     addPass(createEpiphanyVregLoadStoreOptimizationPass());
+    addPass(createEpiphanyHardwareLoopsPrePass());
+  }
 }
 
 void EpiphanyPassConfig::addPreSched2() {
@@ -168,10 +171,11 @@ void EpiphanyPassConfig::addPreSched2() {
 }
 
 void EpiphanyPassConfig::addPreEmitPass() {
-  if (EnableLSOpt && TM->getOptLevel() != CodeGenOpt::None) {
+  if (TM->getOptLevel() != CodeGenOpt::None) {
+      if (EnableLSOpt)
     addPass(createEpiphanyLoadStoreOptimizationPass());
-    addPass(createEpiphanyHardwareLoopsPass());
-  }
+    addPass(createEpiphanyHardwareLoopsPostPass());
+}
 }
 
 TargetIRAnalysis EpiphanyTargetMachine::getTargetIRAnalysis() {
