@@ -138,6 +138,7 @@ bool EpiphanyHardwareLoopsPre::runOnMachineFunction(MachineFunction &MF) {
   Subtarget = &static_cast<const EpiphanySubtarget &>(MF.getSubtarget());
   TII = Subtarget->getInstrInfo();
   TRI = Subtarget->getRegisterInfo();
+  MFF = MF.getInfo<EpiphanyMachineFunctionInfo>();
   MFI = &MF.getFrameInfo();
   MRI = &MF.getRegInfo();
   MLI = &getAnalysis<MachineLoopInfo>();
@@ -163,9 +164,9 @@ bool EpiphanyHardwareLoopsPre::runOnMachineFunction(MachineFunction &MF) {
     }
 
     // Try to find trip count
-    MachineInstr *BranchMI = nullptr, *CmpMI = nullptr, *BumpMI = nullptr;
-    findControlInstruction(L, BranchMI, CmpMI, BumpMI);
-    if (!BranchMI || !CmpMI || !BumpMI) {
+    MachineInstr *BranchStartMI = nullptr, *BranchExitMI = nullptr, *CmpMI = nullptr, *BumpMI = nullptr;
+    findControlInstruction(L, BranchStartMI, BranchExitMI, CmpMI, BumpMI);
+    if (!BranchStartMI || !BranchExitMI || !CmpMI || !BumpMI) {
       DEBUG(dbgs() << "Unable to find control instructions\n");
       continue;
     }
@@ -217,6 +218,9 @@ bool EpiphanyHardwareLoopsPre::runOnMachineFunction(MachineFunction &MF) {
     // Enable interrupts
     BuildMI(*ExitMBB, ExitMBB->begin(), DL, TII->get(Epiphany::GIE));
     LoopStart->setAlignment(3);
+
+    // Add loop to MachineFunctionInfo
+    MFF->getConvertableLoopsInfo().push_back(ConvertableLoopInfo(nullptr, nullptr, BranchStartMI, BranchExitMI, CmpMI));
     Changed = true;
   }
 
@@ -281,10 +285,11 @@ void EpiphanyHardwareLoopsPre::addLoopSetInstructions(MachineBasicBlock &Prehead
   BuildMI(Preheader, InsertPos, DL, TII->get(Epiphany::GID));
 }
 
-void EpiphanyHardwareLoopsPre::findControlInstruction(MachineLoop *L, MachineInstr *&BranchMI, MachineInstr *&CmpMI,
+void EpiphanyHardwareLoopsPre::findControlInstruction(MachineLoop *const &L, MachineInstr *&BranchStartMI,
+                                                      MachineInstr *&BranchExitMI, MachineInstr *&CmpMI,
                                                       MachineInstr *&BumpMI) {
   // Look for the cmp instruction to determine if we can get a useful trip
-  // count.  The trip count can be either a register or an immediate.  The
+  // count. The trip count can be either a register or an immediate.  The
   // location of the value depends upon the type (reg or imm).
   MachineBasicBlock *ExitingBlock = L->findLoopControlBlock();
   if (!ExitingBlock)
@@ -301,25 +306,25 @@ void EpiphanyHardwareLoopsPre::findControlInstruction(MachineLoop *L, MachineIns
   MachineBasicBlock::reverse_instr_iterator E = ExitingBlock->instr_rend();
   // Find branch
   while (I != E) {
-    if (I->isConditionalBranch()) {
-      BranchMI = &*I;
-      break;
+    if (I->isBranch() && I->getNumOperands() > 0 && I->getOperand(0).getMBB() == L->getTopBlock()) {
+      BranchStartMI = &*I++;
+      continue;
     }
-    if (!I->isBranch()) {
-      DEBUG(dbgs() << "Non-branch between branches, not implemented yet, exiting\n");
-      break;
+    if (I->isBranch() && I->getNumOperands() > 0 && I->getOperand(0).getMBB() == L->getExitBlock()) {
+      BranchExitMI = &*I++;
+      continue;
     }
-    I++;
-  }
-
-  // Find last compare
-  while (++I != E) {
     if (I->isCompare()) {
-      CmpMI = &*I;
+      CmpMI = &*I++;
+      continue;
+    }
+    if (!CmpMI && I->definesRegister(Epiphany::STATUS)) {
+      DEBUG(dbgs() << "Some other instruction redefines status flag after CMP!");
       break;
     }
-    if (I->definesRegister(Epiphany::STATUS, TRI)) {
-      DEBUG(dbgs() << "Status flag rewritten without compare, exiting\n");
+
+    // If all set - nothing to do here anymore
+    if (BranchStartMI && BranchExitMI && CmpMI) {
       break;
     }
   }
@@ -367,70 +372,64 @@ bool EpiphanyHardwareLoopsPost::runOnMachineFunction(MachineFunction &MF) {
   Subtarget = &static_cast<const EpiphanySubtarget &>(MF.getSubtarget());
   TII = Subtarget->getInstrInfo();
   TRI = Subtarget->getRegisterInfo();
+  MFF = MF.getInfo<EpiphanyMachineFunctionInfo>();
   MFI = &MF.getFrameInfo();
   MRI = &MF.getRegInfo();
   MLI = &getAnalysis<MachineLoopInfo>();
 
   bool Changed = false;
-  for (auto &L : *MLI) {
+  for (auto &L : MFF->getConvertableLoopsInfo()) {
     // Find loop preheader and check if it has previously added HW loop instructions
-    MachineBasicBlock *Preheader = MLI->findLoopPreheader(L, /* Speculative preheader = */ false);
-    MachineBasicBlock *StartBlock = L->getTopBlock();
-    MachineBasicBlock *ExitingBlock = L->getExitingBlock();
+    MachineLoop *Loop = getLoop(L);
+    if (!Loop) {
+      llvm_unreachable("Loop was optimized, code is most likely broken, please compile with hw loops disabled!");
+    }
+
+    MachineBasicBlock *Preheader = MLI->findLoopPreheader(Loop, /* Speculative preheader = */ false);
     if (!Preheader) {
       continue;
     }
 
-    bool HasHwLoop = false;
-    for (MachineInstr &MI : reverse(*Preheader)) {
-      if (MI.getOpcode() == Epiphany::MOVTS32_core
-          && MI.getOperand(0).isReg()
-          && MI.getOperand(0).getReg() == Epiphany::LE) {
-        HasHwLoop = true;
-        break;
-      }
-    }
-    if (!HasHwLoop) {
-      continue;
-    }
-    DEBUG(dbgs() << "Found HW loop pre-header");
-
-    if (!isLoopEligible(L)) {
+    if (!isLoopEligible(Loop)) {
       DEBUG(dbgs() << "Loop is not eligible anymore, removing HW loop");
       removeHardwareLoop(Preheader);
       continue;
     }
 
-    cleanUpBranch(StartBlock, ExitingBlock);
-    createExitMBB(MF, L);
+    cleanUpBranch(L);
+    createExitMBB(MF, Loop);
     Changed = true;
   }
 
   return Changed;
 }
 
-void EpiphanyHardwareLoopsPost::cleanUpBranch(const MachineBasicBlock *StartBlock,
-                                              MachineBasicBlock *ExitingBlock) const {
-  bool IsConditionalBranch = false;
-  auto E = ExitingBlock->instr_rend();
+MachineLoop *EpiphanyHardwareLoopsPost::getLoop(const ConvertableLoopInfo &L) const {
+  // TODO: Not very smart, but trying to preserve MachineLoop pointer failed for me
+  if (L.BranchForwardInstr->getParent() != nullptr) {
+    return MLI->getLoopFor(L.BranchForwardInstr->getParent());
+  }
+  if (L.BranchExitInstr->getParent() != nullptr) {
+    return MLI->getLoopFor(L.BranchExitInstr->getParent());
+  }
+  if (L.CompareInstr->getParent() != nullptr) {
+    return MLI->getLoopFor(L.CompareInstr->getParent());
+  }
+  return nullptr;
+}
 
-  // Remove last branch pointing to the start block
-  for (auto MI = ExitingBlock->instr_rbegin(); MI != E; ++MI) {
-    if (MI->isBranch() && MI->getNumOperands() > 0 && MI->getOperand(0).getMBB() == StartBlock) {
-      IsConditionalBranch = MI->isConditionalBranch();
-      MI->eraseFromParent();
-      break;
-    }
+void EpiphanyHardwareLoopsPost::cleanUpBranch(ConvertableLoopInfo &L) const {
+  // TODO: Might be a good idea to check if cmp is not used anywhere anymore. Though it shouldn't be
+  if (L.CompareInstr->getParent()) {
+    L.CompareInstr->eraseFromParent();
   }
 
-  // In case of conditional branch - remove last CMP
-  if (IsConditionalBranch) {
-    for (auto MI = ExitingBlock->instr_rbegin(); MI != E; ++MI) {
-      if (MI->isCompare()) {
-        MI->eraseFromParent();
-        break;
-      }
-    }
+  if (L.BranchExitInstr->getParent()) {
+    L.BranchExitInstr->eraseFromParent();
+  }
+
+  if (L.BranchForwardInstr->getParent()) {
+    L.BranchForwardInstr->eraseFromParent();
   }
 }
 

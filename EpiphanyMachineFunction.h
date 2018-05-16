@@ -19,6 +19,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/IR/GlobalValue.h"
@@ -31,97 +32,129 @@
 
 namespace llvm {
 
+  class ConvertableLoopInfo {
+  public:
+    ConvertableLoopInfo(MachineInstr *StartMI, MachineInstr *EndMI, MachineInstr *BranchExitMI,
+                    MachineInstr *BranchForwardMI, MachineInstr *CmpMI)
+        : SetLoopStart(StartMI),
+          SetLoopEnd(EndMI),
+          BranchExitInstr(BranchExitMI),
+          BranchForwardInstr(BranchForwardMI),
+          CompareInstr(CmpMI) {}
+
+    MachineInstr *SetLoopStart;
+    MachineInstr *SetLoopEnd;
+    MachineInstr *BranchExitInstr;
+    MachineInstr *BranchForwardInstr;
+    MachineInstr *CompareInstr;
+  };
+
 /// This class is derived from MachineFunctionInfo and contains private Epiphany
 /// target-specific information for each MachineFunction.
-class EpiphanyMachineFunctionInfo : public MachineFunctionInfo {
-public:
-  EpiphanyMachineFunctionInfo(MachineFunction& MF)
-  : MF(MF), 
-    VarArgsFrameIndex(0), 
-    SRetReturnReg(0), 
-    MaxCallFrameSize(0),
-    CallsEhReturn(false), 
-    CallsEhDwarf(false),
-    HasFpuInst(false),
-    GlobalBaseReg(0),
-    EmitNOAT(false),
-    HasIalu2Inst(false)
-    {}
+  class EpiphanyMachineFunctionInfo : public MachineFunctionInfo {
+  public:
+    EpiphanyMachineFunctionInfo(MachineFunction &MF)
+        : MF(MF),
+          VarArgsFrameIndex(0),
+          SRetReturnReg(0),
+          MaxCallFrameSize(0),
+          CallsEhReturn(false),
+          CallsEhDwarf(false),
+          GlobalBaseReg(0),
+          EmitNOAT(false),
+          HasFpuInst(false),
+          HasIalu2Inst(false),
+          ConvertableLoopsInfo() {}
 
-  ~EpiphanyMachineFunctionInfo();
+    ~EpiphanyMachineFunctionInfo();
 
-  bool getEmitNOAT() const { return EmitNOAT; }
-  void setEmitNOAT() { EmitNOAT = true; }
+    bool getEmitNOAT() const { return EmitNOAT; }
 
-  unsigned getSRetReturnReg() const { return SRetReturnReg; }
-  void setSRetReturnReg(unsigned Reg) { SRetReturnReg = Reg; }
+    void setEmitNOAT() { EmitNOAT = true; }
 
-  bool hasByvalArg() const { return HasByvalArg; }
-  void setFormalArgInfo(unsigned Size, bool HasByval) {
-    IncomingArgSize = Size;
-    HasByvalArg = HasByval;
-  }
+    unsigned getSRetReturnReg() const { return SRetReturnReg; }
 
-  unsigned getIncomingArgSize() const { return IncomingArgSize; }
-  unsigned getGlobalBaseReg();
+    void setSRetReturnReg(unsigned Reg) { SRetReturnReg = Reg; }
 
-  bool callsEhReturn() const { return CallsEhReturn; }
-  void setCallsEhReturn() { CallsEhReturn = true; }
+    bool hasByvalArg() const { return HasByvalArg; }
 
-  bool callsEhDwarf() const { return CallsEhDwarf; }
-  void setCallsEhDwarf() { CallsEhDwarf = true; }
+    void setFormalArgInfo(unsigned Size, bool HasByval) {
+      IncomingArgSize = Size;
+      HasByvalArg = HasByval;
+    }
 
-  void createEhDataRegsFI();
-  int getEhDataRegFI(unsigned Reg) const { return EhDataRegFI[Reg]; }
+    unsigned getIncomingArgSize() const { return IncomingArgSize; }
 
-  unsigned getMaxCallFrameSize() const { return MaxCallFrameSize; }
-  void setMaxCallFrameSize(unsigned S) { MaxCallFrameSize = S; }
+    unsigned getGlobalBaseReg();
 
-  void setHasFpuInst(bool hasInst) { HasFpuInst = hasInst; }
-  bool getHasFpuInst() { return HasFpuInst; }
-  void setHasIalu2Inst(bool hasInst) { HasIalu2Inst = hasInst; }
-  bool getHasIalu2Inst() { return HasFpuInst; }
+    bool callsEhReturn() const { return CallsEhReturn; }
 
-private:
-  virtual void anchor();
+    void setCallsEhReturn() { CallsEhReturn = true; }
 
-  MachineFunction& MF;
+    bool callsEhDwarf() const { return CallsEhDwarf; }
 
-  /// VarArgsFrameIndex - FrameIndex for start of varargs area.
-  int VarArgsFrameIndex;
-  
-  /// SRetReturnReg - Some subtargets require that sret lowering includes
-  /// returning the value of the returned struct in a register. This field
-  /// holds the virtual register into which the sret argument is passed.
-  unsigned SRetReturnReg;
+    void setCallsEhDwarf() { CallsEhDwarf = true; }
 
-  unsigned MaxCallFrameSize;
+    void createEhDataRegsFI();
 
-  /// True if function has a byval argument.
-  bool HasByvalArg;
+    int getEhDataRegFI(unsigned Reg) const { return EhDataRegFI[Reg]; }
 
-  /// Size of incoming argument area.
-  unsigned IncomingArgSize;
+    unsigned getMaxCallFrameSize() const { return MaxCallFrameSize; }
 
-  /// CallsEhReturn - Whether the function calls llvm.eh.return.
-  bool CallsEhReturn;
+    void setMaxCallFrameSize(unsigned S) { MaxCallFrameSize = S; }
 
-  /// CallsEhDwarf - Whether the function calls llvm.eh.dwarf.
-  bool CallsEhDwarf;
+    void setHasFpuInst(bool hasInst) { HasFpuInst = hasInst; }
 
-  /// Frame objects for spilling eh data registers.
-  int EhDataRegFI[2];
+    bool getHasFpuInst() { return HasFpuInst; }
 
-  /// Global base reg virtual register
-  unsigned GlobalBaseReg;
+    void setHasIalu2Inst(bool hasInst) { HasIalu2Inst = hasInst; }
 
-  bool EmitNOAT;
+    bool getHasIalu2Inst() { return HasFpuInst; }
 
-  // Boolean flags to use in custom optimization passes
-  bool HasFpuInst;
-  bool HasIalu2Inst;
+    std::vector<ConvertableLoopInfo> &getConvertableLoopsInfo() { return ConvertableLoopsInfo; }
 
-};
+  private:
+    virtual void anchor();
+
+    MachineFunction &MF;
+
+    /// VarArgsFrameIndex - FrameIndex for start of varargs area.
+    int VarArgsFrameIndex;
+
+    /// SRetReturnReg - Some subtargets require that sret lowering includes
+    /// returning the value of the returned struct in a register. This field
+    /// holds the virtual register into which the sret argument is passed.
+    unsigned SRetReturnReg;
+
+    unsigned MaxCallFrameSize;
+
+    /// True if function has a byval argument.
+    bool HasByvalArg;
+
+    /// Size of incoming argument area.
+    unsigned IncomingArgSize;
+
+    /// CallsEhReturn - Whether the function calls llvm.eh.return.
+    bool CallsEhReturn;
+
+    /// CallsEhDwarf - Whether the function calls llvm.eh.dwarf.
+    bool CallsEhDwarf;
+
+    /// Frame objects for spilling eh data registers.
+    int EhDataRegFI[2];
+
+    /// Global base reg virtual register
+    unsigned GlobalBaseReg;
+
+    bool EmitNOAT;
+
+    // Boolean flags to use in custom optimization passes
+    bool HasFpuInst;
+    bool HasIalu2Inst;
+
+    // Possible hardware loops storage
+    std::vector<ConvertableLoopInfo> ConvertableLoopsInfo;
+  };
 //@1 }
 
 } // End llvm namespace
